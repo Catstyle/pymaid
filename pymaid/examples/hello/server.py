@@ -1,5 +1,5 @@
-from gprpc.channel import Channel
-from gprpc.controller import Controller
+from pymaid.channel import Channel
+from pymaid.controller import Controller
 from hello_pb2 import HelloService_Stub
 from hello_pb2 import HelloResponse
 from hello_pb2 import HelloService

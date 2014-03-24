@@ -6,8 +6,8 @@ from gevent import core
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
-from gprpc.controller import Controller
-from gprpc.connection import Connection
+from pymaid.controller import Controller
+from pymaid.connection import Connection
 
 
 class Channel(RpcChannel):

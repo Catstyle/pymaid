@@ -5,13 +5,13 @@ from gevent.queue import Queue
 from gevent import socket
 from google.protobuf.message import DecodeError
 
-import gprpc.logging
-from gprpc.controller import Controller
+import pymaid.logging
+from pymaid.controller import Controller
 
 __all__ = ['Connection']
 
 
-@gprpc.logging.class_wrapper
+@pymaid.logging.class_wrapper
 class Connection(object):
     '''
         Wrapper of BSD socket, which is packet oriented.
