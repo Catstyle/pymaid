@@ -7,6 +7,7 @@ from google.protobuf.message import DecodeError
 
 import pymaid.logging
 from pymaid.controller import Controller
+from pymaid.utils import greenlet_pool
 
 __all__ = ['Connection']
 
@@ -38,10 +39,10 @@ class Connection(object):
         self._response_cb = None
 
         self._send_queue = Queue()
-        self._send_let = gevent.spawn(self._send_loop)
+        self._send_let = greenlet_pool.spawn(self._send_loop)
         self._send_let.link(self.close)
 
-        self._recv_let = gevent.spawn(self._recv_loop)
+        self._recv_let = greenlet_pool.spawn(self._recv_loop)
         self._recv_let.link(self.close)
 
     def setsockopt(self, sock):
@@ -61,6 +62,7 @@ class Connection(object):
         self._send_let.unlink(self.close)
 
     def close(self, t=None):
+        #print 'connection close', t
         if self._is_closed:
             return
         self._is_closed = True

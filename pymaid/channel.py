@@ -14,12 +14,11 @@ class Channel(RpcChannel):
 
     MAX_CONCURRENCY = 10000
 
-    def __init__(self, host='localhost', port=0, loop=None):
+    def __init__(self, loop=None):
         super(Channel, self).__init__()
 
         self._transmission_id = 0
         self._loop = loop or get_hub().loop
-        self._host_address = (host, port)
 
         self._connections = []
         self._services = {}
@@ -29,10 +28,11 @@ class Channel(RpcChannel):
         assert isinstance(controller, Controller), controller
 
         controller.async_result = AsyncResult()
-        if controller.conn not in self._connections:
-            controller.SetFailed("did not connect")
-            controller.async_result.set(None)
-            return controller.async_result
+        #if controller.conn not in self._connections:
+        #    print 'did not connect'
+        #    controller.SetFailed("did not connect")
+        #    controller.async_result.set(None)
+        #    return controller.async_result.get()
 
         controller.meta_data.stub = True
         controller.meta_data.service_name = method.containing_service.full_name
@@ -45,8 +45,10 @@ class Channel(RpcChannel):
         assert transmission_id not in self._pending_request
         self._pending_request[transmission_id] = controller
 
-        controller.conn.send(controller)
-        return controller.async_result
+        for conn in self._connections:
+            conn.send(controller)
+        #controller.conn.send(controller)
+        return controller.async_result.get()
 
     def append_service(self, service):
         self._services[service.DESCRIPTOR.full_name] = service
@@ -57,6 +59,23 @@ class Channel(RpcChannel):
             self._transmission_id = 0
         return self._transmission_id
 
+    def connect(self, host, port):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
+        cnt, max_retry = 0, 3
+        while 1:
+            try:
+                sock.connect((host, port))
+            except socket.error as err:
+                #print 'socket error', err
+                cnt += 1
+                if err.args[0] == socket.EWOULDBLOCK and cnt < max_retry:
+                    continue
+                raise
+            else:
+                break
+        conn = self.new_connection(sock)
+        return conn
+
     def listen(self, host, port, backlog=1):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -66,7 +85,7 @@ class Channel(RpcChannel):
         accept_watcher = self._loop.io(sock.fileno(), core.READ)
         accept_watcher.start(self._do_accept, sock)
 
-    def new_connection(self, sock=None):
+    def new_connection(self, sock):
         if sock is None:
             sock = self._create_sock()
         conn = Connection(sock)
@@ -86,22 +105,6 @@ class Channel(RpcChannel):
         self._connections.remove(conn)
         # TODO: clean pending_request if needed
         #del self._pending_request[transmission_id]
-
-    def _create_sock(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        cnt, max_retry = 0, 3
-        while 1:
-            try:
-                sock.connect(self._host_address)
-            except socket.error as err:
-                #print 'socket error', err
-                cnt += 1
-                if err.args[0] == socket.EWOULDBLOCK and cnt < max_retry:
-                    continue
-                raise
-            else:
-                break
-        return sock
 
     def _do_accept(self, sock):
         try:
