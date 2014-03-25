@@ -1,19 +1,16 @@
 from pymaid.channel import Channel
-from pymaid.controller import Controller
+from pymaid.service_proxy import ServiceProxy
 from hello_pb2 import HelloService_Stub
-from hello_pb2 import HelloRequest
 
 def main():
-    channel = Channel("127.0.0.1", 8888)
-    stub = HelloService_Stub(channel)
-    conn = channel.new_connection()
-    controller = Controller()
-    controller.conn = conn
-    request = HelloRequest()
+    channel = Channel()
+    service = ServiceProxy(HelloService_Stub(channel))
+    conn = channel.connect("127.0.0.1", 8888)
+    #controller.conn = conn
     for x in xrange(2000):
-        response = stub.Hello(controller, request, None).get()
+        response = service.Hello()
         assert response.message == 'from pymaid', response.message
-        controller.Reset()
+        #controller.Reset()
     conn.close()
 
     #for x in xrange(1000):
