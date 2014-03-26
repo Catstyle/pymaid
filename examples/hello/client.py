@@ -13,14 +13,14 @@ def main():
         #controller.Reset()
     conn.close()
 
-    #for x in xrange(1000):
-    #    conn = channel.new_connection()
-    #    controller = Controller()
-    #    controller.conn = conn
-    #    response = stub.Hello(controller, request, None).get()
-    #    assert response.message == 'from pymaid', response.message
-    #    conn.close()
-    assert len(channel._pending_request) == 0
+    for x in xrange(1000):
+        conn = channel.connect("127.0.0.1", 8888)
+        #controller = Controller()
+        #controller.conn = conn
+        response = service.Hello()
+        assert response.message == 'from pymaid', response.message
+        conn.close()
+    assert len(channel._pending_results) == 0
     assert len(channel._connections) == 0
 
 if __name__ == "__main__":
