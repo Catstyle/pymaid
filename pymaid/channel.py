@@ -1,7 +1,7 @@
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent.hub import get_hub
-from gevent import core
+from gevent.core import READ
 
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
@@ -22,12 +22,11 @@ class Channel(RpcChannel):
 
         self._connections = []
         self._services = {}
-        self._pending_request = {}
+        self._pending_results = {}
 
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
 
-        controller.async_result = AsyncResult()
         #if controller.conn not in self._connections:
         #    print 'did not connect'
         #    controller.SetFailed("did not connect")
@@ -39,16 +38,16 @@ class Channel(RpcChannel):
         controller.meta_data.method_name = method.name
 
         transmission_id = self.get_transmission_id()
-        controller.response_class = response_class
+        assert transmission_id not in self._pending_results
         controller.meta_data.transmission_id = transmission_id
 
-        assert transmission_id not in self._pending_request
-        self._pending_request[transmission_id] = controller
+        async_result = AsyncResult()
+        self._pending_results[transmission_id] = async_result, response_class
 
         for conn in self._connections:
             conn.send(controller)
         #controller.conn.send(controller)
-        return controller.async_result.get()
+        return async_result.get()
 
     def append_service(self, service):
         self._services[service.DESCRIPTOR.full_name] = service
@@ -82,7 +81,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self._loop.io(sock.fileno(), core.READ)
+        accept_watcher = self._loop.io(sock.fileno(), READ)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock):
@@ -103,8 +102,8 @@ class Channel(RpcChannel):
         assert conn in self._connections
         conn.close()
         self._connections.remove(conn)
-        # TODO: clean pending_request if needed
-        #del self._pending_request[transmission_id]
+        # TODO: clean pending_results if needed
+        #del self._pending_results[transmission_id]
 
     def _do_accept(self, sock):
         try:
@@ -140,22 +139,26 @@ class Channel(RpcChannel):
         controller.response = response
         conn.send(controller)
 
-    def _handle_response(self, controller_, message_buffer):
-        transmission_id = controller_.meta_data.transmission_id
-        controller = self._pending_request.get(transmission_id, None)
-        if controller is None:
+    def _handle_response(self, controller, message_buffer):
+        transmission_id = controller.meta_data.transmission_id
+        pending_result = self._pending_results.get(transmission_id, (None, None))
+        async_result, response_class = pending_result
+        if async_result is None:
             return
-        del self._pending_request[transmission_id]
+        del self._pending_results[transmission_id]
 
-        controller.meta_data.MergeFrom(controller_.meta_data)
+        #controller.meta_data.MergeFrom(controller.meta_data)
         if controller.Failed():
-            controller.async_result.set(None)
+            # TODO: construct Error/Warning based on error_text
+            error_text = controller.meta_data.error_text
+            async_result.set(error_text)
             return
 
-        response = controller.response_class()
+        response = response_class()
         try:
             response.ParseFromString(message_buffer)
         except DecodeError as ex:
-            controller.SetFailed(ex)
-            controller.async_result.set_exception(ex)
-        controller.async_result.set(response)
+            #controller.SetFailed(ex)
+            async_result.set_exception(ex)
+        else:
+            async_result.set(response)

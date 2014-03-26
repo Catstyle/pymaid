@@ -17,8 +17,9 @@ class ServiceProxy(object):
         if not method_descriptor:
             return object.__getattr__(self, name)
 
-        def rpc(**kwargs):
-            controller, done = Controller(), None
+        def rpc(controller=None, request=None, conn=None, wide=False,
+                group=None, **kwargs):
+            controller, done = controller or Controller(), None
             request_class = self.stub.GetRequestClass(method_descriptor)
 
             if kwargs:
