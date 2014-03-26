@@ -1,15 +1,16 @@
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent.hub import get_hub
-from gevent.core import READ
 
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
+from pymaid import logging
 from pymaid.controller import Controller
 from pymaid.connection import Connection
 
 
+@logging.class_wrapper
 class Channel(RpcChannel):
 
     MAX_CONCURRENCY = 10000
@@ -81,7 +82,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self._loop.io(sock.fileno(), READ)
+        accept_watcher = self._loop.io(sock.fileno(), 1)    #from gevent.core import READ
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock):
@@ -108,10 +109,11 @@ class Channel(RpcChannel):
     def _do_accept(self, sock):
         try:
             client_socket, address = sock.accept()
-        except socket.error as err:
-            if err.args[0] == socket.EWOULDBLOCK:
-                return
-            raise
+        except socket.error as ex:
+            #if err.args[0] == socket.EWOULDBLOCK:
+            #    return
+            self.logger.exception(ex)
+            return
         self.new_connection(client_socket)
 
     def _handle_request(self, controller, message_buffer):
