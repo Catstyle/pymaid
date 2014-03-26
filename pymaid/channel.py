@@ -6,6 +6,7 @@ from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
 from pymaid import logging
+from pymaid.utils import greenlet_pool
 from pymaid.controller import Controller
 from pymaid.connection import Connection
 
@@ -82,7 +83,10 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self._loop.io(sock.fileno(), 1)    #from gevent.core import READ
+        # from gevent.core import READ
+        # changed to 1 to make running on pypy+gevent
+        #accept_watcher = self._loop.io(sock.fileno(), READ)
+        accept_watcher = self._loop.io(sock.fileno(), 1)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock):
@@ -93,8 +97,7 @@ class Channel(RpcChannel):
         assert conn not in self._connections
 
         conn.set_close_cb(self.close_connection)
-        conn.set_request_cb(self._handle_request)
-        conn.set_response_cb(self._handle_response)
+        greenlet_pool.spawn(self._handle_loop, conn)
         self._connections.append(conn)
         return conn
 
@@ -116,7 +119,28 @@ class Channel(RpcChannel):
             return
         self.new_connection(client_socket)
 
-    def _handle_request(self, controller, message_buffer):
+    def _handle_loop(self, conn):
+        recv = conn.recv
+        recv_request, recv_response = self._recv_request, self._recv_response
+        try:
+            while 1:
+                controller, message_buffer = recv()
+                if not controller:
+                    break
+                if controller.meta_data.stub: # request
+                    recv_request(controller, message_buffer)
+                else:
+                    recv_response(controller, message_buffer)
+        except Exception as ex:
+            import traceback
+            traceback.print_exc()
+            self.logger.exception(ex)
+            raise
+        finally:
+            conn.close()
+
+    def _recv_request(self, controller, message_buffer):
+        #print 'recv_request', controller, message_buffer
         service = self._services.get(controller.meta_data.service_name, None)
         controller.meta_data.stub = False
         conn = controller.conn
@@ -141,7 +165,8 @@ class Channel(RpcChannel):
         controller.response = response
         conn.send(controller)
 
-    def _handle_response(self, controller, message_buffer):
+    def _recv_response(self, controller, message_buffer):
+        #print 'recv_response', controller, message_buffer
         transmission_id = controller.meta_data.transmission_id
         pending_result = self._pending_results.get(transmission_id, (None, None))
         async_result, response_class = pending_result

@@ -20,8 +20,8 @@ def main():
         response = service.Hello()
         assert response.message == 'from pymaid', response.message
         conn.close()
-    assert len(channel._pending_results) == 0
-    assert len(channel._connections) == 0
+    assert len(channel._pending_results) == 0, channel._pending_results
+    assert len(channel._connections) == 0, channel._connections
 
 if __name__ == "__main__":
     main()

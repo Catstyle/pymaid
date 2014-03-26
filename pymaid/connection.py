@@ -39,6 +39,8 @@ class Connection(object):
         self._response_cb = None
 
         self._send_queue = Queue()
+        self._recv_queue = Queue()
+
         self._send_let = greenlet_pool.spawn(self._send_loop)
         self._send_let.link(self.close)
 
@@ -56,6 +58,9 @@ class Connection(object):
         '''
         assert packet_buff
         self._send_queue.put(packet_buff)
+
+    def recv(self, timeout=None):
+        return self._recv_queue.get(timeout=timeout)
 
     def unlink_close(self):
         self._recv_let.unlink(self.close)
@@ -84,6 +89,11 @@ class Connection(object):
             self._send_queue.put(None)
             self._send_let.kill(block=False)
 
+        if not self._recv_let.dead:
+            self._recv_queue.queue.clear()
+            self._recv_queue.put((None, None))
+            self._recv_let.kill(block=False)
+
         if self._close_cb:
             self._close_cb(self, reason)
 
@@ -110,12 +120,16 @@ class Connection(object):
     def peername(self):
         return self._peer_name
 
+    @property
+    def is_closed(self):
+        return self._is_closed
+
     def _send_loop(self):
         '''
             Send loop should be run in another greenlet.
         '''
         get_packet, sendall = self._send_queue.get, self._socket.sendall
-        while True:
+        while 1:
             controller = get_packet()
             if controller is None:
                 break
@@ -150,7 +164,7 @@ class Connection(object):
     def _recv_n(self, nbytes):
         '''
             Receive specified @nbytes from socket.
-            If have not recvd specified nbytes, just return the
+            If have not recv specified nbytes, just return the
                 partial buffer.
         '''
         recv, buff = self._socket.recv, ''
@@ -176,21 +190,24 @@ class Connection(object):
     def _recv_loop(self):
         '''
             Receive a total integrated packet.
-            If only recvd partial, just return None.
+            If only recv partial, just return None.
         '''
+        recv_n = self._recv_n
+        recv_package = self._recv_queue.put
+        HEADER, MAX_PACKET_LENGTH = self.HEADER, self.MAX_PACKET_LENGTH
         while 1:
-            header = self._recv_n(self.HEADER_LENGTH)
+            header = recv_n(self.HEADER_LENGTH)
             if not header:
                 return
-            controller_length, message_length = struct.unpack(self.HEADER, header)
-            if controller_length + message_length >= self.MAX_PACKET_LENGTH:
+            controller_length, message_length = struct.unpack(HEADER, header)
+            if controller_length + message_length >= MAX_PACKET_LENGTH:
                 self.logger.error(
                     '[host|%s][peer|%s] closed with invalid payload [length|%d]',
                     self.sockname, self.peername, controller_length+message_length
                 )
                 return
 
-            controller_buffer = self._recv_n(controller_length)
+            controller_buffer = recv_n(controller_length)
             controller = Controller()
             controller.conn = self
             try:
@@ -201,9 +218,6 @@ class Connection(object):
 
             message_buffer = ""
             if message_length > 0:
-                message_buffer = self._recv_n(message_length)
+                message_buffer = recv_n(message_length)
 
-            if controller.meta_data.stub: # request
-                self._request_cb(controller, message_buffer)
-            else:
-                self._response_cb(controller, message_buffer)
+            recv_package((controller, message_buffer))
