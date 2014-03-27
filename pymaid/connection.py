@@ -1,5 +1,4 @@
 import struct
-import gevent
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent import socket
@@ -35,8 +34,6 @@ class Connection(object):
 
         self._is_closed = False
         self._close_cb = None
-        self._request_cb = None
-        self._response_cb = None
 
         self._send_queue = Queue()
         self._recv_queue = Queue()
@@ -102,16 +99,6 @@ class Connection(object):
         assert callable(close_cb)
         self._close_cb = close_cb
 
-    def set_request_cb(self, request_cb):
-        assert self._request_cb is None
-        assert callable(request_cb)
-        self._request_cb = request_cb
-
-    def set_response_cb(self, response_cb):
-        assert self._response_cb is None
-        assert callable(response_cb)
-        self._response_cb = response_cb
-
     @property
     def sockname(self):
         return self._sock_name
@@ -129,6 +116,7 @@ class Connection(object):
             Send loop should be run in another greenlet.
         '''
         get_packet, sendall = self._send_queue.get, self._socket.sendall
+        pack = struct.pack
         while 1:
             controller = get_packet()
             if controller is None:
@@ -145,7 +133,7 @@ class Connection(object):
                 if message is not None:
                     message_buffer = message.SerializeToString()
 
-            header_buffer = struct.pack(
+            header_buffer = pack(
                 self.HEADER, len(controller_buffer), len(message_buffer)
             )
             try:
@@ -170,7 +158,7 @@ class Connection(object):
         recv, buff = self._socket.recv, ''
         while len(buff) < nbytes:
             try:
-                t = self._socket.recv(nbytes - len(buff))
+                t = recv(nbytes - len(buff))
                 if not t:
                     self.logger.debug(
                         '[host|%s][peer|%s] has received EOF',
@@ -192,14 +180,15 @@ class Connection(object):
             Receive a total integrated packet.
             If only recv partial, just return None.
         '''
-        recv_n = self._recv_n
+        recv_n, unpack = self._recv_n, struct.unpack
         recv_package = self._recv_queue.put
         HEADER, MAX_PACKET_LENGTH = self.HEADER, self.MAX_PACKET_LENGTH
         while 1:
             header = recv_n(self.HEADER_LENGTH)
             if not header:
-                return
-            controller_length, message_length = struct.unpack(HEADER, header)
+                break
+
+            controller_length, message_length = unpack(HEADER, header)
             if controller_length + message_length >= MAX_PACKET_LENGTH:
                 self.logger.error(
                     '[host|%s][peer|%s] closed with invalid payload [length|%d]',
