@@ -14,6 +14,13 @@ from pymaid.connection import Connection
 @logging.class_wrapper
 class Channel(RpcChannel):
 
+    # Sets the maximum number of consecutive accepts that a process may perform on
+    # a single wake up. High values give higher priority to high connection rates,
+    # while lower values give higher priority to already established connections.
+    # Default is 100. Note, that in case of multiple working processes on the same
+    # listening value, it should be set to a lower value. (pywsgi.WSGIServer sets it
+    # to 1 when environ["wsgi.multiprocess"] is true)
+    MAX_ACCEPT = 100
     MAX_CONCURRENCY = 10000
 
     def __init__(self, loop=None):
@@ -22,18 +29,15 @@ class Channel(RpcChannel):
         self._transmission_id = 0
         self._loop = loop or get_hub().loop
 
-        self._connections = []
+        self._connections = {}
         self._services = {}
         self._pending_results = {}
 
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
 
-        #if controller.conn not in self._connections:
-        #    print 'did not connect'
-        #    controller.SetFailed("did not connect")
-        #    controller.async_result.set(None)
-        #    return controller.async_result.get()
+        if controller.conn not in self._connections:
+            raise Exception('did not connect')
 
         controller.meta_data.stub = True
         controller.meta_data.service_name = method.containing_service.full_name
@@ -46,13 +50,25 @@ class Channel(RpcChannel):
         async_result = AsyncResult()
         self._pending_results[transmission_id] = async_result, response_class
 
-        for conn in self._connections:
-            conn.send(controller)
-        #controller.conn.send(controller)
+        if controller.wide:
+            for conn in self._connections:
+                conn.send(controller)
+        elif controller.group:
+            get_conn = self.get_connection_by_id
+            for conn_id in controller.group:
+                conn = get_conn(conn_id, None)
+                if conn:
+                    conn.send(controller)
+            controller.conn.send(controller)
+        else:
+            controller.conn.send(controller)
         return async_result.get()
 
     def append_service(self, service):
         self._services[service.DESCRIPTOR.full_name] = service
+
+    def get_connection_by_id(self, conn_id):
+        return self._connections.get(conn_id, None)
 
     def get_transmission_id(self):
         self._transmission_id += 1
@@ -77,7 +93,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock)
         return conn
 
-    def listen(self, host, port, backlog=1):
+    def listen(self, host, port, backlog=256):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((host, port))
@@ -90,34 +106,39 @@ class Channel(RpcChannel):
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock):
-        if sock is None:
-            sock = self._create_sock()
         conn = Connection(sock)
         #print 'new_connection', sock
-        assert conn not in self._connections
+        assert conn.conn_id not in self._connections
 
         conn.set_close_cb(self.close_connection)
         greenlet_pool.spawn(self._handle_loop, conn)
-        self._connections.append(conn)
+        self._connections[conn.conn_id] = conn
         return conn
 
     def close_connection(self, conn, reason=None):
         #print 'close_connection', (conn, reason)
-        assert conn in self._connections
+        assert conn.conn_id in self._connections
         conn.close()
-        self._connections.remove(conn)
+        del self._connections[conn.conn_id]
         # TODO: clean pending_results if needed
         #del self._pending_results[transmission_id]
 
+    @property
+    def is_full(self):
+        return len(self._connections) == self.MAX_CONCURRENCY
+
     def _do_accept(self, sock):
-        try:
-            client_socket, address = sock.accept()
-        except socket.error as ex:
-            #if err.args[0] == socket.EWOULDBLOCK:
-            #    return
-            self.logger.exception(ex)
-            return
-        self.new_connection(client_socket)
+        for _ in xrange(self.MAX_ACCEPT):
+            if self.is_full:
+                return
+            try:
+                client_socket, address = sock.accept()
+            except socket.error as ex:
+                if ex.args[0] == socket.EWOULDBLOCK:
+                    return
+                #self.logger.exception(ex)
+                raise
+            self.new_connection(client_socket)
 
     def _handle_loop(self, conn):
         recv = conn.recv

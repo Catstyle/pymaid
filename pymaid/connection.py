@@ -111,6 +111,10 @@ class Connection(object):
     def is_closed(self):
         return self._is_closed
 
+    @property
+    def conn_id(self):
+        return self._conn_id
+
     def _send_loop(self):
         '''
             Send loop should be run in another greenlet.
