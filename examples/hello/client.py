@@ -1,25 +1,27 @@
+from gevent.pool import Pool
+
 from pymaid.channel import Channel
 from pymaid.service_proxy import ServiceProxy
 from hello_pb2 import HelloService_Stub
 
-def main():
-    channel = Channel()
-    service = ServiceProxy(HelloService_Stub(channel))
+
+def wrapper(pid, n):
     conn = channel.connect("127.0.0.1", 8888)
-    #controller.conn = conn
-    for x in xrange(2000):
-        response = service.Hello()
+    for x in xrange(n):
+        response = service.Hello(conn=conn)
         assert response.message == 'from pymaid', response.message
-        #controller.Reset()
     conn.close()
 
-    for x in xrange(1000):
-        conn = channel.connect("127.0.0.1", 8888)
-        #controller = Controller()
-        #controller.conn = conn
-        response = service.Hello()
-        assert response.message == 'from pymaid', response.message
-        conn.close()
+
+channel = Channel()
+service = ServiceProxy(HelloService_Stub(channel))
+def main():
+    pool = Pool()
+    pool.spawn(wrapper, 111111, 2000)
+    for x in xrange(100):
+        pool.spawn(wrapper, x, 1)
+
+    pool.join()
     assert len(channel._pending_results) == 0, channel._pending_results
     assert len(channel._connections) == 0, channel._connections
 
