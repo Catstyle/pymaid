@@ -36,7 +36,7 @@ class Channel(RpcChannel):
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
 
-        if controller.conn not in self._connections:
+        if controller.conn.conn_id not in self._connections:
             raise Exception('did not connect')
 
         controller.meta_data.stub = True

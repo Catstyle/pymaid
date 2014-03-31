@@ -25,6 +25,7 @@ class Connection(object):
     MAX_PACKET_LENGTH = 10 * 1024
 
     LINGER_PACK = struct.pack('ii', 1, 0)
+    CONN_ID = 1000000
 
     def __init__(self, sock):
         self.setsockopt(sock)
@@ -33,6 +34,10 @@ class Connection(object):
         self._socket = sock
 
         self._is_closed = False
+        self._conn_id = self.__class__.CONN_ID
+        self.__class__.CONN_ID += 1
+        if self.__class__.CONN_ID >= 2 << 63:
+            self.__class__.CONN_ID = 1
         self._close_cb = None
 
         self._send_queue = Queue()
