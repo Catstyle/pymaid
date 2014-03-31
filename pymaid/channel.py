@@ -5,13 +5,12 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
-from pymaid import logging
-from pymaid.utils import greenlet_pool
 from pymaid.controller import Controller
 from pymaid.connection import Connection
+from pymaid.utils import greenlet_pool, logger_wrapper
 
 
-@logging.class_wrapper
+@logger_wrapper
 class Channel(RpcChannel):
 
     # Sets the maximum number of consecutive accepts that a process may perform on
