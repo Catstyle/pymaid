@@ -1,5 +1,5 @@
 from google.protobuf.service import RpcController
-from pb.controller_pb2 import ControllerMeta
+from pb.pymaid_pb2 import ControllerMeta
 
 
 class Controller(RpcController):
