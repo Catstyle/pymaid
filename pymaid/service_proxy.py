@@ -33,7 +33,8 @@ class ServiceProxy(object):
             elif wide:
                 controller.wide = wide
             else:
-                assert isinstance(group, (tuple, list)), 'group should be a list of conn id being used to send data, got "%s"' % type(group)
+                assert isinstance(group, (tuple, list)), \
+                        'group should be a list of conn id being used to send data, got "%s"' % type(group)
                 controller.group = group
 
             method = getattr(self.stub, name)

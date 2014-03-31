@@ -4,14 +4,13 @@ from gevent.queue import Queue
 from gevent import socket
 from google.protobuf.message import DecodeError
 
-import pymaid.logging
 from pymaid.controller import Controller
-from pymaid.utils import greenlet_pool
+from pymaid.utils import greenlet_pool, logger_wrapper
 
 __all__ = ['Connection']
 
 
-@pymaid.logging.class_wrapper
+@logger_wrapper
 class Connection(object):
     '''
         Wrapper of BSD socket, which is packet oriented.
