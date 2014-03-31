@@ -8,6 +8,7 @@ from google.protobuf.message import DecodeError
 from pymaid.controller import Controller
 from pymaid.connection import Connection
 from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.pb.pymaid_pb2 import Void
 
 
 @logger_wrapper
@@ -35,9 +36,6 @@ class Channel(RpcChannel):
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
 
-        if controller.conn.conn_id not in self._connections:
-            raise Exception('did not connect')
-
         controller.meta_data.stub = True
         controller.meta_data.service_name = method.containing_service.full_name
         controller.meta_data.method_name = method.name
@@ -45,9 +43,6 @@ class Channel(RpcChannel):
         transmission_id = self.get_transmission_id()
         assert transmission_id not in self._pending_results
         controller.meta_data.transmission_id = transmission_id
-
-        async_result = AsyncResult()
-        self._pending_results[transmission_id] = async_result, response_class
 
         if controller.wide:
             for conn in self._connections:
@@ -58,9 +53,16 @@ class Channel(RpcChannel):
                 conn = get_conn(conn_id, None)
                 if conn:
                     conn.send(controller)
-            controller.conn.send(controller)
         else:
             controller.conn.send(controller)
+            if controller.conn.conn_id not in self._connections:
+                raise Exception('did not connect')
+
+        if issubclass(response_class, Void):
+            return None
+
+        async_result = AsyncResult()
+        self._pending_results[transmission_id] = async_result, response_class
         return async_result.get()
 
     def append_service(self, service):
