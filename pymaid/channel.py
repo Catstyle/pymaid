@@ -71,7 +71,7 @@ class Channel(RpcChannel):
 
     def get_transmission_id(self):
         self._transmission_id += 1
-        if self._transmission_id >= (1 << 63) -1:
+        if self._transmission_id >= 2 ** 32:
             self._transmission_id = 0
         return self._transmission_id
 
@@ -194,7 +194,6 @@ class Channel(RpcChannel):
             return
         del self._pending_results[transmission_id]
 
-        #controller.meta_data.MergeFrom(controller.meta_data)
         if controller.Failed():
             # TODO: construct Error/Warning based on error_text
             error_text = controller.meta_data.error_text

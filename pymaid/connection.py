@@ -35,8 +35,8 @@ class Connection(object):
         self._is_closed = False
         self._conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
-        if self.__class__.CONN_ID >= 2 << 63:
-            self.__class__.CONN_ID = 1
+        if self.__class__.CONN_ID >= 2 ** 32:
+            self.__class__.CONN_ID = 1000000
         self._close_cb = None
 
         self._send_queue = Queue()
