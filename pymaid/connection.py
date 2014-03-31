@@ -12,12 +12,6 @@ __all__ = ['Connection']
 
 @logger_wrapper
 class Connection(object):
-    '''
-        Wrapper of BSD socket, which is packet oriented.
-        Each packet with a fixed length header
-        which describes the length of the packet,
-        and is network order.
-    '''
 
     HEADER = '!II'
     HEADER_LENGTH = struct.calcsize(HEADER)
@@ -54,9 +48,6 @@ class Connection(object):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
     def send(self, packet_buff):
-        '''
-            Send would not block current greentlet.
-        '''
         assert packet_buff
         self._send_queue.put(packet_buff)
 
@@ -120,9 +111,6 @@ class Connection(object):
         return self._conn_id
 
     def _send_loop(self):
-        '''
-            Send loop should be run in another greenlet.
-        '''
         get_packet, sendall = self._send_queue.get, self._socket.sendall
         pack = struct.pack
         while 1:
@@ -152,17 +140,11 @@ class Connection(object):
                     '[host|%s][peer|%s] send with exception: %s',
                     self.sockname, self.peername, ex
                 )
-                #traceback.print_exc()
                 break
             if result is not None:
                 break
 
     def _recv_n(self, nbytes):
-        '''
-            Receive specified @nbytes from socket.
-            If have not recv specified nbytes, just return the
-                partial buffer.
-        '''
         recv, buff = self._socket.recv, ''
         while len(buff) < nbytes:
             try:
@@ -179,15 +161,10 @@ class Connection(object):
                     '[host|%s][peer|%s] recv with exception: %s',
                     self.sockname, self.peername, ex
                 )
-                #traceback.print_exc()
                 break
         return buff
 
     def _recv_loop(self):
-        '''
-            Receive a total integrated packet.
-            If only recv partial, just return None.
-        '''
         recv_n, unpack = self._recv_n, struct.unpack
         recv_package = self._recv_queue.put
         HEADER, MAX_PACKET_LENGTH = self.HEADER, self.MAX_PACKET_LENGTH

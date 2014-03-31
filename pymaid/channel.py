@@ -152,8 +152,6 @@ class Channel(RpcChannel):
                 else:
                     recv_response(controller, message_buffer)
         except Exception as ex:
-            import traceback
-            traceback.print_exc()
             self.logger.exception(ex)
             raise
         finally:
