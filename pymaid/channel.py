@@ -170,8 +170,7 @@ class Channel(RpcChannel):
             conn.send(controller)
             return
 
-        method = service.DESCRIPTOR.FindMethodByName(
-                controller.meta_data.method_name)
+        method = service.DESCRIPTOR.FindMethodByName(controller.meta_data.method_name)
         if method is None:
             controller.SetFailed("method not exist")
             conn.send(controller)
@@ -182,8 +181,12 @@ class Channel(RpcChannel):
         request.ParseFromString(message_buffer)
 
         response = service.CallMethod(method, controller, request, None)
-        controller.response = response
-        conn.send(controller)
+        response_class = service.GetResponseClass(method)
+        if issubclass(response_class, Void):
+            assert response is None
+        else:
+            controller.response = response
+            conn.send(controller)
 
     def _recv_response(self, controller, message_buffer):
         #print 'recv_response', controller, message_buffer
