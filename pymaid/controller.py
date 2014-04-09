@@ -1,5 +1,5 @@
 from google.protobuf.service import RpcController
-from pb.controller_pb2 import ControllerMeta
+from pb.pymaid_pb2 import ControllerMeta
 
 
 class Controller(RpcController):
@@ -8,9 +8,14 @@ class Controller(RpcController):
         super(Controller, self).__init__()
         self.meta_data = ControllerMeta()
         self.conn = None
+        self.wide = False
+        self.group = None
 
     def Reset(self):
         self.meta_data.Clear()
+        self.conn = None
+        self.wide = False
+        self.group = None
 
     def Failed(self):
         return self.meta_data.failed

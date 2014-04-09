@@ -1,9 +1,9 @@
+from gevent import wait
+
 from pymaid.channel import Channel
-from pymaid.controller import Controller
-from hello_pb2 import HelloService_Stub
 from hello_pb2 import HelloResponse
 from hello_pb2 import HelloService
-from gevent import wait
+
 
 class HeeloServiceImpl(HelloService):
 
