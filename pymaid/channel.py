@@ -39,6 +39,8 @@ class Channel(RpcChannel):
         controller.meta_data.stub = True
         controller.meta_data.service_name = method.containing_service.full_name
         controller.meta_data.method_name = method.name
+        if not isinstance(request, Void):
+            controller.request = request
 
         transmission_id = self.get_transmission_id()
         assert transmission_id not in self._pending_results
@@ -54,9 +56,9 @@ class Channel(RpcChannel):
                 if conn:
                     conn.send(controller)
         else:
-            controller.conn.send(controller)
             if controller.conn.conn_id not in self._connections:
                 raise Exception('did not connect')
+            controller.conn.send(controller)
 
         if issubclass(response_class, Void):
             return None
@@ -108,7 +110,7 @@ class Channel(RpcChannel):
 
     def new_connection(self, sock):
         conn = Connection(sock)
-        #print 'new_connection', sock
+        #print 'new_connection', conn.conn_id
         assert conn.conn_id not in self._connections
 
         conn.set_close_cb(self.close_connection)
@@ -117,7 +119,7 @@ class Channel(RpcChannel):
         return conn
 
     def close_connection(self, conn, reason=None):
-        #print 'close_connection', (conn, reason)
+        #print 'close_connection', (conn.conn_id, reason)
         assert conn.conn_id in self._connections
         conn.close()
         del self._connections[conn.conn_id]
