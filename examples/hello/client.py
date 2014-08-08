@@ -2,7 +2,7 @@ from gevent.pool import Pool
 import GreenletProfiler
 
 from pymaid.channel import Channel
-from pymaid.service_proxy import ServiceProxy
+from pymaid.agent import ServiceAgent
 from hello_pb2 import HelloService_Stub
 
 
@@ -15,7 +15,7 @@ def wrapper(pid, n):
 
 
 channel = Channel()
-service = ServiceProxy(HelloService_Stub(channel))
+service = ServiceAgent(HelloService_Stub(channel))
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
