@@ -14,3 +14,9 @@ message ControllerMeta {
 
 message Void {
 }
+
+
+message ErrorMessage {
+    required uint32 error_code = 1;
+    required string error_message = 2;
+}
