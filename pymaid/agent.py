@@ -1,7 +1,7 @@
 from pymaid.controller import Controller
 
 
-class ServiceProxy(object):
+class ServiceAgent(object):
 
     __slot__ = ['stub']
 
@@ -9,11 +9,17 @@ class ServiceProxy(object):
         self.stub = stub
         self._descriptor = stub.GetDescriptor()
 
+    def get_method_by_name(self, name):
+        return self._descriptor.FindMethodByName(name)
+
+    def get_request_class(self, method):
+        return self.stub.GetRequestClass(method)
+
     def __dir__(self):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        method_descriptor = self._descriptor.FindMethodByName(name)
+        method_descriptor = self.get_method_by_name(name)
         if not method_descriptor:
             return object.__getattr__(self, name)
 
@@ -21,7 +27,7 @@ class ServiceProxy(object):
                 group=None, **kwargs):
             controller, done = controller or Controller(), None
             if not request:
-                request_class = self.stub.GetRequestClass(method_descriptor)
+                request_class = self.get_request_class(method_descriptor)
                 if kwargs:
                     request = request_class(**kwargs)
                 else:

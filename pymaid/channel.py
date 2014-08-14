@@ -7,8 +7,9 @@ from google.protobuf.message import DecodeError
 
 from pymaid.controller import Controller
 from pymaid.connection import Connection
+from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
-from pymaid.pb.pymaid_pb2 import Void
+from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
 
 @logger_wrapper
@@ -162,36 +163,36 @@ class Channel(RpcChannel):
             conn.close()
 
     def _recv_request(self, controller, message_buffer):
-        #print 'recv_request', controller, message_buffer
         service = self._services.get(controller.meta_data.service_name, None)
-        controller.meta_data.stub = False
+        meta_data = controller.meta_data
+        meta_data.stub = False
         conn = controller.conn
 
-        if service is None:
-            controller.SetFailed("service not exist")
-            conn.send(controller)
-            return
+        try:
+            if service is None:
+                raise ServiceNotExist(service_name=meta_data.service_name)
 
-        method = service.DESCRIPTOR.FindMethodByName(controller.meta_data.method_name)
-        if method is None:
-            controller.SetFailed("method not exist")
-            conn.send(controller)
-            return
+            method = service.DESCRIPTOR.FindMethodByName(meta_data.method_name)
+            if method is None:
+                raise MethodNotExist(service_name=meta_data.service_name,
+                                     method_name=meta_data.method_name)
 
-        request_class = service.GetRequestClass(method)
-        request = request_class()
-        request.ParseFromString(message_buffer)
+            request_class = service.GetRequestClass(method)
+            request = request_class()
+            request.ParseFromString(message_buffer)
 
-        response = service.CallMethod(method, controller, request, None)
-        response_class = service.GetResponseClass(method)
-        if issubclass(response_class, Void):
-            assert response is None
-        else:
-            controller.response = response
+            response = service.CallMethod(method, controller, request, None)
+            response_class = service.GetResponseClass(method)
+            if issubclass(response_class, Void):
+                assert response is None
+            else:
+                controller.response = response
+                conn.send(controller)
+        except BaseError as ex:
+            controller.SetFailed(ex)
             conn.send(controller)
 
     def _recv_response(self, controller, message_buffer):
-        #print 'recv_response', controller, message_buffer
         transmission_id = controller.meta_data.transmission_id
         pending_result = self._pending_results.get(transmission_id, (None, None))
         async_result, response_class = pending_result
@@ -200,16 +201,18 @@ class Channel(RpcChannel):
         del self._pending_results[transmission_id]
 
         if controller.Failed():
-            # TODO: construct Error/Warning based on error_text
-            error_text = controller.meta_data.error_text
-            async_result.set(error_text)
+            error_message = ErrorMessage()
+            error_message.ParseFromString(controller.meta_data.error_text)
+            cls = BaseMeta.get_by_code(error_message.error_code)
+            ex = cls()
+            ex.message = error_message.error_message
+            async_result.set_exception(ex)
             return
 
         response = response_class()
         try:
             response.ParseFromString(message_buffer)
         except DecodeError as ex:
-            #controller.SetFailed(ex)
             async_result.set_exception(ex)
         else:
             async_result.set(response)
