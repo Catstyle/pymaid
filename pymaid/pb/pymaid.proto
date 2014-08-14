@@ -1,4 +1,4 @@
-package maid.proto;
+package pymaid;
 
 
 message ControllerMeta {
@@ -8,9 +8,15 @@ message ControllerMeta {
     optional bool stub = 4;
     optional bool is_canceled = 5;
     optional bool failed = 6;
-    optional string error_text = 7;
+    optional bytes error_text = 7;
 }
 
 
 message Void {
+}
+
+
+message ErrorMessage {
+    required uint32 error_code = 1;
+    required string error_message = 2;
 }
