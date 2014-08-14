@@ -31,7 +31,7 @@ class Controller(RpcController):
     def SetFailed(self, reason):
         assert isinstance(reason, BaseError)
         self.meta_data.failed = True
-        error_message = ErrorMessage(code=reason.code,
+        error_message = ErrorMessage(error_code=reason.code,
                                      error_message=reason.message)
         self.meta_data.error_text = error_message.SerializeToString()
 

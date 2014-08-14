@@ -170,11 +170,12 @@ class Channel(RpcChannel):
 
         try:
             if service is None:
-                raise ServiceNotExist(meta_data.service_name)
+                raise ServiceNotExist(service_name=meta_data.service_name)
 
             method = service.DESCRIPTOR.FindMethodByName(meta_data.method_name)
             if method is None:
-                raise MethodNotExist(meta_data.method_name)
+                raise MethodNotExist(service_name=meta_data.service_name,
+                                     method_name=meta_data.method_name)
 
             request_class = service.GetRequestClass(method)
             request = request_class()
@@ -200,9 +201,9 @@ class Channel(RpcChannel):
         del self._pending_results[transmission_id]
 
         if controller.Failed():
-            error_text = controller.meta_data.error_text
-            error_message = ErrorMessage.ParseFromString(error_text)
-            cls = BaseMeta.get_by_code(error_message.code)
+            error_message = ErrorMessage()
+            error_message.ParseFromString(controller.meta_data.error_text)
+            cls = BaseMeta.get_by_code(error_message.error_code)
             ex = cls()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
