@@ -3,19 +3,25 @@ import GreenletProfiler
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
-from hello_pb2 import HelloService_Stub
+from pb.rpc_pb2 import RemoteError_Stub
+from error import PlayerNotExist
 
 
 def wrapper(pid, n):
     conn = channel.connect("127.0.0.1", 8888)
+    global cnt
     for x in xrange(n):
-        response = service.Hello(conn=conn)
-        assert response.message == 'from pymaid', response.message
+        try:
+            service.player_not_exist(conn=conn)
+        except PlayerNotExist:
+            cnt += 1
+        else:
+            assert 'should catch PlayerNotExist'
     conn.close()
 
-
+cnt = 0
 channel = Channel()
-service = ServiceAgent(HelloService_Stub(channel))
+service = ServiceAgent(RemoteError_Stub(channel))
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
@@ -25,6 +31,7 @@ def main():
     pool.join()
     assert len(channel._pending_results) == 0, channel._pending_results
     assert len(channel._connections) == 0, channel._connections
+    assert cnt == 3000
 
 if __name__ == "__main__":
     GreenletProfiler.set_clock_type('cpu')
