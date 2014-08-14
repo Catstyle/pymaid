@@ -1,5 +1,7 @@
 from google.protobuf.service import RpcController
-from pb.pymaid_pb2 import ControllerMeta
+
+from pymaid.error import BaseError
+from pb.pymaid_pb2 import ControllerMeta, ErrorMessage
 
 
 class Controller(RpcController):
@@ -27,8 +29,11 @@ class Controller(RpcController):
         pass
 
     def SetFailed(self, reason):
+        assert isinstance(reason, BaseError)
         self.meta_data.failed = True
-        self.meta_data.error_text = reason
+        error_message = ErrorMessage(code=reason.code,
+                                     error_message=reason.message)
+        self.meta_data.error_text = error_message.SerializeToString()
 
     def IsCanceled(self):
         return self.meta_data.is_canceled
