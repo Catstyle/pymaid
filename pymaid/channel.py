@@ -1,5 +1,6 @@
 from gevent.event import AsyncResult
 from gevent import socket
+from gevent import wait
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
@@ -126,6 +127,9 @@ class Channel(RpcChannel):
         del self._connections[conn.conn_id]
         # TODO: clean pending_results if needed
         #del self._pending_results[transmission_id]
+
+    def serve_forever(self):
+        wait()
 
     @property
     def is_full(self):
