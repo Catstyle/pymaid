@@ -13,7 +13,7 @@ __all__ = ['Connection']
 @logger_wrapper
 class Connection(object):
 
-    HEADER = '!II'
+    HEADER = '!I'
     HEADER_LENGTH = struct.calcsize(HEADER)
     MAX_PACKET_LENGTH = 10 * 1024
 
@@ -83,7 +83,7 @@ class Connection(object):
 
         if not self._recv_let.dead:
             self._recv_queue.queue.clear()
-            self._recv_queue.put((None, None))
+            self._recv_queue.put(None)
             self._recv_let.kill(block=False)
 
         if self._close_cb:
@@ -119,22 +119,10 @@ class Connection(object):
                 break
 
             controller_buffer = controller.meta_data.SerializeToString()
-            message_buffer = ""
-            if not controller.Failed():
-                if controller.meta_data.stub:
-                    message = getattr(controller, "request", None)
-                else:
-                    message = getattr(controller, "response", None)
-
-                if message is not None:
-                    message_buffer = message.SerializeToString()
-
-            header_buffer = pack(
-                self.HEADER, len(controller_buffer), len(message_buffer)
-            )
+            header_buffer = pack(self.HEADER, len(controller_buffer))
             try:
                 # see pydoc of socket.sendall
-                result = sendall(header_buffer+controller_buffer+message_buffer)
+                result = sendall(header_buffer+controller_buffer)
             except socket.error as ex:
                 self.logger.error(
                     '[host|%s][peer|%s] send with exception: %s',
@@ -173,11 +161,11 @@ class Connection(object):
             if not header:
                 break
 
-            controller_length, message_length = unpack(HEADER, header)
-            if controller_length + message_length >= MAX_PACKET_LENGTH:
+            controller_length, = unpack(HEADER, header)
+            if controller_length >= MAX_PACKET_LENGTH:
                 self.logger.error(
                     '[host|%s][peer|%s] closed with invalid payload [length|%d]',
-                    self.sockname, self.peername, controller_length+message_length
+                    self.sockname, self.peername, controller_length
                 )
                 return
 
@@ -190,8 +178,4 @@ class Connection(object):
                 self.logger.exception('process packet with decode error', ex)
                 break
 
-            message_buffer = ""
-            if message_length > 0:
-                message_buffer = recv_n(message_length)
-
-            recv_package((controller, message_buffer))
+            recv_package(controller)
