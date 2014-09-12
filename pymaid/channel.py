@@ -38,11 +38,11 @@ class Channel(RpcChannel):
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
 
-        controller.meta_data.stub = True
+        controller.meta_data.from_stub = True
         controller.meta_data.service_name = method.containing_service.full_name
         controller.meta_data.method_name = method.name
         if not isinstance(request, Void):
-            controller.request = request
+            controller.meta_data.request = request.SerializeToString()
 
         transmission_id = self.get_transmission_id()
         assert transmission_id not in self._pending_results
@@ -153,23 +153,23 @@ class Channel(RpcChannel):
         recv_request, recv_response = self._recv_request, self._recv_response
         try:
             while 1:
-                controller, message_buffer = recv()
+                controller = recv()
                 if not controller:
                     break
-                if controller.meta_data.stub: # request
-                    recv_request(controller, message_buffer)
+                if controller.meta_data.from_stub: # request
+                    recv_request(controller)
                 else:
-                    recv_response(controller, message_buffer)
+                    recv_response(controller)
         except Exception as ex:
             self.logger.exception(ex)
             raise
         finally:
             conn.close()
 
-    def _recv_request(self, controller, message_buffer):
+    def _recv_request(self, controller):
         service = self._services.get(controller.meta_data.service_name, None)
         meta_data = controller.meta_data
-        meta_data.stub = False
+        meta_data.from_stub = False
         conn = controller.conn
 
         try:
@@ -183,20 +183,20 @@ class Channel(RpcChannel):
 
             request_class = service.GetRequestClass(method)
             request = request_class()
-            request.ParseFromString(message_buffer)
+            request.ParseFromString(meta_data.request)
 
             response = service.CallMethod(method, controller, request, None)
             response_class = service.GetResponseClass(method)
             if issubclass(response_class, Void):
                 assert response is None
             else:
-                controller.response = response
+                meta_data.response = response.SerializeToString()
                 conn.send(controller)
         except BaseError as ex:
             controller.SetFailed(ex)
             conn.send(controller)
 
-    def _recv_response(self, controller, message_buffer):
+    def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id
         pending_result = self._pending_results.get(transmission_id, (None, None))
         async_result, response_class = pending_result
@@ -215,7 +215,7 @@ class Channel(RpcChannel):
 
         response = response_class()
         try:
-            response.ParseFromString(message_buffer)
+            response.ParseFromString(controller.meta_data.response)
         except DecodeError as ex:
             async_result.set_exception(ex)
         else:
