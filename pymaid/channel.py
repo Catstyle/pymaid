@@ -8,6 +8,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.controller import Controller
 from pymaid.connection import Connection
+from pymaid.apps import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
@@ -70,6 +71,7 @@ class Channel(RpcChannel):
         return async_result.get()
 
     def append_service(self, service):
+        assert service.DESCRIPTOR.full_name not in self._services
         self._services[service.DESCRIPTOR.full_name] = service
 
     def get_connection_by_id(self, conn_id):
@@ -99,6 +101,8 @@ class Channel(RpcChannel):
         return conn
 
     def listen(self, host, port, backlog=256):
+        self._setup_server()
+
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((host, port))
@@ -118,6 +122,7 @@ class Channel(RpcChannel):
         conn.set_close_cb(self.close_connection)
         greenlet_pool.spawn(self._handle_loop, conn)
         self._connections[conn.conn_id] = conn
+        self._setup_heartbeat(conn, server_side)
         return conn
 
     def close_connection(self, conn, reason=None):
@@ -134,6 +139,21 @@ class Channel(RpcChannel):
     @property
     def is_full(self):
         return len(self._connections) == self.MAX_CONCURRENCY
+
+    def _setup_server(self):
+        # only server need monitor service
+        monitor_service = MonitorServiceImpl()
+        monitor_service.channel = self
+        self.append_service(monitor_service)
+
+    def _setup_heartbeat(self, conn, server_side):
+        if server_side:
+            if self.need_heartbeat:
+                conn.setup_server_heartbeat(
+                    self.heartbeat_interval, self.max_heartbeat_timeout_count
+                )
+        else:
+            conn.setup_client_heartbeat(channel=self)
 
     def _do_accept(self, sock):
         for _ in xrange(self.MAX_ACCEPT):

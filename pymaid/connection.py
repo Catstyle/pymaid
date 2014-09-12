@@ -6,6 +6,8 @@ from gevent import socket
 from google.protobuf.message import DecodeError
 
 from pymaid.controller import Controller
+from pymaid.agent import ServiceAgent
+from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.errors import HeartbeatTimeout
 
@@ -50,24 +52,34 @@ class Connection(object):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
-    def setup_heartbeat_timer(self, interval, max_timeout_count):
+    def setup_server_heartbeat(self, interval, max_timeout_count):
         assert interval > 0
         assert max_timeout_count >= 1
 
         self._heartbeat_interval = interval
         self._heartbeat_timeout_counter = 0
         self._max_heartbeat_timeout_count = max_timeout_count
-        if self._server_side:
-            self._heartbeat_timeout_cb = self._heartbeat_timeout
-            self._start_heartbeat_timer(interval)
-        else:
-            self._heartbeat_timeout_cb = self._send_heartbeat
-            self._start_heartbeat_timer(interval)
+        self._heartbeat_timeout_cb = self._heartbeat_timeout
+        self._start_heartbeat_timer()
 
-    def _start_heartbeat_timer(self, interval):
+    def setup_client_heartbeat(self, channel):
+        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel))
+        resp = self._monitor_agent.get_heartbeat_info(conn=self)
+
+        if not resp.need_heartbeat:
+            return
+        self._heartbeat_interval = resp.heartbeat_interval
+        self._heartbeat_timeout_cb = self._send_heartbeat
+        self._start_heartbeat_timer()
+
+    def clear_heartbeat_counter(self):
+        self._heartbeat_timeout_counter = 0
+        self._start_heartbeat_timer()
+
+    def _start_heartbeat_timer(self):
         if self._heartbeat_timer is not None:
             self._heartbeat_timer.stop()
-        self._heartbeat_timer = get_hub().loop.timer(interval)
+        self._heartbeat_timer = get_hub().loop.timer(self._heartbeat_interval)
         self._heartbeat_timer.start(self._heartbeat_timeout_cb)
 
     def _heartbeat_timeout(self):
@@ -75,12 +87,12 @@ class Connection(object):
         if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
         else:
-            self._start_heartbeat_timer(self._heartbeat_interval)
+            self._start_heartbeat_timer()
 
     def _send_heartbeat(self):
         # TODO: add send heartbeat
-        # self._send()
-        self._start_heartbeat_timer(self._heartbeat_interval)
+        self._monitor_agent.notify_heartbeat()
+        self._start_heartbeat_timer()
 
     def send(self, packet_buff):
         assert packet_buff
