@@ -1,0 +1,16 @@
+package pymaid.apps.monitor;
+
+
+import "pymaid/pb/pymaid.proto"
+
+
+message HeartbeatInfo {
+    required bool need_heartbeat = 1;
+    optional uint32 heartbeat_interval = 2;
+}
+
+
+service MonitorService {
+    rpc notify_heartbeat(pymaid.Void) returns (pymaid.Void);
+    rpc get_heartbeat_info(pymaid.Void) returns (HeartbeatInfo);
+}
