@@ -1,4 +1,5 @@
 import struct
+from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent import socket
@@ -6,6 +7,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.controller import Controller
 from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.errors import HeartbeatTimeout
 
 __all__ = ['Connection']
 
@@ -20,11 +22,12 @@ class Connection(object):
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 1000000
 
-    def __init__(self, sock):
+    def __init__(self, sock, server_side):
         self.setsockopt(sock)
         self._peer_name = sock.getpeername()
         self._sock_name = sock.getsockname()
         self._socket = sock
+        self._server_side = server_side
 
         self._is_closed = False
         self._conn_id = self.__class__.CONN_ID
@@ -47,6 +50,38 @@ class Connection(object):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
+    def setup_heartbeat_timer(self, interval, max_timeout_count):
+        assert interval > 0
+        assert max_timeout_count >= 1
+
+        self._heartbeat_interval = interval
+        self._heartbeat_timeout_counter = 0
+        self._max_heartbeat_timeout_count = max_timeout_count
+        if self._server_side:
+            self._heartbeat_timeout_cb = self._heartbeat_timeout
+            self._start_heartbeat_timer(interval)
+        else:
+            self._heartbeat_timeout_cb = self._send_heartbeat
+            self._start_heartbeat_timer(interval)
+
+    def _start_heartbeat_timer(self, interval):
+        if self._heartbeat_timer is not None:
+            self._heartbeat_timer.stop()
+        self._heartbeat_timer = get_hub().loop.timer(interval)
+        self._heartbeat_timer.start(self._heartbeat_timeout_cb)
+
+    def _heartbeat_timeout(self):
+        self._heartbeat_timeout_counter += 1
+        if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
+            self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
+        else:
+            self._start_heartbeat_timer(self._heartbeat_interval)
+
+    def _send_heartbeat(self):
+        # TODO: add send heartbeat
+        # self._send()
+        self._start_heartbeat_timer(self._heartbeat_interval)
+
     def send(self, packet_buff):
         assert packet_buff
         self._send_queue.put(packet_buff)
@@ -58,17 +93,15 @@ class Connection(object):
         self._recv_let.unlink(self.close)
         self._send_let.unlink(self.close)
 
-    def close(self, t=None):
-        #print 'connection close', t
+    def close(self, reason=None):
+        #print 'connection close', why
         if self._is_closed:
             return
         self._is_closed = True
 
         self.unlink_close()
-        if t is not None and isinstance(t, Greenlet):
-            reason = t.exception
-        else:
-            reason = t
+        if reason is not None and isinstance(reason, Greenlet):
+            reason = reason.exception
 
         if reason is not None:
             self.logger.error(

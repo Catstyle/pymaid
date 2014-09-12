@@ -18,4 +18,4 @@ class MethodNotExist(Error):
 class HeartbeatTimeout(Error):
 
     code = module_index + 3
-    message_format = '[host|{hostname}][peer|{peername}] peer heartbeat timeout'
+    message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'

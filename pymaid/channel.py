@@ -95,7 +95,7 @@ class Channel(RpcChannel):
                 raise
             else:
                 break
-        conn = self.new_connection(sock)
+        conn = self.new_connection(sock, server_side=False)
         return conn
 
     def listen(self, host, port, backlog=256):
@@ -110,8 +110,8 @@ class Channel(RpcChannel):
         accept_watcher = self._loop.io(sock.fileno(), 1)
         accept_watcher.start(self._do_accept, sock)
 
-    def new_connection(self, sock):
-        conn = Connection(sock)
+    def new_connection(self, sock, server_side):
+        conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
         assert conn.conn_id not in self._connections
 
@@ -146,7 +146,7 @@ class Channel(RpcChannel):
                     return
                 #self.logger.exception(ex)
                 raise
-            self.new_connection(client_socket)
+            self.new_connection(client_socket, server_side=True)
 
     def _handle_loop(self, conn):
         recv = conn.recv
