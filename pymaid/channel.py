@@ -8,7 +8,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.controller import Controller
 from pymaid.connection import Connection
-from pymaid.apps import MonitorServiceImpl
+from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
@@ -35,6 +35,10 @@ class Channel(RpcChannel):
         self._connections = {}
         self._services = {}
         self._pending_results = {}
+
+        self.need_heartbeat = False
+        self.heartbeat_interval = 0
+        self.max_heartbeat_timeout_count = 0
 
     def CallMethod(self, method, controller, request, response_class, done):
         assert isinstance(controller, Controller), controller
@@ -73,6 +77,20 @@ class Channel(RpcChannel):
     def append_service(self, service):
         assert service.DESCRIPTOR.full_name not in self._services
         self._services[service.DESCRIPTOR.full_name] = service
+
+    def enable_heartbeat(self, heartbeat_interval, max_timeout_count):
+        assert heartbeat_interval > 0
+        assert max_timeout_count >= 1
+        self.need_heartbeat = True
+        self.heartbeat_interval = heartbeat_interval
+        self.max_heartbeat_timeout_count = max_timeout_count
+        # TODO: enable all connections heartbeat?
+
+    def disable_heartbeat(self):
+        self.need_heartbeat = False
+        self.heartbeat_interval = 0
+        self.max_heartbeat_timeout_count = 0
+        # TODO: disable all connections heartbeat?
 
     def get_connection_by_id(self, conn_id):
         return self._connections.get(conn_id, None)

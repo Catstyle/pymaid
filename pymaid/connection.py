@@ -9,7 +9,7 @@ from pymaid.controller import Controller
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import greenlet_pool, logger_wrapper
-from pymaid.errors import HeartbeatTimeout
+from pymaid.error import HeartbeatTimeout
 
 __all__ = ['Connection']
 

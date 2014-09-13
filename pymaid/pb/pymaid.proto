@@ -1,4 +1,4 @@
-package pymaid;
+package pymaid.pb;
 
 
 message ControllerMeta {
