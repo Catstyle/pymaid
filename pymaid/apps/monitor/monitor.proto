@@ -6,7 +6,7 @@ import "pymaid/pb/pymaid.proto";
 
 message HeartbeatInfo {
     required bool need_heartbeat = 1;
-    optional uint32 heartbeat_interval = 2;
+    optional float heartbeat_interval = 2;
 }
 
 

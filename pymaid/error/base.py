@@ -39,8 +39,14 @@ class BaseError(Exception):
 
 
 class Error(BaseError):
-    pass
+
+    def __unicode__(self):
+        return u'[ERROR][code|{0}][message|{1}]'.format(self.code, self.message)
+    __str__ = __unicode__
 
 
 class Warning(BaseError):
-    pass
+
+    def __unicode__(self):
+        return u'[WARNING][code|{0}][message|{1}]'.format(self.code, self.message)
+    __str__ = __unicode__

@@ -59,6 +59,8 @@ class Connection(object):
         self._heartbeat_interval = interval
         self._heartbeat_timeout_counter = 0
         self._max_heartbeat_timeout_count = max_timeout_count
+
+        self._heartbeat_timer = None
         self._heartbeat_timeout_cb = self._heartbeat_timeout
         self._start_heartbeat_timer()
 
@@ -69,6 +71,8 @@ class Connection(object):
         if not resp.need_heartbeat:
             return
         self._heartbeat_interval = resp.heartbeat_interval
+
+        self._heartbeat_timer = None
         self._heartbeat_timeout_cb = self._send_heartbeat
         self._start_heartbeat_timer()
 
@@ -91,7 +95,7 @@ class Connection(object):
 
     def _send_heartbeat(self):
         # TODO: add send heartbeat
-        self._monitor_agent.notify_heartbeat()
+        self._monitor_agent.notify_heartbeat(conn=self)
         self._start_heartbeat_timer()
 
     def send(self, packet_buff):
@@ -106,7 +110,6 @@ class Connection(object):
         self._send_let.unlink(self.close)
 
     def close(self, reason=None):
-        #print 'connection close', why
         if self._is_closed:
             return
         self._is_closed = True
@@ -114,6 +117,7 @@ class Connection(object):
         self.unlink_close()
         if reason is not None and isinstance(reason, Greenlet):
             reason = reason.exception
+        #print 'connection close', reason
 
         if reason is not None:
             self.logger.error(
@@ -121,7 +125,10 @@ class Connection(object):
                 self.sockname, self.peername, reason
             )
 
+        if self._heartbeat_timer is not None:
+            self._heartbeat_timer.stop()
         self._socket.close()
+
         if not self._send_let.dead:
             self._send_queue.put(None)
             self._send_let.kill(block=False)
