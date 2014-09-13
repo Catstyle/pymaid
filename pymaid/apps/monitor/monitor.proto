@@ -1,7 +1,7 @@
 package pymaid.apps.monitor;
+option py_generic_services = true;
 
-
-import "pymaid/pb/pymaid.proto"
+import "pymaid/pb/pymaid.proto";
 
 
 message HeartbeatInfo {
@@ -11,6 +11,6 @@ message HeartbeatInfo {
 
 
 service MonitorService {
-    rpc notify_heartbeat(pymaid.Void) returns (pymaid.Void);
-    rpc get_heartbeat_info(pymaid.Void) returns (HeartbeatInfo);
+    rpc notify_heartbeat(pymaid.pb.Void) returns (pymaid.pb.Void);
+    rpc get_heartbeat_info(pymaid.pb.Void) returns (HeartbeatInfo);
 }
