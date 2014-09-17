@@ -195,7 +195,11 @@ class Channel(RpcChannel):
                 if not controller:
                     break
                 if controller.meta_data.from_stub: # request
-                    recv_request(controller)
+                    try:
+                        recv_request(controller)
+                    except BaseError as ex:
+                        controller.SetFailed(ex)
+                        conn.send(controller)
                 else:
                     recv_response(controller)
         except Exception as ex:
@@ -205,34 +209,31 @@ class Channel(RpcChannel):
             conn.close()
 
     def _recv_request(self, controller):
-        service = self._services.get(controller.meta_data.service_name, None)
         meta_data = controller.meta_data
         meta_data.from_stub = False
+        service = self._services.get(meta_data.service_name, None)
         conn = controller.conn
 
-        try:
-            if service is None:
-                raise ServiceNotExist(service_name=meta_data.service_name)
+        if service is None:
+            raise ServiceNotExist(service_name=meta_data.service_name)
 
-            method = service.DESCRIPTOR.FindMethodByName(meta_data.method_name)
-            if method is None:
-                raise MethodNotExist(service_name=meta_data.service_name,
-                                     method_name=meta_data.method_name)
+        method = service.DESCRIPTOR.FindMethodByName(meta_data.method_name)
+        if method is None:
+            raise MethodNotExist(service_name=meta_data.service_name,
+                                 method_name=meta_data.method_name)
 
-            request_class = service.GetRequestClass(method)
-            request = request_class()
-            request.ParseFromString(meta_data.request)
+        request_class = service.GetRequestClass(method)
+        request = request_class()
+        request.ParseFromString(meta_data.request)
 
-            response = service.CallMethod(method, controller, request, None)
+        def send_back(response):
             response_class = service.GetResponseClass(method)
             if issubclass(response_class, Void):
                 assert response is None
             else:
                 meta_data.response = response.SerializeToString()
                 conn.send(controller)
-        except BaseError as ex:
-            controller.SetFailed(ex)
-            conn.send(controller)
+        service.CallMethod(method, controller, request, send_back)
 
     def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id

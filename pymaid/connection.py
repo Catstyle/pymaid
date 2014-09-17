@@ -32,11 +32,13 @@ class Connection(object):
         self._server_side = server_side
 
         self._is_closed = False
+        self._close_cb = None
+        self._heartbeat_timer = None
+
         self._conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
         if self.__class__.CONN_ID >= 2 ** 32:
             self.__class__.CONN_ID = 1000000
-        self._close_cb = None
 
         self._send_queue = Queue()
         self._recv_queue = Queue()
@@ -60,7 +62,6 @@ class Connection(object):
         self._heartbeat_timeout_counter = 0
         self._max_heartbeat_timeout_count = max_timeout_count
 
-        self._heartbeat_timer = None
         self._heartbeat_timeout_cb = self._heartbeat_timeout
         self._start_heartbeat_timer()
 
@@ -72,7 +73,6 @@ class Connection(object):
             return
         self._heartbeat_interval = resp.heartbeat_interval
 
-        self._heartbeat_timer = None
         self._heartbeat_timeout_cb = self._send_heartbeat
         self._start_heartbeat_timer()
 
