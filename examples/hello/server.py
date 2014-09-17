@@ -8,7 +8,7 @@ class HelloServiceImpl(HelloService):
     def Hello(self, controller, request, done):
         response = HelloResponse()
         response.message = "from pymaid"
-        return response
+        done(response)
 
 def main():
     channel = Channel()

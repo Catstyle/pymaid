@@ -9,7 +9,7 @@ class LongPlayingImpl(LongPlaying):
     def over_two_seconds(self, controller, request, done):
         gevent.sleep(2)
         response = Response()
-        return response
+        done(response)
 
 def main():
     channel = Channel()

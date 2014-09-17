@@ -10,7 +10,7 @@ class MonitorServiceImpl(MonitorService):
         info.need_heartbeat = self.channel.need_heartbeat
         if info.need_heartbeat:
             info.heartbeat_interval = self.channel.heartbeat_interval
-        return info
+        done(info)
 
     def notify_heartbeat(self, controller, request, done):
         controller.conn.clear_heartbeat_counter()
