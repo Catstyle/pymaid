@@ -33,8 +33,8 @@ class Channel(RpcChannel):
         self._loop = loop or get_hub().loop
 
         self._connections = {}
-        self._services = {}
         self._pending_results = {}
+        self.services = {}
 
         self.need_heartbeat = False
         self.heartbeat_interval = 0
@@ -75,8 +75,8 @@ class Channel(RpcChannel):
         return async_result.get()
 
     def append_service(self, service):
-        assert service.DESCRIPTOR.full_name not in self._services
-        self._services[service.DESCRIPTOR.full_name] = service
+        assert service.DESCRIPTOR.full_name not in self.services
+        self.services[service.DESCRIPTOR.full_name] = service
 
     def enable_heartbeat(self, heartbeat_interval, max_timeout_count):
         assert heartbeat_interval > 0
@@ -211,7 +211,7 @@ class Channel(RpcChannel):
     def _recv_request(self, controller):
         meta_data = controller.meta_data
         meta_data.from_stub = False
-        service = self._services.get(meta_data.service_name, None)
+        service = self.services.get(meta_data.service_name, None)
         conn = controller.conn
 
         if service is None:

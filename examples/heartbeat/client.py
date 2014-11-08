@@ -9,10 +9,10 @@ from heartbeat_pb2 import LongPlaying_Stub
 
 def main():
     channel = Channel()
-    service = ServiceAgent(LongPlaying_Stub(channel))
     conn = channel.connect("127.0.0.1", 8888)
+    service = ServiceAgent(LongPlaying_Stub(channel), conn)
 
-    resp = service.over_two_seconds(conn=conn)
+    resp = service.over_two_seconds()
     assert resp
     time.sleep(4)
     # switch greenlet so conn can close

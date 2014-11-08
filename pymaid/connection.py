@@ -66,8 +66,8 @@ class Connection(object):
         self._start_heartbeat_timer()
 
     def setup_client_heartbeat(self, channel):
-        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel))
-        resp = self._monitor_agent.get_heartbeat_info(conn=self)
+        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
+        resp = self._monitor_agent.get_heartbeat_info()
 
         if not resp.need_heartbeat:
             return

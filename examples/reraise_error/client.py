@@ -21,7 +21,7 @@ def wrapper(pid, n):
 
 cnt = 0
 channel = Channel()
-service = ServiceAgent(RemoteError_Stub(channel))
+service = ServiceAgent(RemoteError_Stub(channel), conn=None)
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
