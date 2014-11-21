@@ -27,8 +27,8 @@ class Connection(object):
     def __init__(self, sock, server_side):
         self.setsockopt(sock)
         self._socket = sock
-        self.peer_name = sock.getpeername()
-        self.sock_name = sock.getsockname()
+        self.peername = sock.getpeername()
+        self.sockname = sock.getsockname()
         self.server_side = server_side
 
         self.is_closed = False
