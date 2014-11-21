@@ -1,9 +1,9 @@
 import time
 import gevent
-import GreenletProfiler
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
+from pymaid.utils import ProfilerContext
 from heartbeat_pb2 import LongPlaying_Stub
 
 
@@ -20,9 +20,5 @@ def main():
     assert conn.is_closed, conn.is_closed
 
 if __name__ == "__main__":
-    GreenletProfiler.set_clock_type('cpu')
-    GreenletProfiler.start()
-    main()
-    GreenletProfiler.stop()
-    stats = GreenletProfiler.get_func_stats()
-    stats.print_all()
+    with ProfilerContext():
+        main()
