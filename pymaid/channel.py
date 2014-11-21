@@ -7,7 +7,6 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
-from pymaid.controller import Controller
 from pymaid.connection import Connection
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
@@ -31,10 +30,11 @@ class Channel(RpcChannel):
         super(Channel, self).__init__()
 
         self._transmission_id = 0
+        self._pending_results = {}
         self._loop = loop or get_hub().loop
 
-        self._connections = {}
-        self._pending_results = {}
+        self._income_connections = {}
+        self._outcome_connections = {}
         self.services = {}
 
         self.need_heartbeat = False
@@ -42,8 +42,6 @@ class Channel(RpcChannel):
         self.max_heartbeat_timeout_count = 0
 
     def CallMethod(self, method, controller, request, response_class, done):
-        assert isinstance(controller, Controller), controller
-
         controller.meta_data.from_stub = True
         controller.meta_data.service_name = method.containing_service.full_name
         controller.meta_data.method_name = method.name
@@ -54,17 +52,18 @@ class Channel(RpcChannel):
         assert transmission_id not in self._pending_results
         controller.meta_data.transmission_id = transmission_id
 
+        # broadcast
         if controller.wide:
-            for conn in self._connections:
+            for conn in self._outcome_connections:
                 conn.send(controller)
         elif controller.group:
-            get_conn = self.get_connection_by_id
+            get_conn = self.get_outcome_connection
             for conn_id in controller.group:
                 conn = get_conn(conn_id, None)
                 if conn:
                     conn.send(controller)
         else:
-            if controller.conn.conn_id not in self._connections:
+            if controller.conn.conn_id not in self._outcome_connections:
                 raise Exception('did not connect')
             controller.conn.send(controller)
 
@@ -93,8 +92,11 @@ class Channel(RpcChannel):
         self.max_heartbeat_timeout_count = 0
         # TODO: disable all connections heartbeat?
 
-    def get_connection_by_id(self, conn_id):
-        return self._connections.get(conn_id, None)
+    def get_income_connection(self, conn_id):
+        return self._income_connections.get(conn_id)
+    
+    def get_outcome_connection(self, conn_id):
+        return self._outcome_connections.get(conn_id)
 
     def get_transmission_id(self):
         self._transmission_id += 1
@@ -133,19 +135,27 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
-        assert conn.conn_id not in self._connections
+        if server_side:
+            assert conn.conn_id not in self._income_connections
+            self._income_connections[conn.conn_id] = conn
+        else:
+            assert conn.conn_id not in self._outcome_connections
+            self._outcome_connections[conn.conn_id] = conn
 
         conn.set_close_cb(self.close_connection)
         greenlet_pool.spawn(self._handle_loop, conn)
-        self._connections[conn.conn_id] = conn
         self._setup_heartbeat(conn, server_side)
         return conn
 
     def close_connection(self, conn, reason=None):
         #print 'close_connection', (conn.conn_id, reason)
-        assert conn.conn_id in self._connections
         conn.close()
-        del self._connections[conn.conn_id]
+        if conn.server_side:
+            assert conn.conn_id in self._income_connections
+            del self._income_connections[conn.conn_id]
+        else:
+            assert conn.conn_id in self._outcome_connections
+            del self._outcome_connections[conn.conn_id]
         # TODO: clean pending_results if needed
         #del self._pending_results[transmission_id]
 
@@ -154,7 +164,7 @@ class Channel(RpcChannel):
 
     @property
     def is_full(self):
-        return len(self._connections) == self.MAX_CONCURRENCY
+        return len(self._income_connections) == self.MAX_CONCURRENCY
 
     def _setup_server(self):
         # only server need monitor service
