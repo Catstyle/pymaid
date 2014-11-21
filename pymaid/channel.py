@@ -1,6 +1,7 @@
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
+from gevent.core import READ
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
@@ -126,10 +127,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        # from gevent.core import READ
-        # changed to 1 to make running on pypy+gevent
-        #accept_watcher = self._loop.io(sock.fileno(), READ)
-        accept_watcher = self._loop.io(sock.fileno(), 1)
+        accept_watcher = self._loop.io(sock.fileno(), READ)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock, server_side):
