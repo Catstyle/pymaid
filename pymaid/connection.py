@@ -29,9 +29,9 @@ class Connection(object):
         self._peer_name = sock.getpeername()
         self._sock_name = sock.getsockname()
         self._socket = sock
-        self._server_side = server_side
+        self.server_side = server_side
 
-        self._is_closed = False
+        self.is_closed = False
         self._close_cb = None
         self._heartbeat_timer = None
 
@@ -110,9 +110,9 @@ class Connection(object):
         self._send_let.unlink(self.close)
 
     def close(self, reason=None):
-        if self._is_closed:
+        if self.is_closed:
             return
-        self._is_closed = True
+        self.is_closed = True
 
         self.unlink_close()
         if reason is not None and isinstance(reason, Greenlet):
@@ -153,10 +153,6 @@ class Connection(object):
     @property
     def peername(self):
         return self._peer_name
-
-    @property
-    def is_closed(self):
-        return self._is_closed
 
     @property
     def conn_id(self):
