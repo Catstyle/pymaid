@@ -1,8 +1,9 @@
 from gevent.pool import Pool
-import GreenletProfiler
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
+from pymaid.utils import ProfilerContext
+
 from pb.rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
@@ -34,9 +35,5 @@ def main():
     assert cnt == 3000
 
 if __name__ == "__main__":
-    GreenletProfiler.set_clock_type('cpu')
-    GreenletProfiler.start()
-    main()
-    GreenletProfiler.stop()
-    stats = GreenletProfiler.get_func_stats()
-    stats.print_all()
+    with ProfilerContext():
+        main()

@@ -1,8 +1,8 @@
 from gevent.pool import Pool
-import GreenletProfiler
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
+from pymaid.utils import ProfilerContext
 from hello_pb2 import HelloService_Stub
 
 
@@ -27,9 +27,5 @@ def main():
     assert len(channel._connections) == 0, channel._connections
 
 if __name__ == "__main__":
-    GreenletProfiler.set_clock_type('cpu')
-    GreenletProfiler.start()
-    main()
-    GreenletProfiler.stop()
-    stats = GreenletProfiler.get_func_stats()
-    stats.print_all()
+    with ProfilerContext():
+        main()
