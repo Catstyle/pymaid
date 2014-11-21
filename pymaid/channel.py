@@ -54,17 +54,17 @@ class Channel(RpcChannel):
 
         # broadcast
         if controller.wide:
-            for conn in self._outcome_connections:
+            for conn in self._income_connections:
                 conn.send(controller)
         elif controller.group:
-            get_conn = self.get_outcome_connection
+            get_conn = self.get_income_connection
             for conn_id in controller.group:
                 conn = get_conn(conn_id, None)
                 if conn:
                     conn.send(controller)
         else:
-            if controller.conn.conn_id not in self._outcome_connections:
-                raise Exception('did not connect')
+            #if controller.conn.conn_id not in self._outcome_connections:
+            #    raise Exception('did not connect')
             controller.conn.send(controller)
 
         if issubclass(response_class, Void):
