@@ -31,7 +31,7 @@ class ProfilerContext(object):
         else:
             self.pr.disable()
             s = StringIO.StringIO()
-            sortby = 'tottime'
+            sortby = 'time'
             ps = pstats.Stats(self.pr, stream=s).sort_stats(sortby)
             ps.print_stats()
             sys.stdout.write(s.getvalue())
