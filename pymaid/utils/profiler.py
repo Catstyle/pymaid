@@ -1,13 +1,14 @@
 import sys
 try:
-    import GreenletProfile as Profiler
+    import GreenletProfiler as Profiler
+    greenlet_profiler = True
 except ImportError:
     sys.stdout.write(
         'GreenletProfile is not found, recommend to install it for better '
         'profile precision, try `pip install greenletprofile` '
         '(not available for pypy yet)\n'
     )
-    greenlet_profile = False
+    greenlet_profiler = False
     import cProfile as Profiler
     import StringIO
     import pstats
@@ -16,7 +17,7 @@ except ImportError:
 class ProfilerContext(object):
 
     def __enter__(self):
-        if greenlet_profile:
+        if greenlet_profiler:
             Profiler.set_clock_type('cpu')
             Profiler.start()
         else:
@@ -24,7 +25,7 @@ class ProfilerContext(object):
             self.pr.enable()
 
     def __exit__(self, type, value, traceback):
-        if greenlet_profile:
+        if greenlet_profiler:
             Profiler.stop()
             stats = Profiler.get_func_stats()
             stats.print_all()
