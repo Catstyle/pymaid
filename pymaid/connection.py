@@ -19,7 +19,7 @@ class Connection(object):
 
     HEADER = '!I'
     HEADER_LENGTH = struct.calcsize(HEADER)
-    MAX_PACKET_LENGTH = 10 * 1024
+    MAX_PACKET_LENGTH = 8 * 1024
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 1000000
@@ -42,6 +42,8 @@ class Connection(object):
 
         self._send_queue = Queue()
         self._recv_queue = Queue()
+        self.controller = Controller()
+        self.controller.conn = self
 
         self._send_let = greenlet_pool.spawn(self._send_loop)
         self._send_let.link(self.close)
@@ -103,7 +105,18 @@ class Connection(object):
         self._send_queue.put(packet_buff)
 
     def recv(self, timeout=None):
-        return self._recv_queue.get(timeout=timeout)
+        #return self._recv_queue.get(timeout=timeout)
+        controller_buffer = self._recv_queue.get(timeout=timeout)
+        if not controller_buffer:
+            return
+        controller = self.controller
+        controller.Reset()
+        try:
+            controller.meta_data.ParseFromString(controller_buffer)
+        except DecodeError as ex:
+            self.logger.exception('process packet with decode error', ex)
+            raise
+        return controller
 
     def unlink_close(self):
         self._recv_let.unlink(self.close)
@@ -114,6 +127,8 @@ class Connection(object):
             return
         self.is_closed = True
 
+        self.controller.conn = None
+        self.controller = None
         self.unlink_close()
         if reason is not None and isinstance(reason, Greenlet):
             reason = reason.exception
@@ -169,24 +184,25 @@ class Connection(object):
                 break
 
     def _recv_n(self, nbytes):
-        recv, buff = self._socket.recv, ''
-        while len(buff) < nbytes:
+        recv, buffers, length = self._socket.recv, [], 0
+        while length < nbytes:
             try:
-                t = recv(nbytes - len(buff))
+                t = recv(nbytes - length)
                 if not t:
                     self.logger.debug(
                         '[host|%s][peer|%s] has received EOF',
                         self.sockname, self.peername
                     )
                     return
-                buff += t
+                buffers.append(t)
+                length += len(t)
             except socket.error as ex:
                 self.logger.error(
                     '[host|%s][peer|%s] recv with exception: %s',
                     self.sockname, self.peername, ex
                 )
                 break
-        return buff
+        return ''.join(buffers)
 
     def _recv_loop(self):
         recv_n, unpack = self._recv_n, struct.unpack
@@ -206,12 +222,4 @@ class Connection(object):
                 return
 
             controller_buffer = recv_n(controller_length)
-            controller = Controller()
-            controller.conn = self
-            try:
-                controller.meta_data.ParseFromString(controller_buffer)
-            except DecodeError as ex:
-                self.logger.exception('process packet with decode error', ex)
-                break
-
-            recv_package(controller)
+            recv_package(controller_buffer)
