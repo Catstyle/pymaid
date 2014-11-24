@@ -15,7 +15,6 @@ class Controller(RpcController):
 
     def Reset(self):
         self.meta_data.Clear()
-        self.conn = None
         self.wide = False
         self.group = None
 
