@@ -1,8 +1,9 @@
 from gevent.pool import Pool
-import GreenletProfiler
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
+from pymaid.utils import ProfilerContext
+
 from pb.rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
@@ -21,7 +22,7 @@ def wrapper(pid, n):
 
 cnt = 0
 channel = Channel()
-service = ServiceAgent(RemoteError_Stub(channel))
+service = ServiceAgent(RemoteError_Stub(channel), conn=None)
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
@@ -30,13 +31,10 @@ def main():
 
     pool.join()
     assert len(channel._pending_results) == 0, channel._pending_results
-    assert len(channel._connections) == 0, channel._connections
+    assert len(channel._outcome_connections) == 0, channel._outcome_connections
+    assert len(channel._income_connections) == 0, channel._income_connections
     assert cnt == 3000
 
 if __name__ == "__main__":
-    GreenletProfiler.set_clock_type('cpu')
-    GreenletProfiler.start()
-    main()
-    GreenletProfiler.stop()
-    stats = GreenletProfiler.get_func_stats()
-    stats.print_all()
+    with ProfilerContext():
+        main()
