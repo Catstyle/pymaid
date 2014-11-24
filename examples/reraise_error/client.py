@@ -31,7 +31,8 @@ def main():
 
     pool.join()
     assert len(channel._pending_results) == 0, channel._pending_results
-    assert len(channel._connections) == 0, channel._connections
+    assert len(channel._outcome_connections) == 0, channel._outcome_connections
+    assert len(channel._income_connections) == 0, channel._income_connections
     assert cnt == 3000
 
 if __name__ == "__main__":

@@ -26,16 +26,16 @@ class Connection(object):
 
     def __init__(self, sock, server_side):
         self.setsockopt(sock)
-        self._peer_name = sock.getpeername()
-        self._sock_name = sock.getsockname()
         self._socket = sock
-        self._server_side = server_side
+        self.peername = sock.getpeername()
+        self.sockname = sock.getsockname()
+        self.server_side = server_side
 
-        self._is_closed = False
+        self.is_closed = False
         self._close_cb = None
         self._heartbeat_timer = None
 
-        self._conn_id = self.__class__.CONN_ID
+        self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
         if self.__class__.CONN_ID >= 2 ** 32:
             self.__class__.CONN_ID = 1000000
@@ -95,7 +95,7 @@ class Connection(object):
 
     def _send_heartbeat(self):
         # TODO: add send heartbeat
-        self._monitor_agent.notify_heartbeat(conn=self)
+        self._monitor_agent.notify_heartbeat()
         self._start_heartbeat_timer()
 
     def send(self, packet_buff):
@@ -110,9 +110,9 @@ class Connection(object):
         self._send_let.unlink(self.close)
 
     def close(self, reason=None):
-        if self._is_closed:
+        if self.is_closed:
             return
-        self._is_closed = True
+        self.is_closed = True
 
         self.unlink_close()
         if reason is not None and isinstance(reason, Greenlet):
@@ -145,22 +145,6 @@ class Connection(object):
         assert self._close_cb is None
         assert callable(close_cb)
         self._close_cb = close_cb
-
-    @property
-    def sockname(self):
-        return self._sock_name
-
-    @property
-    def peername(self):
-        return self._peer_name
-
-    @property
-    def is_closed(self):
-        return self._is_closed
-
-    @property
-    def conn_id(self):
-        return self._conn_id
 
     def _send_loop(self):
         get_packet, sendall = self._send_queue.get, self._socket.sendall
