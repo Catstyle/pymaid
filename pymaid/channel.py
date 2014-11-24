@@ -17,12 +17,13 @@ from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 @logger_wrapper
 class Channel(RpcChannel):
 
-    # Sets the maximum number of consecutive accepts that a process may perform on
-    # a single wake up. High values give higher priority to high connection rates,
-    # while lower values give higher priority to already established connections.
-    # Default is 100. Note, that in case of multiple working processes on the same
-    # listening value, it should be set to a lower value. (pywsgi.WSGIServer sets it
-    # to 1 when environ["wsgi.multiprocess"] is true)
+    # Sets the maximum number of consecutive accepts that a process may perform
+    # on a single wake up. High values give higher priority to high connection
+    # rates, while lower values give higher priority to already established
+    # connections.
+    # Default is 100. Note, that in case of multiple working processes on the
+    # same listening value, it should be set to a lower value.
+    # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 100
     MAX_CONCURRENCY = 10000
 
