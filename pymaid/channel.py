@@ -150,7 +150,6 @@ class Channel(RpcChannel):
 
     def close_connection(self, conn, reason=None):
         #print 'close_connection', (conn.conn_id, reason)
-        conn.close()
         if conn.server_side:
             assert conn.conn_id in self._income_connections
             del self._income_connections[conn.conn_id]
