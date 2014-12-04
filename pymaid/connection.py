@@ -1,7 +1,5 @@
 __all__ = ['Connection']
 
-import sys
-import errno
 import struct
 
 from gevent import getcurrent
@@ -211,6 +209,7 @@ class Connection(object):
                 self.close('has received EOF', reset=True)
                 break
             if not isinstance(header, str):
+                # exception
                 self.close(header)
                 break
 
