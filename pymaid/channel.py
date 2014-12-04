@@ -1,3 +1,5 @@
+__all__ = ['Channel']
+
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
@@ -64,8 +66,6 @@ class Channel(RpcChannel):
                 if conn:
                     conn.send(controller)
         else:
-            #if controller.conn.conn_id not in self._outcome_connections:
-            #    raise Exception('did not connect')
             controller.conn.send(controller)
 
         if issubclass(response_class, Void):
