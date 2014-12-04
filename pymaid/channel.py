@@ -136,13 +136,13 @@ class Channel(RpcChannel):
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
 
-        conn.set_close_cb(self.close_connection)
+        conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self._handle_loop, conn)
         self._setup_heartbeat(conn, server_side)
         return conn
 
-    def close_connection(self, conn, reason=None):
-        #print 'close_connection', (conn.conn_id, reason)
+    def connection_closed(self, conn, reason=None):
+        #print 'connection_closed', (conn.conn_id, reason)
         if conn.server_side:
             assert conn.conn_id in self._income_connections
             del self._income_connections[conn.conn_id]

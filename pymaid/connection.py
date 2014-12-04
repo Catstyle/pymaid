@@ -2,7 +2,6 @@ __all__ = ['Connection']
 
 import struct
 
-from gevent import getcurrent
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
@@ -23,16 +22,23 @@ class Connection(object):
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
+
+    # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
+    # the doubled value is max size for one socket recv call
+    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower the that
+    # in some situation, the basic value is something like 212992
+    # so MAX_RECV * MAX_PACKET_LENGTH = 8192 < 212992 is ok here
     MAX_SEND = 10
     MAX_RECV = 10
 
     def __init__(self, sock, server_side):
+        self.hub = get_hub()
+        self.server_side = server_side
+
         self.setsockopt(sock)
         self._socket = sock
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
-        self.server_side = server_side
-        self.hub = get_hub()
 
         self.is_closed = False
         self._close_cb = None
@@ -53,6 +59,7 @@ class Connection(object):
         self._write_event.start(self._send_loop)
 
     def setsockopt(self, sock):
+        sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
@@ -144,8 +151,6 @@ class Connection(object):
     def _send_loop(self):
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack = struct.pack
-        if getcurrent() == self.hub:
-            self._socket.setblocking(0)
         try:
             for _ in xrange(self.MAX_SEND):
                 packet_buffer = get_packet()
@@ -159,13 +164,9 @@ class Connection(object):
             pass
         except socket.error as ex:
             self.close(ex)
-        if getcurrent() == self.hub:
-            self._socket.setblocking(1)
 
     def _recv_n(self, nbytes):
         recv, buffers, length = self._socket.recv, [], 0
-        if getcurrent() == self.hub:
-            self._socket.setblocking(0)
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
@@ -181,8 +182,6 @@ class Connection(object):
                 ret = ex
         else:
             ret = ''.join(buffers)
-        if getcurrent() == self.hub:
-            self._socket.setblocking(1)
         return ret
 
     def _recv_loop(self):
