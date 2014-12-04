@@ -4,6 +4,7 @@ import sys
 import errno
 import struct
 
+from gevent import getcurrent
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
@@ -50,11 +51,6 @@ class Connection(object):
         self.controller = Controller()
         self.controller.conn = self
 
-        #self._send_let = greenlet_pool.spawn(self._send_loop)
-        #self._send_let.link(self.close)
-
-        #self._recv_let = greenlet_pool.spawn(self._recv_loop)
-        #self._recv_let.link(self.close)
         self._read_event = self.hub.loop.io(sock.fileno(), 1)
         self._read_event.start(self._recv_loop)
 
@@ -62,7 +58,6 @@ class Connection(object):
         self._write_event.start(self._send_loop)
 
     def setsockopt(self, sock):
-        sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
@@ -116,7 +111,6 @@ class Connection(object):
         self._send_queue.put(packet_buff.meta_data.SerializeToString())
 
     def recv(self, timeout=None):
-        #return self._recv_queue.get(timeout=timeout)
         packet_buffer = self._recv_queue.get(timeout=timeout)
         if not packet_buffer:
             return
@@ -125,7 +119,7 @@ class Connection(object):
         controller.meta_data.ParseFromString(packet_buffer)
         return controller
 
-    def close(self, reason=None):
+    def close(self, reason=None, reset=False):
         if self.is_closed:
             return
         self.is_closed = True
@@ -136,25 +130,21 @@ class Connection(object):
             reason = reason.exception
         #print 'connection close', reason
 
-        if reason is not None:
-            self.logger.error(
-                '[host|%s][peer|%s] closed with reason: %s',
-                self.sockname, self.peername, reason
-            )
+        self.logger.error(
+            '[host|%s][peer|%s] closed with reason: %s',
+            self.sockname, self.peername, reason
+        )
 
         if self._heartbeat_timer is not None:
             self._heartbeat_timer.stop()
 
+        if not reset:
+            self._send_queue.queue.clear()
+            self._send_queue.put('')
+            self._send_loop()
+        self._read_event.stop()
+        self._write_event.stop()
         self._socket.close()
-        #if not self._send_let.dead:
-        #    self._send_queue.put('')
-        #    self._send_queue.put(None)
-        #    self._send_let.kill(block=False)
-
-        #if not self._recv_let.dead:
-        #    self._recv_queue.queue.clear()
-        #    self._recv_queue.put(None)
-        #    self._recv_let.kill(block=False)
 
         if self._close_cb:
             self._close_cb(self, reason)
@@ -167,6 +157,8 @@ class Connection(object):
     def _send_loop(self):
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack = struct.pack
+        if getcurrent() == self.hub:
+            self._socket.setblocking(0)
         try:
             for _ in xrange(self.MAX_SEND):
                 packet_buffer = get_packet()
@@ -180,25 +172,31 @@ class Connection(object):
             pass
         except socket.error as ex:
             self.close(ex)
+        if getcurrent() == self.hub:
+            self._socket.setblocking(1)
 
     def _recv_n(self, nbytes):
         recv, buffers, length = self._socket.recv, [], 0
+        if getcurrent() == self.hub:
+            self._socket.setblocking(0)
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
                 if not t:
-                    self.logger.debug(
-                        '[host|%s][peer|%s] has received EOF',
-                        self.sockname, self.peername
-                    )
-                    return None
+                    ret = None
+                    break
                 buffers.append(t)
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                return 0
-            self.close(ex)
-        return ''.join(buffers)
+                ret = 0
+            else:
+                ret = ex
+        else:
+            ret = ''.join(buffers)
+        if getcurrent() == self.hub:
+            self._socket.setblocking(1)
+        return ret
 
     def _recv_loop(self):
         recv_n, unpack = self._recv_n, struct.unpack
@@ -209,8 +207,12 @@ class Connection(object):
             header = recv_n(HEADER_LENGTH)
             if header == 0:
                 break
-            if header is None:
-                self.close()
+            if header is None or header == '':
+                self.close('has received EOF', reset=True)
+                break
+            if not isinstance(header, str):
+                self.close(header)
+                break
 
             packet_length = unpack(HEADER, header)[0]
             if packet_length >= MAX_PACKET_LENGTH:
