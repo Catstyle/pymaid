@@ -46,8 +46,6 @@ class Connection(object):
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
-        if self.__class__.CONN_ID >= 10000000:
-            self.__class__.CONN_ID = 0
 
         self._send_queue = Queue()
         self._recv_queue = Queue()

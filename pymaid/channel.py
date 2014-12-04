@@ -54,7 +54,8 @@ class Channel(RpcChannel):
 
         require_response = not issubclass(response_class, Void)
         if require_response:
-            transmission_id = self.get_transmission_id()
+            transmission_id = self._transmission_id
+            self._transmission_id += 1
             controller.meta_data.transmission_id = transmission_id
 
         # broadcast
@@ -102,12 +103,6 @@ class Channel(RpcChannel):
     
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
-
-    def get_transmission_id(self):
-        self._transmission_id += 1
-        if self._transmission_id >= 10000000:
-            self._transmission_id = 0
-        return self._transmission_id
 
     def connect(self, host, port):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -240,7 +235,7 @@ class Channel(RpcChannel):
 
     def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id
-        assert transmission_id in self._pending_results, (transmission_id, self._pending_results)
+        assert transmission_id in self._pending_results
         async_result, response_class = self._pending_results.pop(transmission_id)
 
         if controller.Failed():
