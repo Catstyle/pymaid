@@ -8,7 +8,6 @@ from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
 from gevent import socket
 
-from pymaid.controller import Controller
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import logger_wrapper
@@ -23,7 +22,7 @@ class Connection(object):
     MAX_PACKET_LENGTH = 8 * 1024
 
     LINGER_PACK = struct.pack('ii', 1, 0)
-    CONN_ID = 1000000
+    CONN_ID = 0
     MAX_SEND = 10
     MAX_RECV = 10
 
@@ -42,12 +41,10 @@ class Connection(object):
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
         if self.__class__.CONN_ID >= 10000000:
-            self.__class__.CONN_ID = 1000000
+            self.__class__.CONN_ID = 0
 
         self._send_queue = Queue()
         self._recv_queue = Queue()
-        self.controller = Controller()
-        self.controller.conn = self
 
         self._read_event = self.hub.loop.io(sock.fileno(), 1)
         self._read_event.start(self._recv_loop)
@@ -104,26 +101,18 @@ class Connection(object):
         self._monitor_agent.notify_heartbeat()
         self._start_heartbeat_timer()
 
-    def send(self, packet_buff):
-        assert packet_buff
-        self._send_queue.put(packet_buff.meta_data.SerializeToString())
+    def send(self, packet_buffer):
+        assert packet_buffer
+        self._send_queue.put(packet_buffer)
 
     def recv(self, timeout=None):
-        packet_buffer = self._recv_queue.get(timeout=timeout)
-        if not packet_buffer:
-            return
-        controller = self.controller
-        controller.Reset()
-        controller.meta_data.ParseFromString(packet_buffer)
-        return controller
+        return self._recv_queue.get(timeout=timeout)
 
     def close(self, reason=None, reset=False):
         if self.is_closed:
             return
         self.is_closed = True
 
-        self.controller.conn = None
-        self.controller = None
         if isinstance(reason, Greenlet):
             reason = reason.exception
         #print 'connection close', reason
