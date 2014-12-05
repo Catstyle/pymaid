@@ -2,13 +2,11 @@ __all__ = ['Connection']
 
 import struct
 
-from gevent import getcurrent
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
 from gevent import socket
 
-from pymaid.controller import Controller
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import logger_wrapper
@@ -23,17 +21,24 @@ class Connection(object):
     MAX_PACKET_LENGTH = 8 * 1024
 
     LINGER_PACK = struct.pack('ii', 1, 0)
-    CONN_ID = 1000000
+    CONN_ID = 0
+
+    # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
+    # the doubled value is max size for one socket recv call
+    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower the that
+    # in some situation, the basic value is something like 212992
+    # so MAX_RECV * MAX_PACKET_LENGTH = 8192 < 212992 is ok here
     MAX_SEND = 10
     MAX_RECV = 10
 
     def __init__(self, sock, server_side):
+        self.hub = get_hub()
+        self.server_side = server_side
+
         self.setsockopt(sock)
         self._socket = sock
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
-        self.server_side = server_side
-        self.hub = get_hub()
 
         self.is_closed = False
         self._close_cb = None
@@ -41,13 +46,9 @@ class Connection(object):
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
-        if self.__class__.CONN_ID >= 10000000:
-            self.__class__.CONN_ID = 1000000
 
         self._send_queue = Queue()
         self._recv_queue = Queue()
-        self.controller = Controller()
-        self.controller.conn = self
 
         self._read_event = self.hub.loop.io(sock.fileno(), 1)
         self._read_event.start(self._recv_loop)
@@ -56,6 +57,7 @@ class Connection(object):
         self._write_event.start(self._send_loop)
 
     def setsockopt(self, sock):
+        sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
@@ -104,26 +106,18 @@ class Connection(object):
         self._monitor_agent.notify_heartbeat()
         self._start_heartbeat_timer()
 
-    def send(self, packet_buff):
-        assert packet_buff
-        self._send_queue.put(packet_buff.meta_data.SerializeToString())
+    def send(self, packet_buffer):
+        assert packet_buffer
+        self._send_queue.put(packet_buffer)
 
     def recv(self, timeout=None):
-        packet_buffer = self._recv_queue.get(timeout=timeout)
-        if not packet_buffer:
-            return
-        controller = self.controller
-        controller.Reset()
-        controller.meta_data.ParseFromString(packet_buffer)
-        return controller
+        return self._recv_queue.get(timeout=timeout)
 
     def close(self, reason=None, reset=False):
         if self.is_closed:
             return
         self.is_closed = True
 
-        self.controller.conn = None
-        self.controller = None
         if isinstance(reason, Greenlet):
             reason = reason.exception
         #print 'connection close', reason
@@ -155,8 +149,6 @@ class Connection(object):
     def _send_loop(self):
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack = struct.pack
-        if getcurrent() == self.hub:
-            self._socket.setblocking(0)
         try:
             for _ in xrange(self.MAX_SEND):
                 packet_buffer = get_packet()
@@ -170,13 +162,9 @@ class Connection(object):
             pass
         except socket.error as ex:
             self.close(ex)
-        if getcurrent() == self.hub:
-            self._socket.setblocking(1)
 
     def _recv_n(self, nbytes):
         recv, buffers, length = self._socket.recv, [], 0
-        if getcurrent() == self.hub:
-            self._socket.setblocking(0)
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
@@ -192,8 +180,6 @@ class Connection(object):
                 ret = ex
         else:
             ret = ''.join(buffers)
-        if getcurrent() == self.hub:
-            self._socket.setblocking(1)
         return ret
 
     def _recv_loop(self):

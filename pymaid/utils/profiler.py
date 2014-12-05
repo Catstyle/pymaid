@@ -5,7 +5,7 @@ try:
 except ImportError:
     sys.stdout.write(
         'GreenletProfile is not found, recommend to install it for better '
-        'profile precision, try `pip install greenletprofile` '
+        'profile precision, try `pip install greenletprofiler` '
         '(not available for pypy yet)\n'
     )
     greenlet_profiler = False
