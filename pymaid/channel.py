@@ -104,9 +104,8 @@ class Channel(RpcChannel):
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
 
-    def connect(self, host, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        sock.connect((host, port))
+    def connect(self, host, port, timeout=None):
+        sock = socket.create_connection((host, port), timeout=timeout)
         conn = self.new_connection(sock, server_side=False)
         return conn
 
