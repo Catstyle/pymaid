@@ -104,7 +104,7 @@ class Channel(RpcChannel):
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
 
-    def connect(self, host, port, timeout=None):
+    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
         conn = self.new_connection(sock, server_side=False)
         return conn
@@ -120,7 +120,7 @@ class Channel(RpcChannel):
         accept_watcher = self._loop.io(sock.fileno(), READ)
         accept_watcher.start(self._do_accept, sock)
 
-    def new_connection(self, sock, server_side):
+    def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
         if server_side:
@@ -132,7 +132,7 @@ class Channel(RpcChannel):
 
         conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self._handle_loop, conn)
-        self._setup_heartbeat(conn, server_side)
+        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
     def connection_closed(self, conn, reason=None):
@@ -159,13 +159,13 @@ class Channel(RpcChannel):
         monitor_service.channel = self
         self.append_service(monitor_service)
 
-    def _setup_heartbeat(self, conn, server_side):
+    def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
         if server_side:
             if self.need_heartbeat:
                 conn.setup_server_heartbeat(
                     self.heartbeat_interval, self.max_heartbeat_timeout_count
                 )
-        else:
+        elif not ignore_heartbeat:
             conn.setup_client_heartbeat(channel=self)
 
     def _do_accept(self, sock):
