@@ -18,10 +18,6 @@ class Connection(object):
 
     HEADER = '!I'
     HEADER_LENGTH = struct.calcsize(HEADER)
-    MAX_PACKET_LENGTH = 8 * 1024
-
-    LINGER_PACK = struct.pack('ii', 1, 0)
-    CONN_ID = 0
 
     # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
     # the doubled value is max size for one socket recv call
@@ -30,6 +26,10 @@ class Connection(object):
     # so MAX_RECV * MAX_PACKET_LENGTH = 8192 < 212992 is ok here
     MAX_SEND = 10
     MAX_RECV = 10
+    MAX_PACKET_LENGTH = 8 * 1024
+
+    LINGER_PACK = struct.pack('ii', 1, 0)
+    CONN_ID = 0
 
     def __init__(self, sock, server_side):
         self.hub = get_hub()
@@ -43,6 +43,7 @@ class Connection(object):
         self.is_closed = False
         self._close_cb = None
         self._heartbeat_timer = None
+        self._monitor_agent = None
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
@@ -117,23 +118,24 @@ class Connection(object):
         if self.is_closed:
             return
         self.is_closed = True
+        #print 'connection close', reason
 
         if isinstance(reason, Greenlet):
             reason = reason.exception
-        #print 'connection close', reason
-
-        self.logger.error(
+        self.logger.info(
             '[host|%s][peer|%s] closed with reason: %s',
             self.sockname, self.peername, reason
         )
 
         if self._heartbeat_timer is not None:
             self._heartbeat_timer.stop()
+        if self._monitor_agent is not None:
+            self._monitor_agent.close()
 
         if not reset:
-            self._send_queue.queue.clear()
-            self._send_queue.put('')
-            self._send_loop()
+            self._socket.sendall('')
+        self._send_queue.queue.clear()
+        self._recv_queue.queue.clear()
         self._read_event.stop()
         self._write_event.stop()
         self._socket.close()
@@ -147,6 +149,9 @@ class Connection(object):
         self._close_cb = close_cb
 
     def _send_loop(self):
+        if self._send_queue.empty():
+            return
+
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack = struct.pack
         try:
@@ -196,7 +201,7 @@ class Connection(object):
                 break
             if not isinstance(header, str):
                 # exception
-                self.close(header)
+                self.close(header, reset=True)
                 break
 
             packet_length = unpack(HEADER, header)[0]
