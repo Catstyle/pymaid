@@ -35,7 +35,7 @@ class Connection(object):
         self.hub = get_hub()
         self.server_side = server_side
 
-        self.setsockopt(sock)
+        self._setsockopt(sock)
         self._socket = sock
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
@@ -57,7 +57,7 @@ class Connection(object):
         self._write_event = self.hub.loop.io(sock.fileno(), 2)
         self._write_event.start(self._send_loop)
 
-    def setsockopt(self, sock):
+    def _setsockopt(self, sock):
         sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
