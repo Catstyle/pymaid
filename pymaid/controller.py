@@ -13,26 +13,33 @@ class Controller(RpcController):
         self.wide = False
         self.group = None
 
+    def SerializeToString(self):
+        return self.meta_data.SerializeToString()
+
+    def ParseFromString(self, value):
+        self.meta_data.ParseFromString(value)
+
     def Reset(self):
         self.meta_data.Clear()
         self.wide = False
         self.group = None
 
     def Failed(self):
-        return self.meta_data.failed
+        return self.meta_data.is_failed
 
     def ErrorText(self):
-        return self.meta_data.error_text
+        return self.meta_data.message
 
     def StartCancel(self):
         pass
 
     def SetFailed(self, reason):
         assert isinstance(reason, BaseError)
-        self.meta_data.failed = True
-        error_message = ErrorMessage(error_code=reason.code,
-                                     error_message=reason.message)
-        self.meta_data.error_text = error_message.SerializeToString()
+        self.meta_data.is_failed = True
+        message = ErrorMessage(
+            error_code=reason.code, error_message=reason.message
+        )
+        self.meta_data.message = message.SerializeToString()
 
     def IsCanceled(self):
         return self.meta_data.is_canceled

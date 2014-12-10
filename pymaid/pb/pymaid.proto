@@ -7,10 +7,8 @@ message ControllerMeta {
     optional uint32 transmission_id = 3;
     optional bool from_stub = 4;
     optional bool is_canceled = 5;
-    optional bool failed = 6;
-    optional bytes request = 7;
-    optional bytes response = 8;
-    optional bytes error_text = 9;
+    optional bool is_failed = 6;
+    optional bytes message = 7;
 }
 
 

@@ -46,24 +46,26 @@ class Channel(RpcChannel):
         self.max_heartbeat_timeout_count = 0
 
     def CallMethod(self, method, controller, request, response_class, done):
-        controller.meta_data.from_stub = True
-        controller.meta_data.service_name = method.containing_service.full_name
-        controller.meta_data.method_name = method.name
+        meta_data = controller.meta_data
+        meta_data.from_stub = True
+        meta_data.service_name = method.containing_service.full_name
+        meta_data.method_name = method.name
         if not isinstance(request, Void):
-            controller.meta_data.request = request.SerializeToString()
+            meta_data.message = request.SerializeToString()
 
         require_response = not issubclass(response_class, Void)
         if require_response:
             transmission_id = self._transmission_id
             self._transmission_id += 1
-            controller.meta_data.transmission_id = transmission_id
+            meta_data.transmission_id = transmission_id
 
-        # broadcast
-        packet = controller.meta_data.SerializeToString()
+        packet = meta_data.SerializeToString()
         if controller.wide:
+            # broadcast
             for conn in self._income_connections.itervalues():
                 conn.send(packet)
         elif controller.group:
+            # small broadcast
             get_conn = self.get_income_connection
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
@@ -205,14 +207,12 @@ class Channel(RpcChannel):
             reason = ex
             raise
         finally:
-            controller.conn = None
             conn.close(reason)
 
     def _recv_request(self, controller):
         meta_data = controller.meta_data
         meta_data.from_stub = False
         service = self.services.get(meta_data.service_name, None)
-        conn = controller.conn
 
         if service is None:
             raise ServiceNotExist(service_name=meta_data.service_name)
@@ -224,12 +224,12 @@ class Channel(RpcChannel):
 
         request_class = service.GetRequestClass(method)
         request = request_class()
-        request.ParseFromString(meta_data.request)
+        request.ParseFromString(meta_data.message)
 
         def send_back(response):
             assert response, 'rpc does not require a response of None'
-            meta_data.response = response.SerializeToString()
-            conn.send(meta_data.SerializeToString())
+            meta_data.message = response.SerializeToString()
+            controller.conn.send(meta_data.SerializeToString())
         service.CallMethod(method, controller, request, send_back)
 
     def _recv_response(self, controller):
@@ -248,7 +248,7 @@ class Channel(RpcChannel):
 
         response = response_class()
         try:
-            response.ParseFromString(controller.meta_data.response)
+            response.ParseFromString(controller.meta_data.message)
         except DecodeError as ex:
             async_result.set_exception(ex)
         else:
