@@ -18,7 +18,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='pymaid/pb/pymaid.proto',
   package='pymaid.pb',
-  serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\"\xc3\x01\n\x0e\x43ontrollerMeta\x12\x14\n\x0cservice_name\x18\x01 \x01(\t\x12\x13\n\x0bmethod_name\x18\x02 \x01(\t\x12\x17\n\x0ftransmission_id\x18\x03 \x01(\r\x12\x11\n\tfrom_stub\x18\x04 \x01(\x08\x12\x13\n\x0bis_canceled\x18\x05 \x01(\x08\x12\x0e\n\x06\x66\x61iled\x18\x06 \x01(\x08\x12\x0f\n\x07request\x18\x07 \x01(\x0c\x12\x10\n\x08response\x18\x08 \x01(\x0c\x12\x12\n\nerror_text\x18\t \x01(\x0c\"\x06\n\x04Void\"9\n\x0c\x45rrorMessage\x12\x12\n\nerror_code\x18\x01 \x02(\r\x12\x15\n\rerror_message\x18\x02 \x02(\t')
+  serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\"\xa0\x01\n\x0e\x43ontrollerMeta\x12\x14\n\x0cservice_name\x18\x01 \x01(\t\x12\x13\n\x0bmethod_name\x18\x02 \x01(\t\x12\x17\n\x0ftransmission_id\x18\x03 \x01(\r\x12\x11\n\tfrom_stub\x18\x04 \x01(\x08\x12\x13\n\x0bis_canceled\x18\x05 \x01(\x08\x12\x11\n\tis_failed\x18\x06 \x01(\x08\x12\x0f\n\x07message\x18\x07 \x01(\x0c\"\x06\n\x04Void\"9\n\x0c\x45rrorMessage\x12\x12\n\nerror_code\x18\x01 \x02(\r\x12\x15\n\rerror_message\x18\x02 \x02(\t')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -68,29 +68,15 @@ _CONTROLLERMETA = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='failed', full_name='pymaid.pb.ControllerMeta.failed', index=5,
+      name='is_failed', full_name='pymaid.pb.ControllerMeta.is_failed', index=5,
       number=6, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='request', full_name='pymaid.pb.ControllerMeta.request', index=6,
+      name='message', full_name='pymaid.pb.ControllerMeta.message', index=6,
       number=7, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='response', full_name='pymaid.pb.ControllerMeta.response', index=7,
-      number=8, type=12, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b(""),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='error_text', full_name='pymaid.pb.ControllerMeta.error_text', index=8,
-      number=9, type=12, cpp_type=9, label=1,
       has_default_value=False, default_value=_b(""),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -107,7 +93,7 @@ _CONTROLLERMETA = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=38,
-  serialized_end=233,
+  serialized_end=198,
 )
 
 
@@ -129,8 +115,8 @@ _VOID = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=235,
-  serialized_end=241,
+  serialized_start=200,
+  serialized_end=206,
 )
 
 
@@ -166,8 +152,8 @@ _ERRORMESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=243,
-  serialized_end=300,
+  serialized_start=208,
+  serialized_end=265,
 )
 
 DESCRIPTOR.message_types_by_name['ControllerMeta'] = _CONTROLLERMETA
