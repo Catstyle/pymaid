@@ -132,7 +132,7 @@ class Connection(object):
         if self._monitor_agent is not None:
             self._monitor_agent.close()
 
-        if not reset:
+        if reason is None and not reset:
             self._socket.sendall('')
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()
