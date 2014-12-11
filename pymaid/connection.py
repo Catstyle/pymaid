@@ -202,7 +202,7 @@ class Connection(object):
 
         # handle all received data even if receive EOF or catch exception
         buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
-        count, buffers_length = 0, len(buffers)
+        count, buffers_length, unpack = 0, len(buffers), struct.unpack
         HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
         MAX_PACKET_LENGTH = self.MAX_PACKET_LENGTH
         while count < buffers_length:
@@ -211,7 +211,7 @@ class Connection(object):
                 break
             count += HEADER_LENGTH
 
-            packet_length = struct.unpack(HEADER, header)[0]
+            packet_length = unpack(HEADER, header)[0]
             if packet_length >= MAX_PACKET_LENGTH:
                 self.close('recv invalid payload [length|%d]' % packet_length)
                 break
