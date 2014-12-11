@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 __all__ = [
     'ServiceAgent', 'Channel', 'Controller', 'Connection',
     'Error', 'Warning', 'logger', 'pool'
@@ -11,9 +12,9 @@ if sys.platform.startswith('linux'):
     import os
     os.environ.setdefault('GEVENT_RESOLVER', 'ares')
 
-from agent import ServiceAgent
-from channel import Channel
-from controller import Controller
-from connection import Connection
-from error import Error, Warning
-from utils import logger, pool
+from pymaid.agent import ServiceAgent
+from pymaid.channel import Channel
+from pymaid.controller import Controller
+from pymaid.connection import Connection
+from pymaid.error import Error, Warning
+from pymaid.utils import logger, pool
