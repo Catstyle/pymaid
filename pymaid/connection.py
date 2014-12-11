@@ -198,6 +198,7 @@ class Connection(object):
     def _recv_loop(self):
         length = self._recv_n(self.RCVBUF)
 
+        # handle all received data even if receive EOF or catch exception
         buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
         count, buffers_length = 0, len(buffers)
         HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
@@ -224,6 +225,7 @@ class Connection(object):
         if count < buffers_length and not self.is_closed:
             self.buffers.append(buffers[count:])
 
+        # close if receive EOF or catch exception
         if length == 0:
             self.close('has received EOF', reset=True)
         elif not isinstance(length, (int, long)):
