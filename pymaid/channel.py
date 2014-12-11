@@ -108,7 +108,7 @@ class Channel(RpcChannel):
 
     def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self.new_connection(sock, server_side=False)
+        conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
     def listen(self, host, port, backlog=256):
