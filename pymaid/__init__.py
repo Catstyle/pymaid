@@ -10,7 +10,10 @@ VERSION = tuple(map(int, __version__.split('.')))
 import sys
 if sys.platform.startswith('linux'):
     import os
-    os.environ.setdefault('GEVENT_RESOLVER', 'ares')
+    if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
+        sys.stdout.write(
+            'ares-resolver is better, just `export GEVENT_RESOLVER=ares`'
+        )
 
 from pymaid.agent import ServiceAgent
 from pymaid.channel import Channel
