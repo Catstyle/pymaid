@@ -55,10 +55,9 @@ class Connection(object):
         self._recv_queue = Queue()
 
         self._read_event = self.hub.loop.io(sock.fileno(), 1)
-        self._read_event.start(self._recv_loop)
-
         self._write_event = self.hub.loop.io(sock.fileno(), 2)
-        self._write_event.start(self._send_loop)
+
+        self._read_event.start(self._recv_loop)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -114,6 +113,9 @@ class Connection(object):
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
+        if not self._write_event.active:
+            self._write_event.start(self._send_loop)
+
 
     def recv(self, timeout=None):
         return self._recv_queue.get(timeout=timeout)
