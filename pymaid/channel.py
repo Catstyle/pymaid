@@ -133,12 +133,13 @@ class Channel(RpcChannel):
             self._outcome_connections[conn.conn_id] = conn
 
         conn.set_close_cb(self.connection_closed)
-        greenlet_pool.spawn(self._handle_loop, conn)
+        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
     def connection_closed(self, conn, reason=None):
         #print 'connection_closed', (conn.conn_id, reason)
+        conn.gr.kill(block=False)
         if conn.server_side:
             assert conn.conn_id in self._income_connections
             del self._income_connections[conn.conn_id]
@@ -153,7 +154,7 @@ class Channel(RpcChannel):
 
     @property
     def is_full(self):
-        return len(self._income_connections) == self.MAX_CONCURRENCY
+        return len(self._income_connections) >= self.MAX_CONCURRENCY
 
     def _setup_server(self):
         # only server need monitor service
