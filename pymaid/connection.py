@@ -33,6 +33,13 @@ class Connection(object):
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
 
+    __slots__ = [
+        'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
+        'buffers', 'gr', '_socket', '_close_cb', '_heartbeat_timer',
+        '_monitor_agent', '_send_queue', '_recv_queue', '_read_event',
+        '_write_event',
+    ]
+
     def __init__(self, sock, server_side):
         self.hub = get_hub()
         self.server_side = server_side
