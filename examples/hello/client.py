@@ -23,7 +23,7 @@ def main():
         pool.spawn(wrapper, x, 1)
 
     pool.join()
-    assert len(channel._pending_results) == 0, channel._pending_results
+    assert len(channel.pending_results) == 0, channel.pending_results
     assert len(channel._outcome_connections) == 0, channel._outcome_connections
     assert len(channel._income_connections) == 0, channel._income_connections
 
