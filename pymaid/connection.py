@@ -27,8 +27,7 @@ class Connection(object):
     MAX_SEND = 10
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
-    # system will doubled this buffer
-    RCVBUF = MAX_RECV * MAX_PACKET_LENGTH / 2
+    RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
@@ -71,7 +70,8 @@ class Connection(object):
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF)
+        # system will doubled this buffer
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
     def setup_server_heartbeat(self, interval, max_timeout_count):
         assert interval > 0
