@@ -27,8 +27,8 @@ class Channel(RpcChannel):
     # Default is 100. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 100
-    MAX_CONCURRENCY = 10000
+    MAX_ACCEPT = 1024
+    MAX_CONCURRENCY = 30000
 
     def __init__(self, loop=None):
         super(Channel, self).__init__()
@@ -111,7 +111,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=256):
+    def listen(self, host, port, backlog=1024):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
