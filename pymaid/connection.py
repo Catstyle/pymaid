@@ -23,13 +23,21 @@ class Connection(object):
     # the doubled value is max size for one socket recv call
     # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower the that
     # in some situation, the basic value is something like 212992
-    # so MAX_RECV * MAX_PACKET_LENGTH = 8192 < 212992 is ok here
+    # so MAX_RECV * MAX_PACKET_LENGTH = 81920 < 212992 is ok here
     MAX_SEND = 10
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
+    RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
+
+    __slots__ = [
+        'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
+        'buffers', 'gr', '_socket', '_close_cb', '_heartbeat_timer',
+        '_monitor_agent', '_send_queue', '_recv_queue', '_read_event',
+        '_write_event',
+    ]
 
     def __init__(self, sock, server_side):
         self.hub = get_hub()
@@ -48,20 +56,22 @@ class Connection(object):
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
 
+        self.buffers = []
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
         self._read_event = self.hub.loop.io(sock.fileno(), 1)
-        self._read_event.start(self._recv_loop)
-
         self._write_event = self.hub.loop.io(sock.fileno(), 2)
-        self._write_event.start(self._send_loop)
+
+        self._read_event.start(self._recv_loop)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
+        # system will doubled this buffer
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
     def setup_server_heartbeat(self, interval, max_timeout_count):
         assert interval > 0
@@ -110,6 +120,9 @@ class Connection(object):
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
+        if not self._write_event.active:
+            self._write_event.start(self._send_loop)
+
 
     def recv(self, timeout=None):
         return self._recv_queue.get(timeout=timeout)
@@ -139,6 +152,7 @@ class Connection(object):
         self._read_event.stop()
         self._write_event.stop()
         self._socket.close()
+        del self.buffers[:]
 
         if self._close_cb:
             self._close_cb(self, reason)
@@ -153,15 +167,16 @@ class Connection(object):
             return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
-        pack = struct.pack
+        pack, HEADER, MAX_SEND = struct.pack, self.HEADER, self.MAX_SEND
         try:
-            for _ in xrange(self.MAX_SEND):
+            for _ in xrange(MAX_SEND):
                 packet_buffer = get_packet()
                 if packet_buffer is None:
                     break
 
-                header_buffer = pack(self.HEADER, len(packet_buffer))
+                header_buffer = pack(HEADER, len(packet_buffer))
                 # see pydoc of socket.sendall
+                #print 'send_loop', header_buffer+packet_buffer
                 sendall(header_buffer+packet_buffer)
         except Empty:
             pass
@@ -169,44 +184,59 @@ class Connection(object):
             self.close(ex)
 
     def _recv_n(self, nbytes):
-        recv, buffers, length = self._socket.recv, [], 0
+        recv, append, length = self._socket.recv, self.buffers.append, 0
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
                 if not t:
-                    ret = None
+                    ret = 0
                     break
-                buffers.append(t)
+                append(t)
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = 0
+                ret = length
             else:
                 ret = ex
+        except Exception as ex:
+            ret = ex
         else:
-            ret = ''.join(buffers)
+            ret = length
         return ret
 
     def _recv_loop(self):
-        recv_n, unpack = self._recv_n, struct.unpack
-        recv_packet = self._recv_queue.put
+        length = self._recv_n(self.RCVBUF)
+
+        # handle all received data even if receive EOF or catch exception
+        buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
+        count, buffers_length, unpack = 0, len(buffers), struct.unpack
         HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
         MAX_PACKET_LENGTH = self.MAX_PACKET_LENGTH
-        for _ in xrange(self.MAX_RECV):
-            header = recv_n(HEADER_LENGTH)
-            if header == 0:
+        while count < buffers_length:
+            header = buffers[count:count+HEADER_LENGTH]
+            if len(header) < HEADER_LENGTH:
                 break
-            if header is None or header == '':
-                self.close('has received EOF', reset=True)
-                break
-            if not isinstance(header, str):
-                # exception
-                self.close(header, reset=True)
-                break
+            count += HEADER_LENGTH
 
             packet_length = unpack(HEADER, header)[0]
             if packet_length >= MAX_PACKET_LENGTH:
                 self.close('recv invalid payload [length|%d]' % packet_length)
+                break
 
-            packet_buffer = recv_n(packet_length)
+            packet_buffer = buffers[count:count+packet_length]
+            if len(packet_buffer) < packet_length:
+                break
+            #print 'recv_packet', packet_buffer
             recv_packet(packet_buffer)
+            count += packet_length
+
+        del self.buffers[:]
+        if count < buffers_length and not self.is_closed:
+            self.buffers.append(buffers[count:])
+
+        # close if receive EOF or catch exception
+        if length == 0:
+            self.close('has received EOF', reset=True)
+        elif not isinstance(length, (int, long)):
+            # exception
+            self.close(length, reset=True)

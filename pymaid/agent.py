@@ -3,7 +3,9 @@ from pymaid.controller import Controller
 
 class ServiceAgent(object):
 
-    __slot__ = ['stub']
+    __slots__ = [
+        'stub', 'conn', 'controller', 'get_method_by_name', 'get_request_class'
+    ]
 
     def __init__(self, stub, conn):
         self.stub, self.conn, self.controller = stub, conn, Controller()

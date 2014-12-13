@@ -33,9 +33,9 @@ class Channel(RpcChannel):
     def __init__(self, loop=None):
         super(Channel, self).__init__()
 
-        self._transmission_id = 0
-        self._pending_results = {}
-        self._loop = loop or get_hub().loop
+        self.transmission_id = 0
+        self.pending_results = {}
+        self.loop = loop or get_hub().loop
 
         self._income_connections = {}
         self._outcome_connections = {}
@@ -55,8 +55,8 @@ class Channel(RpcChannel):
 
         require_response = not issubclass(response_class, Void)
         if require_response:
-            transmission_id = self._transmission_id
-            self._transmission_id += 1
+            transmission_id = self.transmission_id
+            self.transmission_id += 1
             meta_data.transmission_id = transmission_id
 
         packet = meta_data.SerializeToString()
@@ -77,9 +77,9 @@ class Channel(RpcChannel):
         if not require_response:
             return
 
-        assert transmission_id not in self._pending_results
+        assert transmission_id not in self.pending_results
         async_result = AsyncResult()
-        self._pending_results[transmission_id] = async_result, response_class
+        self.pending_results[transmission_id] = async_result, response_class
         return async_result.get()
 
     def append_service(self, service):
@@ -108,7 +108,7 @@ class Channel(RpcChannel):
 
     def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self.new_connection(sock, server_side=False)
+        conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
     def listen(self, host, port, backlog=256):
@@ -119,7 +119,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self._loop.io(sock.fileno(), READ)
+        accept_watcher = self.loop.io(sock.fileno(), READ, priority=2)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
@@ -133,12 +133,13 @@ class Channel(RpcChannel):
             self._outcome_connections[conn.conn_id] = conn
 
         conn.set_close_cb(self.connection_closed)
-        greenlet_pool.spawn(self._handle_loop, conn)
+        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
     def connection_closed(self, conn, reason=None):
         #print 'connection_closed', (conn.conn_id, reason)
+        conn.gr.kill(block=False)
         if conn.server_side:
             assert conn.conn_id in self._income_connections
             del self._income_connections[conn.conn_id]
@@ -146,14 +147,14 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections
             del self._outcome_connections[conn.conn_id]
         # TODO: clean pending_results if needed
-        #del self._pending_results[transmission_id]
+        #del self.pending_results[transmission_id]
 
     def serve_forever(self):
         wait()
 
     @property
     def is_full(self):
-        return len(self._income_connections) == self.MAX_CONCURRENCY
+        return len(self._income_connections) >= self.MAX_CONCURRENCY
 
     def _setup_server(self):
         # only server need monitor service
@@ -234,8 +235,8 @@ class Channel(RpcChannel):
 
     def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id
-        assert transmission_id in self._pending_results
-        async_result, response_class = self._pending_results.pop(transmission_id)
+        assert transmission_id in self.pending_results
+        async_result, response_class = self.pending_results.pop(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()

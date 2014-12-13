@@ -12,6 +12,6 @@ setup(
     zip_safe=True,
     install_requires=[
         'gevent>=1.0',
-        'protobuf>=2.5',
+        'protobuf>=2.6',
     ],
 )
