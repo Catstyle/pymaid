@@ -9,7 +9,7 @@ from heartbeat_pb2 import LongPlaying_Stub
 
 def main():
     channel = Channel()
-    conn = channel.connect("127.0.0.1", 8888)
+    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
     service = ServiceAgent(LongPlaying_Stub(channel), conn)
 
     resp = service.over_two_seconds()
