@@ -187,7 +187,7 @@ class Channel(RpcChannel):
     def _handle_loop(self, conn):
         send, recv, reason, controller = conn.send, conn.recv, None, Controller()
         recv_request, recv_response = self._recv_request, self._recv_response
-        meta_data = controller.meta_data
+        meta_data, controller.conn = controller.meta_data, conn
 
         def send_back(response):
             assert response, 'rpc does not require a response of None'
@@ -213,6 +213,7 @@ class Channel(RpcChannel):
             reason = ex
             raise
         finally:
+            controller.conn = None
             conn.close(reason)
 
     def _recv_request(self, controller, send_back):
@@ -240,7 +241,7 @@ class Channel(RpcChannel):
 
         if controller.Failed():
             error_message = ErrorMessage()
-            error_message.ParseFromString(controller.meta_data.error_text)
+            error_message.ParseFromString(controller.meta_data.message)
             cls = BaseMeta.get_by_code(error_message.error_code)
             ex = cls()
             ex.message = error_message.error_message
