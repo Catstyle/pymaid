@@ -18,8 +18,8 @@ channel = Channel()
 service = ServiceAgent(HelloService_Stub(channel), conn=None)
 def main():
     pool = Pool()
-    pool.spawn(wrapper, 111111, 2000)
-    for x in xrange(1000):
+    pool.spawn(wrapper, 111111, 20000)
+    for x in xrange(20000):
         pool.spawn(wrapper, x, 1)
 
     pool.join()

@@ -28,13 +28,14 @@ class Connection(object):
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
+    MAX_IDLE_LOOP = 10
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', '_close_cb', 
+        'buffers', 'gr', 'fileno', '_close_cb', '_idle_loop',
         '_socket', '_send_queue', '_recv_queue', '_read_event', '_write_event',
         '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
@@ -52,18 +53,20 @@ class Connection(object):
 
         self.is_closed = False
         self._close_cb = None
+        self._idle_loop = 0
         self._heartbeat_timer = None
         self._monitor_agent = None
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
+        self.fileno = sock.fileno()
 
         self.buffers = []
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._read_event = self.hub.loop.io(sock.fileno(), 1)
-        self._write_event = self.hub.loop.io(sock.fileno(), 2)
+        self._read_event = self.hub.loop.io(self.fileno, 1)
+        self._write_event = self.hub.loop.io(self.fileno, 2)
 
         self._read_event.start(self._recv_loop)
 
@@ -164,8 +167,21 @@ class Connection(object):
         assert callable(close_cb)
         self._close_cb = close_cb
 
+    def _idle_send_loop(self):
+        self._idle_loop += 1
+        idle_loop, max_idle_loop = self._idle_loop, self.MAX_IDLE_LOOP
+        priority = self._write_event.priority
+        if idle_loop >= max_idle_loop:
+            self._write_event.stop()
+        elif idle_loop >= max_idle_loop / 2 and priority > -1:
+            self._write_event.stop()
+            self._write_event = self.hub.loop.io(self.fileno, 2, priority=-1)
+            self._write_event.start(self._send_loop)
+
     def _send_loop(self):
-        if self._send_queue.empty():
+        qsize = self._send_queue.qsize()
+        if qsize == 0:
+            self._idle_send_loop()
             return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
@@ -184,6 +200,11 @@ class Connection(object):
             pass
         except socket.error as ex:
             self.close(ex)
+        self._idle_loop /= 2
+        if qsize > MAX_SEND and self._write_event.priority < 0:
+            self._write_event.stop()
+            self._write_event = self.hub.loop.io(self.fileno, 2)
+            self._write_event.start(self._send_loop)
 
     def _recv_n(self, nbytes):
         recv, append, length = self._socket.recv, self.buffers.append, 0
