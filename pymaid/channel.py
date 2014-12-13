@@ -185,32 +185,37 @@ class Channel(RpcChannel):
             self.new_connection(client_socket, server_side=True)
 
     def _handle_loop(self, conn):
-        recv, reason, controller = conn.recv, None, Controller()
+        send, recv, reason, controller = conn.send, conn.recv, None, Controller()
         recv_request, recv_response = self._recv_request, self._recv_response
-        controller.conn = conn
+        meta_data = controller.meta_data
+
+        def send_back(response):
+            assert response, 'rpc does not require a response of None'
+            meta_data.message = response.SerializeToString()
+            send(meta_data.SerializeToString())
+
         try:
             while 1:
                 packet = recv()
                 if not packet:
                     break
                 controller.Reset()
-                controller.meta_data.ParseFromString(packet)
-                if controller.meta_data.from_stub: # request
+                meta_data.ParseFromString(packet)
+                if meta_data.from_stub: # request
                     try:
-                        recv_request(controller)
+                        recv_request(controller, send_back)
                     except BaseError as ex:
                         controller.SetFailed(ex)
-                        conn.send(controller.meta_data.SerializeToString())
+                        send(meta_data.SerializeToString())
                 else:
                     recv_response(controller)
         except Exception as ex:
-            self.logger.exception(ex)
             reason = ex
             raise
         finally:
             conn.close(reason)
 
-    def _recv_request(self, controller):
+    def _recv_request(self, controller, send_back):
         meta_data = controller.meta_data
         meta_data.from_stub = False
         service = self.services.get(meta_data.service_name, None)
@@ -226,11 +231,6 @@ class Channel(RpcChannel):
         request_class = service.GetRequestClass(method)
         request = request_class()
         request.ParseFromString(meta_data.message)
-
-        def send_back(response):
-            assert response, 'rpc does not require a response of None'
-            meta_data.message = response.SerializeToString()
-            controller.conn.send(meta_data.SerializeToString())
         service.CallMethod(method, controller, request, send_back)
 
     def _recv_response(self, controller):
