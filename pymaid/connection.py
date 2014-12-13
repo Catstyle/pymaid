@@ -34,9 +34,11 @@ class Connection(object):
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', '_socket', '_close_cb', '_heartbeat_timer',
-        '_monitor_agent', '_send_queue', '_recv_queue', '_read_event',
-        '_write_event',
+        'buffers', 'gr', '_close_cb', 
+        '_socket', '_send_queue', '_recv_queue', '_read_event', '_write_event',
+        '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
+        '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
+        '_monitor_agent',
     ]
 
     def __init__(self, sock, server_side):
