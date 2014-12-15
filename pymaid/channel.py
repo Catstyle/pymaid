@@ -1,13 +1,16 @@
+__all__ = ['Channel']
+
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
-from gevent.core import READ
+from gevent.core import READ, MAXPRI
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
 from google.protobuf.message import DecodeError
 
 from pymaid.connection import Connection
+from pymaid.controller import Controller
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
@@ -24,15 +27,15 @@ class Channel(RpcChannel):
     # Default is 100. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 100
-    MAX_CONCURRENCY = 10000
+    MAX_ACCEPT = 1024
+    MAX_CONCURRENCY = 30000
 
     def __init__(self, loop=None):
         super(Channel, self).__init__()
 
-        self._transmission_id = 0
-        self._pending_results = {}
-        self._loop = loop or get_hub().loop
+        self.transmission_id = 0
+        self.pending_results = {}
+        self.loop = loop or get_hub().loop
 
         self._income_connections = {}
         self._outcome_connections = {}
@@ -43,36 +46,40 @@ class Channel(RpcChannel):
         self.max_heartbeat_timeout_count = 0
 
     def CallMethod(self, method, controller, request, response_class, done):
-        controller.meta_data.from_stub = True
-        controller.meta_data.service_name = method.containing_service.full_name
-        controller.meta_data.method_name = method.name
+        meta_data = controller.meta_data
+        meta_data.from_stub = True
+        meta_data.service_name = method.containing_service.full_name
+        meta_data.method_name = method.name
         if not isinstance(request, Void):
-            controller.meta_data.request = request.SerializeToString()
+            meta_data.message = request.SerializeToString()
 
-        transmission_id = self.get_transmission_id()
-        assert transmission_id not in self._pending_results
-        controller.meta_data.transmission_id = transmission_id
+        require_response = not issubclass(response_class, Void)
+        if require_response:
+            transmission_id = self.transmission_id
+            self.transmission_id += 1
+            meta_data.transmission_id = transmission_id
 
-        # broadcast
+        packet = meta_data.SerializeToString()
         if controller.wide:
-            for conn in self._income_connections:
-                conn.send(controller)
+            # broadcast
+            for conn in self._income_connections.itervalues():
+                conn.send(packet)
         elif controller.group:
+            # small broadcast
             get_conn = self.get_income_connection
             for conn_id in controller.group:
-                conn = get_conn(conn_id, None)
+                conn = get_conn(conn_id)
                 if conn:
-                    conn.send(controller)
+                    conn.send(packet)
         else:
-            #if controller.conn.conn_id not in self._outcome_connections:
-            #    raise Exception('did not connect')
-            controller.conn.send(controller)
+            controller.conn.send(packet)
 
-        if issubclass(response_class, Void):
-            return None
+        if not require_response:
+            return
 
+        assert transmission_id not in self.pending_results
         async_result = AsyncResult()
-        self._pending_results[transmission_id] = async_result, response_class
+        self.pending_results[transmission_id] = async_result, response_class
         return async_result.get()
 
     def append_service(self, service):
@@ -99,30 +106,12 @@ class Channel(RpcChannel):
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
 
-    def get_transmission_id(self):
-        self._transmission_id += 1
-        if self._transmission_id >= 2 ** 32:
-            self._transmission_id = 0
-        return self._transmission_id
-
-    def connect(self, host, port):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
-        cnt, max_retry = 0, 3
-        while 1:
-            try:
-                sock.connect((host, port))
-            except socket.error as err:
-                #print 'socket error', err
-                cnt += 1
-                if err.args[0] == socket.EWOULDBLOCK and cnt < max_retry:
-                    continue
-                raise
-            else:
-                break
-        conn = self.new_connection(sock, server_side=False)
+    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
+        sock = socket.create_connection((host, port), timeout=timeout)
+        conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=256):
+    def listen(self, host, port, backlog=1024):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -130,10 +119,10 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self._loop.io(sock.fileno(), READ)
+        accept_watcher = self.loop.io(sock.fileno(), READ, priority=MAXPRI)
         accept_watcher.start(self._do_accept, sock)
 
-    def new_connection(self, sock, server_side):
+    def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
         if server_side:
@@ -143,14 +132,14 @@ class Channel(RpcChannel):
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
 
-        conn.set_close_cb(self.close_connection)
-        greenlet_pool.spawn(self._handle_loop, conn)
-        self._setup_heartbeat(conn, server_side)
+        conn.set_close_cb(self.connection_closed)
+        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
+        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
-    def close_connection(self, conn, reason=None):
-        #print 'close_connection', (conn.conn_id, reason)
-        conn.close()
+    def connection_closed(self, conn, reason=None):
+        #print 'connection_closed', (conn.conn_id, reason)
+        conn.gr.kill(block=False)
         if conn.server_side:
             assert conn.conn_id in self._income_connections
             del self._income_connections[conn.conn_id]
@@ -158,14 +147,14 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections
             del self._outcome_connections[conn.conn_id]
         # TODO: clean pending_results if needed
-        #del self._pending_results[transmission_id]
+        #del self.pending_results[transmission_id]
 
     def serve_forever(self):
         wait()
 
     @property
     def is_full(self):
-        return len(self._income_connections) == self.MAX_CONCURRENCY
+        return len(self._income_connections) >= self.MAX_CONCURRENCY
 
     def _setup_server(self):
         # only server need monitor service
@@ -173,13 +162,13 @@ class Channel(RpcChannel):
         monitor_service.channel = self
         self.append_service(monitor_service)
 
-    def _setup_heartbeat(self, conn, server_side):
+    def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
         if server_side:
             if self.need_heartbeat:
                 conn.setup_server_heartbeat(
                     self.heartbeat_interval, self.max_heartbeat_timeout_count
                 )
-        else:
+        elif not ignore_heartbeat:
             conn.setup_client_heartbeat(channel=self)
 
     def _do_accept(self, sock):
@@ -191,37 +180,45 @@ class Channel(RpcChannel):
             except socket.error as ex:
                 if ex.args[0] == socket.EWOULDBLOCK:
                     return
-                #self.logger.exception(ex)
+                self.logger.exception(ex)
                 raise
             self.new_connection(client_socket, server_side=True)
 
     def _handle_loop(self, conn):
-        recv = conn.recv
+        send, recv, reason, controller = conn.send, conn.recv, None, Controller()
         recv_request, recv_response = self._recv_request, self._recv_response
+        meta_data, controller.conn = controller.meta_data, conn
+
+        def send_back(response):
+            assert response, 'rpc does not require a response of None'
+            meta_data.message = response.SerializeToString()
+            send(meta_data.SerializeToString())
+
         try:
             while 1:
-                controller = recv()
-                if not controller:
+                packet = recv()
+                if not packet:
                     break
-                if controller.meta_data.from_stub: # request
+                controller.Reset()
+                meta_data.ParseFromString(packet)
+                if meta_data.from_stub: # request
                     try:
-                        recv_request(controller)
+                        recv_request(controller, send_back)
                     except BaseError as ex:
                         controller.SetFailed(ex)
-                        conn.send(controller)
+                        send(meta_data.SerializeToString())
                 else:
                     recv_response(controller)
         except Exception as ex:
-            self.logger.exception(ex)
-            raise
+            reason = ex
         finally:
-            conn.close()
+            controller.conn = None
+            conn.close(reason)
 
-    def _recv_request(self, controller):
+    def _recv_request(self, controller, send_back):
         meta_data = controller.meta_data
         meta_data.from_stub = False
         service = self.services.get(meta_data.service_name, None)
-        conn = controller.conn
 
         if service is None:
             raise ServiceNotExist(service_name=meta_data.service_name)
@@ -233,28 +230,17 @@ class Channel(RpcChannel):
 
         request_class = service.GetRequestClass(method)
         request = request_class()
-        request.ParseFromString(meta_data.request)
-
-        def send_back(response):
-            response_class = service.GetResponseClass(method)
-            if issubclass(response_class, Void):
-                assert response is None
-            else:
-                meta_data.response = response.SerializeToString()
-                conn.send(controller)
+        request.ParseFromString(meta_data.message)
         service.CallMethod(method, controller, request, send_back)
 
     def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id
-        pending_result = self._pending_results.get(transmission_id, (None, None))
-        async_result, response_class = pending_result
-        if async_result is None:
-            return
-        del self._pending_results[transmission_id]
+        assert transmission_id in self.pending_results
+        async_result, response_class = self.pending_results.pop(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()
-            error_message.ParseFromString(controller.meta_data.error_text)
+            error_message.ParseFromString(controller.meta_data.message)
             cls = BaseMeta.get_by_code(error_message.error_code)
             ex = cls()
             ex.message = error_message.error_message
@@ -263,7 +249,7 @@ class Channel(RpcChannel):
 
         response = response_class()
         try:
-            response.ParseFromString(controller.meta_data.response)
+            response.ParseFromString(controller.meta_data.message)
         except DecodeError as ex:
             async_result.set_exception(ex)
         else:
