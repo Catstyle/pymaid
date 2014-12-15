@@ -3,7 +3,7 @@ __all__ = ['Channel']
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
-from gevent.core import READ
+from gevent.core import READ, MAXPRI
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
@@ -27,8 +27,8 @@ class Channel(RpcChannel):
     # Default is 100. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 100
-    MAX_CONCURRENCY = 10000
+    MAX_ACCEPT = 1024
+    MAX_CONCURRENCY = 30000
 
     def __init__(self, loop=None):
         super(Channel, self).__init__()
@@ -111,7 +111,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=256):
+    def listen(self, host, port, backlog=1024):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -119,7 +119,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self.loop.io(sock.fileno(), READ, priority=2)
+        accept_watcher = self.loop.io(sock.fileno(), READ, priority=MAXPRI)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
@@ -211,7 +211,6 @@ class Channel(RpcChannel):
                     recv_response(controller)
         except Exception as ex:
             reason = ex
-            raise
         finally:
             controller.conn = None
             conn.close(reason)

@@ -6,6 +6,7 @@ from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
 from gevent import socket
+from gevent.core import READ, WRITE, READWRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
@@ -28,14 +29,15 @@ class Connection(object):
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
+    MAX_IDLE_LOOP = 10
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 0
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', '_close_cb', 
-        '_socket', '_send_queue', '_recv_queue', '_read_event', '_write_event',
+        'buffers', 'gr', 'fileno', '_close_cb', '_idle_loop',
+        '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
         '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_monitor_agent',
@@ -52,20 +54,20 @@ class Connection(object):
 
         self.is_closed = False
         self._close_cb = None
+        self._idle_loop = 0
         self._heartbeat_timer = None
         self._monitor_agent = None
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
+        self.fileno = sock.fileno()
 
         self.buffers = []
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._read_event = self.hub.loop.io(sock.fileno(), 1)
-        self._write_event = self.hub.loop.io(sock.fileno(), 2)
-
-        self._read_event.start(self._recv_loop)
+        self._socket_watcher = self.hub.loop.io(self.fileno, READ)
+        self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -122,9 +124,8 @@ class Connection(object):
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
-        if not self._write_event.active:
-            self._write_event.start(self._send_loop)
-
+        if not self._socket_watcher.events & WRITE:
+            self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
     def recv(self, timeout=None):
         return self._recv_queue.get(timeout=timeout)
@@ -151,8 +152,7 @@ class Connection(object):
             self._socket.sendall('')
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()
-        self._read_event.stop()
-        self._write_event.stop()
+        self._socket_watcher.stop()
         self._socket.close()
         del self.buffers[:]
 
@@ -163,15 +163,23 @@ class Connection(object):
         assert self._close_cb is None
         assert callable(close_cb)
         self._close_cb = close_cb
+    
+    def _io_loop(self, event):
+        #print '_io_loop', event
+        if event & READ:
+            self._recv_loop()
+        if event & WRITE:
+            self._send_loop()
 
     def _send_loop(self):
-        if self._send_queue.empty():
+        qsize = self._send_queue.qsize()
+        if qsize == 0:
             return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack, HEADER, MAX_SEND = struct.pack, self.HEADER, self.MAX_SEND
         try:
-            for _ in xrange(MAX_SEND):
+            for _ in xrange(min(qsize, MAX_SEND)):
                 packet_buffer = get_packet()
                 if packet_buffer is None:
                     break
@@ -180,8 +188,6 @@ class Connection(object):
                 # see pydoc of socket.sendall
                 #print 'send_loop', header_buffer+packet_buffer
                 sendall(header_buffer+packet_buffer)
-        except Empty:
-            pass
         except socket.error as ex:
             self.close(ex)
 
