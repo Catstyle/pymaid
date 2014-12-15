@@ -211,7 +211,6 @@ class Channel(RpcChannel):
                     recv_response(controller)
         except Exception as ex:
             reason = ex
-            raise
         finally:
             controller.conn = None
             conn.close(reason)
