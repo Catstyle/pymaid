@@ -3,7 +3,7 @@ __all__ = ['Channel']
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
-from gevent.core import READ
+from gevent.core import READ, MAXPRI
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
@@ -119,7 +119,7 @@ class Channel(RpcChannel):
         sock.bind((host, port))
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self.loop.io(sock.fileno(), READ, priority=2)
+        accept_watcher = self.loop.io(sock.fileno(), READ, priority=MAXPRI)
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
