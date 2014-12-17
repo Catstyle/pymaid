@@ -17,6 +17,7 @@ from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
+#from pymaid.error import HeartbeatTimeout
 
 
 @logger_wrapper
@@ -42,11 +43,12 @@ class Channel(RpcChannel):
         self._income_connections = {}
         self._outcome_connections = {}
         self.services = {}
+        #self.out = 0
 
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
-        self._peer_heartbeat_timer = self.loop.timer(0, 1)
+        self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=2)
         self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
     def CallMethod(self, method, controller, request, response_class, done):
@@ -158,6 +160,9 @@ class Channel(RpcChannel):
         for transmission_id in conn.transmissions:
             self.pending_results.pop(transmission_id, None)
         conn.transmissions.clear()
+        #if isinstance(reason, HeartbeatTimeout):
+        #    self.out += 1
+        #    print self.out
 
     def serve_forever(self):
         wait()
@@ -182,15 +187,19 @@ class Channel(RpcChannel):
     def _server_heartbeat(self):
         #print '_server_heartbeat'
         now, server_interval = time.time(), self.heartbeat_interval
-        for conn in self._income_connections.itervalues():
+        connections = self._income_connections
+        for conn_id in connections.keys():
+            conn = connections[conn_id]
             if now - conn.last_check_heartbeat >= server_interval:
                 conn.last_check_heartbeat = now
-                greenlet_pool.spawn(conn.heartbeat_timeout)
+                conn.heartbeat_timeout()
 
     def _peer_heartbeat(self):
         #print '_peer_heartbeat'
         now = time.time()
         for conn in self._outcome_connections.itervalues():
+            if not conn.need_heartbeat:
+                continue
             if now - conn.last_check_heartbeat >= conn.heartbeat_interval:
                 conn.last_check_heartbeat = now
                 conn.notify_heartbeat()
