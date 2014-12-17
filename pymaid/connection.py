@@ -36,7 +36,7 @@ class Connection(object):
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', 'fileno', '_close_cb', '_idle_loop',
+        'buffers', 'gr', 'fileno', 'transmissions', '_close_cb', '_idle_loop',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
         '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
@@ -63,6 +63,7 @@ class Connection(object):
         self.fileno = sock.fileno()
 
         self.buffers = []
+        self.transmissions = set()
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
