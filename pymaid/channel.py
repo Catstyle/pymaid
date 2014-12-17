@@ -24,10 +24,10 @@ class Channel(RpcChannel):
     # on a single wake up. High values give higher priority to high connection
     # rates, while lower values give higher priority to already established
     # connections.
-    # Default is 100. Note, that in case of multiple working processes on the
+    # Default is 1024. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 2048
+    MAX_ACCEPT = 1024
     MAX_CONCURRENCY = 50000
 
     def __init__(self, loop=None):
