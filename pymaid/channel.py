@@ -62,10 +62,12 @@ class Channel(RpcChannel):
         packet = meta_data.SerializeToString()
         if controller.wide:
             # broadcast
+            assert not require_response
             for conn in self._income_connections.itervalues():
                 conn.send(packet)
         elif controller.group:
             # small broadcast
+            assert not require_response
             get_conn = self.get_income_connection
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
@@ -78,6 +80,7 @@ class Channel(RpcChannel):
             return
 
         assert transmission_id not in self.pending_results
+        controller.conn.transmissions.add(transmission_id)
         async_result = AsyncResult()
         self.pending_results[transmission_id] = async_result, response_class
         return async_result.get()
@@ -146,8 +149,9 @@ class Channel(RpcChannel):
         else:
             assert conn.conn_id in self._outcome_connections
             del self._outcome_connections[conn.conn_id]
-        # TODO: clean pending_results if needed
-        #del self.pending_results[transmission_id]
+        for transmission_id in conn.transmissions:
+            self.pending_results.pop(transmission_id, None)
+        conn.transmissions.clear()
 
     def serve_forever(self):
         wait()
@@ -236,7 +240,9 @@ class Channel(RpcChannel):
     def _recv_response(self, controller):
         transmission_id = controller.meta_data.transmission_id
         assert transmission_id in self.pending_results
+        assert transmission_id in controller.conn.transmissions
         async_result, response_class = self.pending_results.pop(transmission_id)
+        controller.conn.transmissions.remove(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()
