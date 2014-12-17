@@ -2,6 +2,7 @@ __all__ = ['Connection']
 
 import struct
 
+from gevent import getcurrent
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue, Empty
@@ -29,10 +30,10 @@ class Connection(object):
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
-    MAX_IDLE_LOOP = 10
+    MAX_IDLE_LOOP = 2
 
     LINGER_PACK = struct.pack('ii', 1, 0)
-    CONN_ID = 0
+    CONN_ID = 1
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
@@ -107,6 +108,8 @@ class Connection(object):
     def _start_heartbeat_timer(self):
         if self._heartbeat_timer is not None:
             self._heartbeat_timer.stop()
+        if self.is_closed:
+            return
         self._heartbeat_timer = self.hub.loop.timer(self._heartbeat_interval)
         self._heartbeat_timer.start(self._heartbeat_timeout_cb)
 
@@ -118,13 +121,13 @@ class Connection(object):
             self._start_heartbeat_timer()
 
     def _send_heartbeat(self):
-        # TODO: add send heartbeat
         self._monitor_agent.notify_heartbeat()
         self._start_heartbeat_timer()
 
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
+        self._idle_loop = 0
         if not self._socket_watcher.events & WRITE:
             self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
@@ -149,8 +152,8 @@ class Connection(object):
         if self._monitor_agent is not None:
             self._monitor_agent.close()
 
-        if reason is None and not reset:
-            self._socket.sendall('')
+        #if reason is None and not reset:
+        #    self._socket.sendall('')
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()
         self._socket_watcher.stop()
@@ -166,7 +169,7 @@ class Connection(object):
         self._close_cb = close_cb
     
     def _io_loop(self, event):
-        #print '_io_loop', event
+        #print '_io_loop', event, self.conn_id
         if event & READ:
             self._recv_loop()
         if event & WRITE:
@@ -175,6 +178,11 @@ class Connection(object):
     def _send_loop(self):
         qsize = self._send_queue.qsize()
         if qsize == 0:
+            self._idle_loop += 1
+            if self._idle_loop >= self.MAX_IDLE_LOOP:
+                self._socket_watcher.stop()
+                self._socket_watcher = self.hub.loop.io(self.fileno, READ)
+                self._socket_watcher.start(self._io_loop, pass_events=True)
             return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
