@@ -1,5 +1,7 @@
 __all__ = ['Channel']
 
+import time
+
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
@@ -44,6 +46,8 @@ class Channel(RpcChannel):
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
+        self._peer_heartbeat_timer = self.loop.timer(0, 1)
+        self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
     def CallMethod(self, method, controller, request, response_class, done):
         meta_data = controller.meta_data
@@ -95,6 +99,8 @@ class Channel(RpcChannel):
         self.need_heartbeat = True
         self.heartbeat_interval = heartbeat_interval
         self.max_heartbeat_timeout_count = max_timeout_count
+        self._server_heartbeat_timer = self.loop.timer(0, 1)
+        self._server_heartbeat_timer.again(self._server_heartbeat, update=False)
         # TODO: enable all connections heartbeat?
 
     def disable_heartbeat(self):
@@ -128,16 +134,16 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
+        conn.set_close_cb(self.connection_closed)
+        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
+        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
+
         if server_side:
             assert conn.conn_id not in self._income_connections
             self._income_connections[conn.conn_id] = conn
         else:
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
-
-        conn.set_close_cb(self.connection_closed)
-        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
-        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
     def connection_closed(self, conn, reason=None):
@@ -169,11 +175,25 @@ class Channel(RpcChannel):
     def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
         if server_side:
             if self.need_heartbeat:
-                conn.setup_server_heartbeat(
-                    self.heartbeat_interval, self.max_heartbeat_timeout_count
-                )
+                conn.setup_server_heartbeat(self.max_heartbeat_timeout_count)
         elif not ignore_heartbeat:
             conn.setup_client_heartbeat(channel=self)
+
+    def _server_heartbeat(self):
+        #print '_server_heartbeat'
+        now, server_interval = time.time(), self.heartbeat_interval
+        for conn in self._income_connections.itervalues():
+            if now - conn.last_check_heartbeat >= server_interval:
+                conn.last_check_heartbeat = now
+                greenlet_pool.spawn(conn.heartbeat_timeout)
+
+    def _peer_heartbeat(self):
+        #print '_peer_heartbeat'
+        now = time.time()
+        for conn in self._outcome_connections.itervalues():
+            if now - conn.last_check_heartbeat >= conn.heartbeat_interval:
+                conn.last_check_heartbeat = now
+                conn.notify_heartbeat()
 
     def _do_accept(self, sock):
         for _ in xrange(self.MAX_ACCEPT):

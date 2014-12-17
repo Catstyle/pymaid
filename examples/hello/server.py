@@ -14,6 +14,7 @@ def main():
     channel = Channel()
     channel.listen("127.0.0.1", 8888)
     channel.append_service(HelloServiceImpl())
+    channel.enable_heartbeat(5, 3)
     channel.serve_forever()
 
 if __name__ == "__main__":

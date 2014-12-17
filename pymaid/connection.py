@@ -1,13 +1,13 @@
 __all__ = ['Connection']
 
+import time
 import struct
 
-from gevent import getcurrent
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
-from gevent.queue import Queue, Empty
+from gevent.queue import Queue
 from gevent import socket
-from gevent.core import READ, WRITE, READWRITE, EVENTS
+from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
@@ -37,11 +37,11 @@ class Connection(object):
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', 'fileno', 'transmissions', '_close_cb', '_idle_loop',
+        'buffers', 'gr', 'fileno',  'last_check_heartbeat', 'transmissions',
+        '_close_cb', '_monitor_agent', '_idle_loop',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
+        '_heartbeat_timer', 'heartbeat_interval', '_heartbeat_timeout_cb',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
-        '_monitor_agent',
     ]
 
     def __init__(self, sock, server_side):
@@ -79,16 +79,11 @@ class Connection(object):
         # system will doubled this buffer
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
-    def setup_server_heartbeat(self, interval, max_timeout_count):
-        assert interval > 0
-        assert max_timeout_count >= 1
-
-        self._heartbeat_interval = interval
+    def setup_server_heartbeat(self, max_heartbeat_timeout_count):
+        assert max_heartbeat_timeout_count >= 1
         self._heartbeat_timeout_counter = 0
-        self._max_heartbeat_timeout_count = max_timeout_count
-
-        self._heartbeat_timeout_cb = self._heartbeat_timeout
-        self._start_heartbeat_timer()
+        self._max_heartbeat_timeout_count = max_heartbeat_timeout_count
+        self.last_check_heartbeat = time.time()
 
     def setup_client_heartbeat(self, channel):
         self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
@@ -96,33 +91,21 @@ class Connection(object):
 
         if not resp.need_heartbeat:
             return
-        self._heartbeat_interval = resp.heartbeat_interval
 
-        self._heartbeat_timeout_cb = self._send_heartbeat
-        self._start_heartbeat_timer()
+        self.heartbeat_interval = resp.heartbeat_interval
+        self.last_check_heartbeat = time.time()
 
     def clear_heartbeat_counter(self):
+        self.last_check_heartbeat = time.time()
         self._heartbeat_timeout_counter = 0
-        self._start_heartbeat_timer()
 
-    def _start_heartbeat_timer(self):
-        if self._heartbeat_timer is not None:
-            self._heartbeat_timer.stop()
-        if self.is_closed:
-            return
-        self._heartbeat_timer = self.hub.loop.timer(self._heartbeat_interval)
-        self._heartbeat_timer.start(self._heartbeat_timeout_cb)
-
-    def _heartbeat_timeout(self):
+    def heartbeat_timeout(self):
         self._heartbeat_timeout_counter += 1
         if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
-        else:
-            self._start_heartbeat_timer()
 
-    def _send_heartbeat(self):
+    def notify_heartbeat(self):
         self._monitor_agent.notify_heartbeat()
-        self._start_heartbeat_timer()
 
     def send(self, packet_buffer):
         assert packet_buffer
