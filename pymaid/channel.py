@@ -27,13 +27,13 @@ class Channel(RpcChannel):
     # Default is 100. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 1024
-    MAX_CONCURRENCY = 30000
+    MAX_ACCEPT = 2048
+    MAX_CONCURRENCY = 50000
 
     def __init__(self, loop=None):
         super(Channel, self).__init__()
 
-        self.transmission_id = 0
+        self.transmission_id = 1
         self.pending_results = {}
         self.loop = loop or get_hub().loop
 
@@ -114,7 +114,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=1024):
+    def listen(self, host, port, backlog=2048):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -195,6 +195,7 @@ class Channel(RpcChannel):
 
         def send_back(response):
             assert response, 'rpc does not require a response of None'
+            #print 'send_back response', meta_data.transmission_id
             meta_data.message = response.SerializeToString()
             send(meta_data.SerializeToString())
 
@@ -206,12 +207,14 @@ class Channel(RpcChannel):
                 controller.Reset()
                 meta_data.ParseFromString(packet)
                 if meta_data.from_stub: # request
+                    #print 'request', meta_data.transmission_id
                     try:
                         recv_request(controller, send_back)
                     except BaseError as ex:
                         controller.SetFailed(ex)
                         send(meta_data.SerializeToString())
                 else:
+                    #print 'response', meta_data.transmission_id
                     recv_response(controller)
         except Exception as ex:
             reason = ex
@@ -259,4 +262,5 @@ class Channel(RpcChannel):
         except DecodeError as ex:
             async_result.set_exception(ex)
         else:
+            #print 'recv resp, current', transmission_id
             async_result.set(response)
