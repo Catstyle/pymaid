@@ -126,7 +126,7 @@ class Connection(object):
         if self.is_closed:
             return
         self.is_closed = True
-        #print 'connection close', reason
+        #print 'connection close', reason, self.sockname, self.peername
 
         if isinstance(reason, Greenlet):
             reason = reason.exception

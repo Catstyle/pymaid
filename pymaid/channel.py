@@ -17,7 +17,6 @@ from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
-#from pymaid.error import HeartbeatTimeout
 
 
 @logger_wrapper
@@ -43,11 +42,12 @@ class Channel(RpcChannel):
         self._income_connections = {}
         self._outcome_connections = {}
         self.services = {}
-        #self.out = 0
 
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
+
+        self._server_heartbeat_timer = self.loop.timer(0, 1, priority=1)
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=2)
         self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
@@ -101,15 +101,14 @@ class Channel(RpcChannel):
         self.need_heartbeat = True
         self.heartbeat_interval = heartbeat_interval
         self.max_heartbeat_timeout_count = max_timeout_count
-        self._server_heartbeat_timer = self.loop.timer(0, 1)
-        self._server_heartbeat_timer.again(self._server_heartbeat, update=False)
+        self._server_heartbeat_timer.again(self._server_heartbeat, update=True)
         # TODO: enable all connections heartbeat?
 
     def disable_heartbeat(self):
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
-        # TODO: disable all connections heartbeat?
+        self._server_heartbeat_timer.stop()
 
     def get_income_connection(self, conn_id):
         return self._income_connections.get(conn_id)
@@ -149,7 +148,7 @@ class Channel(RpcChannel):
         return conn
 
     def connection_closed(self, conn, reason=None):
-        #print 'connection_closed', (conn.conn_id, reason)
+        #print 'connection_closed', reason, conn.sockname, conn.peername
         conn.gr.kill(block=False)
         if conn.server_side:
             assert conn.conn_id in self._income_connections
@@ -158,11 +157,12 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
-            self.pending_results.pop(transmission_id, None)
+            async_result, _ = self.pending_results.pop(transmission_id, (None, None))
+            if async_result is not None:
+                # we should not reach here with async_result left
+                # that should be an exception
+                async_result.set_exception(reason)
         conn.transmissions.clear()
-        #if isinstance(reason, HeartbeatTimeout):
-        #    self.out += 1
-        #    print self.out
 
     def serve_forever(self):
         wait()
@@ -170,6 +170,10 @@ class Channel(RpcChannel):
     @property
     def is_full(self):
         return len(self._income_connections) >= self.MAX_CONCURRENCY
+
+    @property
+    def size(self):
+        return len(self._income_connections) + len(self._outcome_connections)
 
     def _setup_server(self):
         # only server need monitor service
@@ -185,24 +189,31 @@ class Channel(RpcChannel):
             conn.setup_client_heartbeat(channel=self)
 
     def _server_heartbeat(self):
-        #print '_server_heartbeat'
-        now, server_interval = time.time(), self.heartbeat_interval
+        # network delay compensation
+        now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
+        #print '_server_heartbeat', now
         connections = self._income_connections
         for conn_id in connections.keys():
             conn = connections[conn_id]
             if now - conn.last_check_heartbeat >= server_interval:
                 conn.last_check_heartbeat = now
                 conn.heartbeat_timeout()
+        #print 'done _server_heartbeat', time.time() - now
+        self._server_heartbeat_timer.again(self._server_heartbeat)
 
     def _peer_heartbeat(self):
-        #print '_peer_heartbeat'
-        now = time.time()
+        now= time.time()
+        # iteration compensation
+        factor = self.size >= 20000 and .64 or self.size >= 10000 and .89 or .98
+        #print '_peer_heartbeat', now
         for conn in self._outcome_connections.itervalues():
             if not conn.need_heartbeat:
                 continue
-            if now - conn.last_check_heartbeat >= conn.heartbeat_interval:
+            if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
                 conn.last_check_heartbeat = now
                 conn.notify_heartbeat()
+        #print 'done _peer_heartbeat', time.time() - now
+        self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
     def _do_accept(self, sock):
         for _ in xrange(self.MAX_ACCEPT):

@@ -21,7 +21,7 @@ def main():
     channel = Channel()
     channel.listen("127.0.0.1", 8888)
     channel.append_service(HelloServiceImpl())
-    channel.enable_heartbeat(5, 3)
+    channel.enable_heartbeat(10, 3)
     try:
         channel.serve_forever()
     except:
