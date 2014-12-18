@@ -136,7 +136,7 @@ class Channel(RpcChannel):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
         conn.set_close_cb(self.connection_closed)
-        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
+        greenlet_pool.spawn(self._handle_loop, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
 
         if server_side:
@@ -149,12 +149,11 @@ class Channel(RpcChannel):
 
     def connection_closed(self, conn, reason=None):
         #print 'connection_closed', reason, conn.sockname, conn.peername
-        conn.gr.kill(block=False)
         if conn.server_side:
-            assert conn.conn_id in self._income_connections
+            assert conn.conn_id in self._income_connections, conn.conn_id
             del self._income_connections[conn.conn_id]
         else:
-            assert conn.conn_id in self._outcome_connections
+            assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
             async_result, _ = self.pending_results.pop(transmission_id, (None, None))
