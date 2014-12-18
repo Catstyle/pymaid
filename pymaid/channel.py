@@ -202,8 +202,8 @@ class Channel(RpcChannel):
 
     def _peer_heartbeat(self):
         now= time.time()
-        # iteration compensation
-        factor = self.size >= 20000 and .64 or self.size >= 10000 and .89 or .98
+        # event iteration compensation
+        factor = self.size >= 14142 and .64 or .89
         #print '_peer_heartbeat', now
         for conn in self._outcome_connections.itervalues():
             if not conn.need_heartbeat:
