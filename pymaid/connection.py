@@ -1,12 +1,13 @@
 __all__ = ['Connection']
 
+import time
 import struct
 
 from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
-from gevent.queue import Queue, Empty
+from gevent.queue import Queue
 from gevent import socket
-from gevent.core import READ, WRITE, READWRITE, EVENTS
+from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
@@ -29,18 +30,17 @@ class Connection(object):
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
-    MAX_IDLE_LOOP = 10
 
     LINGER_PACK = struct.pack('ii', 1, 0)
-    CONN_ID = 0
+    CONN_ID = 1
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', 'fileno', 'transmissions', '_close_cb', '_idle_loop',
-        '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        '_heartbeat_timer', '_heartbeat_interval', '_heartbeat_timeout_cb',
+        'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
+        'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
-        '_monitor_agent',
+        '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
+        '_close_cb', '_monitor_agent',
     ]
 
     def __init__(self, sock, server_side):
@@ -54,9 +54,8 @@ class Connection(object):
 
         self.is_closed = False
         self._close_cb = None
-        self._idle_loop = 0
-        self._heartbeat_timer = None
         self._monitor_agent = None
+        self.need_heartbeat = 0
 
         self.conn_id = self.__class__.CONN_ID
         self.__class__.CONN_ID += 1
@@ -78,16 +77,11 @@ class Connection(object):
         # system will doubled this buffer
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
-    def setup_server_heartbeat(self, interval, max_timeout_count):
-        assert interval > 0
-        assert max_timeout_count >= 1
-
-        self._heartbeat_interval = interval
+    def setup_server_heartbeat(self, max_heartbeat_timeout_count):
+        assert max_heartbeat_timeout_count >= 1
         self._heartbeat_timeout_counter = 0
-        self._max_heartbeat_timeout_count = max_timeout_count
-
-        self._heartbeat_timeout_cb = self._heartbeat_timeout
-        self._start_heartbeat_timer()
+        self._max_heartbeat_timeout_count = max_heartbeat_timeout_count
+        self.last_check_heartbeat = time.time()
 
     def setup_client_heartbeat(self, channel):
         self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
@@ -95,38 +89,28 @@ class Connection(object):
 
         if not resp.need_heartbeat:
             return
-        self._heartbeat_interval = resp.heartbeat_interval
 
-        self._heartbeat_timeout_cb = self._send_heartbeat
-        self._start_heartbeat_timer()
+        self.need_heartbeat = 1
+        self.heartbeat_interval = resp.heartbeat_interval
+        self.last_check_heartbeat = time.time()
 
     def clear_heartbeat_counter(self):
+        self.last_check_heartbeat = time.time()
         self._heartbeat_timeout_counter = 0
-        self._start_heartbeat_timer()
 
-    def _start_heartbeat_timer(self):
-        if self._heartbeat_timer is not None:
-            self._heartbeat_timer.stop()
-        self._heartbeat_timer = self.hub.loop.timer(self._heartbeat_interval)
-        self._heartbeat_timer.start(self._heartbeat_timeout_cb)
-
-    def _heartbeat_timeout(self):
+    def heartbeat_timeout(self):
         self._heartbeat_timeout_counter += 1
         if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
-        else:
-            self._start_heartbeat_timer()
 
-    def _send_heartbeat(self):
-        # TODO: add send heartbeat
+    def notify_heartbeat(self):
         self._monitor_agent.notify_heartbeat()
-        self._start_heartbeat_timer()
 
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
-        if not self._socket_watcher.events & WRITE:
-            self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
+        # add WRITE event for once
+        self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
     def recv(self, timeout=None):
         return self._recv_queue.get(timeout=timeout)
@@ -135,7 +119,7 @@ class Connection(object):
         if self.is_closed:
             return
         self.is_closed = True
-        #print 'connection close', reason
+        #print 'connection close', reason, self.sockname, self.peername
 
         if isinstance(reason, Greenlet):
             reason = reason.exception
@@ -144,21 +128,19 @@ class Connection(object):
             self.sockname, self.peername, reason
         )
 
-        if self._heartbeat_timer is not None:
-            self._heartbeat_timer.stop()
         if self._monitor_agent is not None:
             self._monitor_agent.close()
 
-        if reason is None and not reset:
-            self._socket.sendall('')
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()
+        self._recv_queue.put(None)
         self._socket_watcher.stop()
         self._socket.close()
         del self.buffers[:]
 
         if self._close_cb:
             self._close_cb(self, reason)
+        self._close_cb = None
 
     def set_close_cb(self, close_cb):
         assert self._close_cb is None
@@ -166,7 +148,7 @@ class Connection(object):
         self._close_cb = close_cb
     
     def _io_loop(self, event):
-        #print '_io_loop', event
+        #print '_io_loop', event, self.conn_id
         if event & READ:
             self._recv_loop()
         if event & WRITE:
@@ -229,7 +211,7 @@ class Connection(object):
 
             packet_length = unpack(HEADER, header)[0]
             if packet_length >= MAX_PACKET_LENGTH:
-                self.close('recv invalid payload [length|%d]' % packet_length)
+                self.close('[packet_length|%d] out of limitation' % packet_length)
                 break
 
             packet_buffer = buffers[count:count+packet_length]

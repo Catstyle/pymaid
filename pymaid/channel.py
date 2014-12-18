@@ -1,5 +1,7 @@
 __all__ = ['Channel']
 
+import time
+
 from gevent.event import AsyncResult
 from gevent import socket
 from gevent import wait
@@ -24,16 +26,16 @@ class Channel(RpcChannel):
     # on a single wake up. High values give higher priority to high connection
     # rates, while lower values give higher priority to already established
     # connections.
-    # Default is 100. Note, that in case of multiple working processes on the
+    # Default is 1024. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 1024
-    MAX_CONCURRENCY = 30000
+    MAX_CONCURRENCY = 50000
 
     def __init__(self, loop=None):
         super(Channel, self).__init__()
 
-        self.transmission_id = 0
+        self.transmission_id = 1
         self.pending_results = {}
         self.loop = loop or get_hub().loop
 
@@ -44,6 +46,10 @@ class Channel(RpcChannel):
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
+
+        self._server_heartbeat_timer = self.loop.timer(0, 1, priority=1)
+        self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=2)
+        self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
     def CallMethod(self, method, controller, request, response_class, done):
         meta_data = controller.meta_data
@@ -95,13 +101,14 @@ class Channel(RpcChannel):
         self.need_heartbeat = True
         self.heartbeat_interval = heartbeat_interval
         self.max_heartbeat_timeout_count = max_timeout_count
+        self._server_heartbeat_timer.again(self._server_heartbeat, update=True)
         # TODO: enable all connections heartbeat?
 
     def disable_heartbeat(self):
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
-        # TODO: disable all connections heartbeat?
+        self._server_heartbeat_timer.stop()
 
     def get_income_connection(self, conn_id):
         return self._income_connections.get(conn_id)
@@ -114,7 +121,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=1024):
+    def listen(self, host, port, backlog=2048):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -128,29 +135,32 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
+        conn.set_close_cb(self.connection_closed)
+        greenlet_pool.spawn(self._handle_loop, conn)
+        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
+
         if server_side:
             assert conn.conn_id not in self._income_connections
             self._income_connections[conn.conn_id] = conn
         else:
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
-
-        conn.set_close_cb(self.connection_closed)
-        conn.gr = greenlet_pool.spawn(self._handle_loop, conn)
-        self._setup_heartbeat(conn, server_side, ignore_heartbeat)
         return conn
 
     def connection_closed(self, conn, reason=None):
-        #print 'connection_closed', (conn.conn_id, reason)
-        conn.gr.kill(block=False)
+        #print 'connection_closed', reason, conn.sockname, conn.peername
         if conn.server_side:
-            assert conn.conn_id in self._income_connections
+            assert conn.conn_id in self._income_connections, conn.conn_id
             del self._income_connections[conn.conn_id]
         else:
-            assert conn.conn_id in self._outcome_connections
+            assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
-            self.pending_results.pop(transmission_id, None)
+            async_result, _ = self.pending_results.pop(transmission_id, (None, None))
+            if async_result is not None:
+                # we should not reach here with async_result left
+                # that should be an exception
+                async_result.set_exception(reason)
         conn.transmissions.clear()
 
     def serve_forever(self):
@@ -159,6 +169,10 @@ class Channel(RpcChannel):
     @property
     def is_full(self):
         return len(self._income_connections) >= self.MAX_CONCURRENCY
+
+    @property
+    def size(self):
+        return len(self._income_connections) + len(self._outcome_connections)
 
     def _setup_server(self):
         # only server need monitor service
@@ -169,11 +183,36 @@ class Channel(RpcChannel):
     def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
         if server_side:
             if self.need_heartbeat:
-                conn.setup_server_heartbeat(
-                    self.heartbeat_interval, self.max_heartbeat_timeout_count
-                )
+                conn.setup_server_heartbeat(self.max_heartbeat_timeout_count)
         elif not ignore_heartbeat:
             conn.setup_client_heartbeat(channel=self)
+
+    def _server_heartbeat(self):
+        # network delay compensation
+        now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
+        #print '_server_heartbeat', now
+        connections = self._income_connections
+        for conn_id in connections.keys():
+            conn = connections[conn_id]
+            if now - conn.last_check_heartbeat >= server_interval:
+                conn.last_check_heartbeat = now
+                conn.heartbeat_timeout()
+        #print 'done _server_heartbeat', time.time() - now
+        self._server_heartbeat_timer.again(self._server_heartbeat)
+
+    def _peer_heartbeat(self):
+        now= time.time()
+        # event iteration compensation
+        factor = self.size >= 14142 and .64 or .89
+        #print '_peer_heartbeat', now
+        for conn in self._outcome_connections.itervalues():
+            if not conn.need_heartbeat:
+                continue
+            if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
+                conn.last_check_heartbeat = now
+                conn.notify_heartbeat()
+        #print 'done _peer_heartbeat', time.time() - now
+        self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
     def _do_accept(self, sock):
         for _ in xrange(self.MAX_ACCEPT):
@@ -195,6 +234,7 @@ class Channel(RpcChannel):
 
         def send_back(response):
             assert response, 'rpc does not require a response of None'
+            #print 'send_back response', meta_data.transmission_id
             meta_data.message = response.SerializeToString()
             send(meta_data.SerializeToString())
 
@@ -206,12 +246,14 @@ class Channel(RpcChannel):
                 controller.Reset()
                 meta_data.ParseFromString(packet)
                 if meta_data.from_stub: # request
+                    #print 'request', meta_data.transmission_id
                     try:
                         recv_request(controller, send_back)
                     except BaseError as ex:
                         controller.SetFailed(ex)
                         send(meta_data.SerializeToString())
                 else:
+                    #print 'response', meta_data.transmission_id
                     recv_response(controller)
         except Exception as ex:
             reason = ex
@@ -259,4 +301,5 @@ class Channel(RpcChannel):
         except DecodeError as ex:
             async_result.set_exception(ex)
         else:
+            #print 'recv resp, current', transmission_id
             async_result.set(response)
