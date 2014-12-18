@@ -8,10 +8,10 @@ setup(
     author="Catstyle",
     author_email="Catstyle.Lee@gmail.com",
     license="do what the f**k you want",
-    packages=find_packages(),
+    packages=find_packages(exclude='examples'),
     zip_safe=True,
     install_requires=[
         'gevent>=1.0',
-        'protobuf>=2.5',
+        'protobuf>=2.6',
     ],
 )
