@@ -24,7 +24,7 @@ def main():
     gc.enable()
 
     pool = Pool()
-    #pool.spawn(wrapper, 111111, 30000)
+    pool.spawn(wrapper, 111111, 30000)
     for x in xrange(30000):
         pool.spawn(wrapper, x, 1)
 

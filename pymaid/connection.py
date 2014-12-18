@@ -7,11 +7,11 @@ from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent import socket
-from gevent.core import READ, WRITE
+from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.utils import logger_wrapper
 from pymaid.error import HeartbeatTimeout
 
 
@@ -30,18 +30,17 @@ class Connection(object):
     MAX_RECV = 10
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
-    MAX_IDLE_LOOP = 2
 
     LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 1
 
     __slots__ = [
         'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'gr', 'fileno',  'last_check_heartbeat', 'transmissions',
+        'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
         'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
-        '_idle_loop', '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        '_close_cb', '_monitor_agent', '_has_spawn_send'
+        '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
+        '_close_cb', '_monitor_agent',
     ]
 
     def __init__(self, sock, server_side):
@@ -55,9 +54,7 @@ class Connection(object):
 
         self.is_closed = False
         self._close_cb = None
-        self._idle_loop = 0
         self._monitor_agent = None
-        self._has_spawn_send = 0
         self.need_heartbeat = 0
 
         self.conn_id = self.__class__.CONN_ID
@@ -70,7 +67,7 @@ class Connection(object):
         self._recv_queue = Queue()
 
         self._socket_watcher = self.hub.loop.io(self.fileno, READ)
-        self._socket_watcher.start(self._recv_loop)
+        self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -112,12 +109,8 @@ class Connection(object):
     def send(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
-        if not self._has_spawn_send:
-            greenlet_pool.spawn(self._send_loop)
-            self._has_spawn_send = 1
-        #self._idle_loop = 0
-        #if not self._socket_watcher.events & WRITE:
-        #    self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
+        # add WRITE event for once
+        self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
     def recv(self, timeout=None):
         return self._recv_queue.get(timeout=timeout)
@@ -138,16 +131,16 @@ class Connection(object):
         if self._monitor_agent is not None:
             self._monitor_agent.close()
 
-        #if reason is None and not reset:
-        #    self._socket.sendall('')
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()
+        self._recv_queue.put(None)
         self._socket_watcher.stop()
         self._socket.close()
         del self.buffers[:]
 
         if self._close_cb:
             self._close_cb(self, reason)
+        self._close_cb = None
 
     def set_close_cb(self, close_cb):
         assert self._close_cb is None
@@ -163,13 +156,8 @@ class Connection(object):
 
     def _send_loop(self):
         qsize = self._send_queue.qsize()
-        #if qsize == 0:
-        #    self._idle_loop += 1
-        #    if self._idle_loop >= self.MAX_IDLE_LOOP:
-        #        self._socket_watcher.stop()
-        #        self._socket_watcher = self.hub.loop.io(self.fileno, READ)
-        #        self._socket_watcher.start(self._io_loop, pass_events=True)
-        #    return
+        if qsize == 0:
+            return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
         pack, HEADER, MAX_SEND = struct.pack, self.HEADER, self.MAX_SEND
@@ -185,10 +173,6 @@ class Connection(object):
                 sendall(header_buffer+packet_buffer)
         except socket.error as ex:
             self.close(ex)
-        if qsize > MAX_SEND:
-            greenlet_pool.spawn(self._send_loop)
-        else:
-            self._has_spawn_send = 0
 
     def _recv_n(self, nbytes):
         recv, append, length = self._socket.recv, self.buffers.append, 0
