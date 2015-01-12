@@ -7,7 +7,7 @@ from pymaid.utils import greenlet_pool
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect("127.0.0.1", 8888)
     for x in xrange(n):
         response = service.Hello(conn=conn)
         assert response.message == 'from pymaid', response.message
