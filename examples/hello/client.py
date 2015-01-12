@@ -1,13 +1,13 @@
 from gevent.pool import Pool
 
 from pymaid.channel import Channel
-from pymaid.agent import ServiceAgent
+from pymaid.agent import ProfilingServiceAgent
 from hello_pb2 import HelloService_Stub
 from pymaid.utils import greenlet_pool
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888)
+    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
     for x in xrange(n):
         response = service.Hello(conn=conn)
         assert response.message == 'from pymaid', response.message
@@ -15,7 +15,7 @@ def wrapper(pid, n):
 
 
 channel = Channel()
-service = ServiceAgent(HelloService_Stub(channel), conn=None)
+service = ProfilingServiceAgent(HelloService_Stub(channel), conn=None)
 def main():
     import gc
     import sys
@@ -25,7 +25,7 @@ def main():
 
     pool = Pool()
     pool.spawn(wrapper, 111111, 30000)
-    for x in xrange(30000):
+    for x in xrange(10000):
         pool.spawn(wrapper, x, 1)
 
     try:
@@ -45,6 +45,7 @@ def main():
         assert len(channel.pending_results) == 0, channel.pending_results
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
+    service.print_summary()
 
 if __name__ == "__main__":
     main()
