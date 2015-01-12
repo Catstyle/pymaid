@@ -1,3 +1,4 @@
+import time
 from pymaid.controller import Controller
 
 
@@ -37,4 +38,48 @@ class ServiceAgent(object):
 
             method = getattr(self.stub, name)
             return method(controller, request, done)
+        return rpc
+
+
+class ProfilingServiceAgent(ServiceAgent):
+
+    __slots__ = [
+        'stub', 'conn', 'controller', 'get_method_by_name', 'get_request_class',
+        'delays'
+    ]
+
+    def __init__(self, stub, conn):
+        super(ProfilingServiceAgent, self).__init__(stub, conn)
+        self.delays = []
+
+    def print_summary(self):
+        import numpy as np
+        array = np.array(self.delays)
+        print 'total(succeeded):', len(array)
+        print 'min(ms):', array.min()
+        print 'mean(ms):', array.mean()
+        print 'max(ms):', array.max()
+
+    def __getattr__(self, name):
+        method_descriptor = self.get_method_by_name(name)
+        if not method_descriptor:
+            return object.__getattr__(self, name)
+
+        def rpc(controller=None, request=None, done=None, conn=None, **kwargs):
+            start = float('%.6f' % (time.time() * 1000))
+            if controller is None:
+                controller = self.controller
+                controller.Reset()
+                assert conn or self.conn
+                controller.conn = conn or self.conn
+
+            if request is None:
+                request_class = self.get_request_class(method_descriptor)
+                request = request_class(**kwargs)
+
+            method = getattr(self.stub, name)
+            resp = method(controller, request, done)
+            delay = float('%.6f' % (time.time() * 1000 - start))
+            self.delays.append(delay)
+            return resp
         return rpc
