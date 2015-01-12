@@ -11,7 +11,7 @@ from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.utils import logger_wrapper
+from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.error import HeartbeatTimeout
 
 
@@ -39,8 +39,8 @@ class Connection(object):
         'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
         'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
-        '_socket', '_send_queue', '_socket_watcher',
-        'handle_cb', 'close_cb', '_monitor_agent',
+        '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
+        'close_cb', '_monitor_agent',
     ]
 
     def __init__(self, sock, server_side):
@@ -53,7 +53,7 @@ class Connection(object):
         self.sockname = sock.getsockname()
 
         self.is_closed = False
-        self.close_cb, self.handle_cb = None, None
+        self.close_cb = None
         self._monitor_agent = None
         self.need_heartbeat = 0
 
@@ -64,6 +64,7 @@ class Connection(object):
         self.buffers = []
         self.transmissions = set()
         self._send_queue = Queue()
+        self._recv_queue = Queue()
 
         self._socket_watcher = self.hub.loop.io(self.fileno, READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
@@ -74,7 +75,7 @@ class Connection(object):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
         # system will doubled this buffer
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
+        #sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
     def setup_server_heartbeat(self, max_heartbeat_timeout_count):
         assert max_heartbeat_timeout_count >= 1
@@ -111,6 +112,9 @@ class Connection(object):
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
+    def recv(self, timeout=None):
+        return self._recv_queue.get(timeout=timeout)
+
     def close(self, reason=None, reset=False):
         if self.is_closed:
             return
@@ -128,6 +132,8 @@ class Connection(object):
             self._monitor_agent.close()
 
         self._send_queue.queue.clear()
+        self._recv_queue.queue.clear()
+        self._recv_queue.put(None)
         self._socket_watcher.stop()
         self._socket.close()
         del self.buffers[:]
@@ -136,11 +142,6 @@ class Connection(object):
             self.close_cb(self, reason)
         self.close_cb = None
 
-    def set_handle_cb(self, handle_cb):
-        assert self.handle_cb is None
-        assert callable(handle_cb)
-        self.handle_cb = handle_cb
-    
     def set_close_cb(self, close_cb):
         assert self.close_cb is None
         assert callable(close_cb)
@@ -198,7 +199,7 @@ class Connection(object):
         length = self._recv_n(self.RCVBUF)
 
         # handle all received data even if receive EOF or catch exception
-        buffers = ''.join(self.buffers)
+        buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
         count, buffers_length, unpack = 0, len(buffers), struct.unpack
         HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
         MAX_PACKET_LENGTH = self.MAX_PACKET_LENGTH
@@ -216,9 +217,8 @@ class Connection(object):
             packet_buffer = buffers[count:count+packet_length]
             if len(packet_buffer) < packet_length:
                 break
-            #print 'handle_cb', packet_buffer
-            assert self.handle_cb
-            self.handle_cb(self, packet_buffer)
+            #print 'recv_packet', packet_buffer
+            recv_packet(packet_buffer)
             count += packet_length
 
         del self.buffers[:]

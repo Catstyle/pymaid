@@ -15,7 +15,7 @@ from pymaid.connection import Connection
 from pymaid.controller import Controller
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, ServiceNotExist, MethodNotExist
-from pymaid.utils import logger_wrapper
+from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
 
@@ -135,8 +135,8 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
-        conn.set_handle_cb(self.handle_cb)
         conn.set_close_cb(self.connection_closed)
+        greenlet_pool.spawn(self.handle_cb, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
 
         if server_side:
@@ -227,18 +227,26 @@ class Channel(RpcChannel):
                 raise
             self.new_connection(client_socket, server_side=True)
 
-    def handle_cb(self, conn, buf):
-        controller = Controller()
+    def handle_cb(self, conn):
+        recv, reason, controller = conn.recv, None, Controller()
+        recv_request, recv_response = self._recv_request, self._recv_response
+        meta_data = controller.meta_data
         try:
-            controller.meta_data.ParseFromString(buf)
-            if controller.meta_data.from_stub: # request
-                #print 'request', meta_data.transmission_id
-                self._recv_request(conn, controller)
-            else:
-                #print 'response', meta_data.transmission_id
-                self._recv_response(conn, controller)
+            while 1:
+                packet = recv()
+                if not packet:
+                    break
+                controller.Reset()
+                meta_data.ParseFromString(packet)
+                if meta_data.from_stub: # request
+                    #print 'request', meta_data.transmission_id
+                    recv_request(conn, controller)
+                else:
+                    #print 'response', meta_data.transmission_id
+                    recv_response(conn, controller)
         except Exception as ex:
             reason = ex
+        finally:
             conn.close(reason)
 
     def _recv_request(self, conn, controller):
