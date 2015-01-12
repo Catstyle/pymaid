@@ -14,8 +14,8 @@ from google.protobuf.message import DecodeError
 from pymaid.connection import Connection
 from pymaid.controller import Controller
 from pymaid.apps.monitor import MonitorServiceImpl
-from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
-from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.error import BaseMeta, ServiceNotExist, MethodNotExist
+from pymaid.utils import logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
 
@@ -135,8 +135,8 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(sock, server_side)
         #print 'new_connection', conn.conn_id
+        conn.set_handle_cb(self.handle_cb)
         conn.set_close_cb(self.connection_closed)
-        greenlet_pool.spawn(self._handle_loop, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
 
         if server_side:
@@ -227,64 +227,57 @@ class Channel(RpcChannel):
                 raise
             self.new_connection(client_socket, server_side=True)
 
-    def _handle_loop(self, conn):
-        send, recv, reason, controller = conn.send, conn.recv, None, Controller()
-        recv_request, recv_response = self._recv_request, self._recv_response
-        meta_data, controller.conn = controller.meta_data, conn
-
-        def send_back(response):
-            assert response, 'rpc does not require a response of None'
-            #print 'send_back response', meta_data.transmission_id
-            meta_data.message = response.SerializeToString()
-            send(meta_data.SerializeToString())
-
+    def handle_cb(self, conn, buf):
+        controller = Controller()
         try:
-            while 1:
-                packet = recv()
-                if not packet:
-                    break
-                controller.Reset()
-                meta_data.ParseFromString(packet)
-                if meta_data.from_stub: # request
-                    #print 'request', meta_data.transmission_id
-                    try:
-                        recv_request(controller, send_back)
-                    except BaseError as ex:
-                        controller.SetFailed(ex)
-                        send(meta_data.SerializeToString())
-                else:
-                    #print 'response', meta_data.transmission_id
-                    recv_response(controller)
+            controller.meta_data.ParseFromString(buf)
+            if controller.meta_data.from_stub: # request
+                #print 'request', meta_data.transmission_id
+                self._recv_request(conn, controller)
+            else:
+                #print 'response', meta_data.transmission_id
+                self._recv_response(conn, controller)
         except Exception as ex:
             reason = ex
-        finally:
-            controller.conn = None
             conn.close(reason)
 
-    def _recv_request(self, controller, send_back):
+    def _recv_request(self, conn, controller):
         meta_data = controller.meta_data
         meta_data.from_stub = False
-        service = self.services.get(meta_data.service_name, None)
+
+        service_name, method_name = meta_data.service_name, meta_data.method_name
+        service = self.services.get(service_name, None)
 
         if service is None:
-            raise ServiceNotExist(service_name=meta_data.service_name)
+            controller.SetFailed(ServiceNotExist(service_name=service_name))
+            conn.send(meta_data.SerializeToString())
+            return
 
-        method = service.DESCRIPTOR.FindMethodByName(meta_data.method_name)
+        method = service.DESCRIPTOR.FindMethodByName(method_name)
         if method is None:
-            raise MethodNotExist(service_name=meta_data.service_name,
-                                 method_name=meta_data.method_name)
+            controller.SetFailed(
+                MethodNotExist(service_name=service_name, method_name=method_name)
+            )
+            conn.send(meta_data.SerializeToString())
+            return
+
+        def send_response(response):
+            assert response, 'rpc does not require a response of None'
+            #print 'send_response response', meta_data.transmission_id
+            meta_data.message = response.SerializeToString()
+            conn.send(meta_data.SerializeToString())
 
         request_class = service.GetRequestClass(method)
         request = request_class()
         request.ParseFromString(meta_data.message)
-        service.CallMethod(method, controller, request, send_back)
+        service.CallMethod(method, controller, request, send_response)
 
-    def _recv_response(self, controller):
+    def _recv_response(self, conn, controller):
         transmission_id = controller.meta_data.transmission_id
         assert transmission_id in self.pending_results
-        assert transmission_id in controller.conn.transmissions
+        assert transmission_id in conn.transmissions
         async_result, response_class = self.pending_results.pop(transmission_id)
-        controller.conn.transmissions.remove(transmission_id)
+        conn.transmissions.remove(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()
