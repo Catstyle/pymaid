@@ -11,7 +11,7 @@ from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.utils import logger_wrapper
 from pymaid.error import HeartbeatTimeout
 
 
@@ -128,7 +128,7 @@ class Connection(object):
             self.sockname, self.peername, reason
         )
 
-        if self._monitor_agent is not None:
+        if self._monitor_agent:
             self._monitor_agent.close()
 
         self._send_queue.queue.clear()
@@ -143,7 +143,7 @@ class Connection(object):
         self.close_cb = None
 
     def set_close_cb(self, close_cb):
-        assert self.close_cb is None
+        assert not self.close_cb
         assert callable(close_cb)
         self.close_cb = close_cb
     
@@ -156,7 +156,7 @@ class Connection(object):
 
     def _handle_send(self):
         qsize = self._send_queue.qsize()
-        if qsize == 0:
+        if not qsize: 
             return
 
         get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
@@ -164,7 +164,7 @@ class Connection(object):
         try:
             for _ in xrange(min(qsize, MAX_SEND)):
                 packet_buffer = get_packet()
-                if packet_buffer is None:
+                if not packet_buffer:
                     break
 
                 header_buffer = pack(HEADER, len(packet_buffer))
@@ -226,7 +226,7 @@ class Connection(object):
             self.buffers.append(buffers[count:])
 
         # close if receive EOF or catch exception
-        if length == 0:
+        if not length:
             self.close('has received EOF', reset=True)
         elif not isinstance(length, (int, long)):
             # exception
