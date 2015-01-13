@@ -156,11 +156,10 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
-            async_result, _ = self.pending_results.pop(transmission_id, (None, None))
-            if async_result is not None:
-                # we should not reach here with async_result left
-                # that should be an exception
-                async_result.set_exception(reason)
+            async_result = self.pending_results[transmission_id][0]
+            # we should not reach here with async_result left
+            # that should be an exception
+            async_result.set_exception(reason)
         conn.transmissions.clear()
 
     def serve_forever(self):
@@ -254,15 +253,15 @@ class Channel(RpcChannel):
         meta_data.from_stub = False
 
         service_name, method_name = meta_data.service_name, meta_data.method_name
-        service = self.services.get(service_name, None)
+        service = self.services[service_name] if service_name in self.services else None
 
-        if service is None:
+        if not service:
             controller.SetFailed(ServiceNotExist(service_name=service_name))
             conn.send(meta_data.SerializeToString())
             return
 
         method = service.DESCRIPTOR.FindMethodByName(method_name)
-        if method is None:
+        if not method:
             controller.SetFailed(
                 MethodNotExist(service_name=service_name, method_name=method_name)
             )
