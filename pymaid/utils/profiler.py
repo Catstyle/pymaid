@@ -1,7 +1,6 @@
 import time
 from collections import defaultdict
 from functools import wraps
-from operator import itemgetter
 
 import numpy as np
 
