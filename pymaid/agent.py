@@ -8,7 +8,7 @@ class ServiceAgent(object):
         'profiling',
     ]
 
-    def __init__(self, stub, conn, profiling=False):
+    def __init__(self, stub, conn=None, profiling=False):
         self.stub, self.conn, self.controller = stub, conn, Controller()
         self.get_method_by_name = stub.GetDescriptor().FindMethodByName
         self.get_request_class = stub.GetRequestClass
@@ -31,13 +31,13 @@ class ServiceAgent(object):
             return object.__getattr__(self, name)
 
         def rpc(controller=None, request=None, done=None, conn=None, **kwargs):
-            if controller is None:
+            if not controller:
                 controller = self.controller
                 controller.Reset()
                 assert conn or self.conn
                 controller.conn = conn or self.conn
 
-            if request is None:
+            if not request:
                 request_class = self.get_request_class(method_descriptor)
                 request = request_class(**kwargs)
 
