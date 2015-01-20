@@ -15,15 +15,15 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-import pymaid.pb.pymaid_pb2
+from pymaid.pb import pymaid_pb2 as pymaid_dot_pb_dot_pymaid__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/heartbeat/heartbeat.proto',
   package='example.heartbeat',
-  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\x11\x65xample.heartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2O\n\x0bLongPlaying\x12@\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x1b.example.heartbeat.ResponseB\x03\x90\x01\x01')
+  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\x11\x65xample.heartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2O\n\x0bLongPlaying\x12@\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x1b.example.heartbeat.ResponseB\x03\x90\x01\x01\x62\x06proto3')
   ,
-  dependencies=[pymaid.pb.pymaid_pb2.DESCRIPTOR,])
+  dependencies=[pymaid_dot_pb_dot_pymaid__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
@@ -78,7 +78,7 @@ _LONGPLAYING = _descriptor.ServiceDescriptor(
     full_name='example.heartbeat.LongPlaying.over_two_seconds',
     index=0,
     containing_service=None,
-    input_type=pymaid.pb.pymaid_pb2._VOID,
+    input_type=pymaid_dot_pb_dot_pymaid__pb2._VOID,
     output_type=_RESPONSE,
     options=None,
   ),

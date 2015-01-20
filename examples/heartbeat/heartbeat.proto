@@ -1,3 +1,4 @@
+syntax = "proto3";
 package example.heartbeat;
 option py_generic_services = true;
 
