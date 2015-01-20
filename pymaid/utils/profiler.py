@@ -2,8 +2,6 @@ import time
 from collections import defaultdict
 from functools import wraps
 
-import numpy as np
-
 
 class Profiler(object):
 
@@ -11,6 +9,7 @@ class Profiler(object):
         self.summaries = defaultdict(lambda: {'delays': [], 'total': 0})
 
     def print_summary(self, name=None, sort='delays', reverse=False):
+        import numpy as np
         summaries = defaultdict(dict)
         for key in self.summaries:
             if name is None or name in self.summaries:
