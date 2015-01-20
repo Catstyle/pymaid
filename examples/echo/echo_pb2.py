@@ -20,7 +20,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/echo/echo.proto',
   package='echo',
-  serialized_pb=_b('\n\x18\x65xamples/echo/echo.proto\x12\x04\x65\x63ho\"\x1a\n\x07Message\x12\x0f\n\x07message\x18\x01 \x02(\t23\n\x0b\x45\x63hoService\x12$\n\x04\x65\x63ho\x12\r.echo.Message\x1a\r.echo.MessageB\x03\x90\x01\x01')
+  serialized_pb=_b('\n\x18\x65xamples/echo/echo.proto\x12\x04\x65\x63ho\"\x1a\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\t23\n\x0b\x45\x63hoService\x12$\n\x04\x65\x63ho\x12\r.echo.Message\x1a\r.echo.MessageB\x03\x90\x01\x01\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -36,7 +36,7 @@ _MESSAGE = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='message', full_name='echo.Message.message', index=0,
-      number=1, type=9, cpp_type=9, label=2,
+      number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,

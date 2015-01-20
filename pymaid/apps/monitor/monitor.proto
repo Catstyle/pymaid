@@ -1,3 +1,4 @@
+syntax = "proto3";
 package pymaid.apps.monitor;
 option py_generic_services = true;
 
@@ -5,7 +6,7 @@ import "pymaid/pb/pymaid.proto";
 
 
 message HeartbeatInfo {
-    required bool need_heartbeat = 1;
+    bool need_heartbeat = 1;
     optional float heartbeat_interval = 2;
 }
 
