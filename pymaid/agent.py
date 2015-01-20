@@ -5,18 +5,33 @@ class ServiceAgent(object):
 
     __slots__ = [
         'stub', 'conn', 'controller', 'get_method_by_name', 'get_request_class',
-        'profiling',
+        'profiling', 'methods'
     ]
 
     def __init__(self, stub, conn=None, profiling=False):
         self.stub, self.conn, self.controller = stub, conn, Controller()
         self.get_method_by_name = stub.GetDescriptor().FindMethodByName
         self.get_request_class = stub.GetRequestClass
-        self.profiling = profiling
+        self.profiling, self.methods = profiling, {}
 
     def close(self):
         self.stub, self.conn, self.controller = None, None, None
         self.get_method_by_name, self.get_request_class = None, None
+
+    def get_method(self, name):
+        if name in self.methods:
+            return self.methods[name]
+
+        method_descriptor = self.get_method_by_name(name)
+        method, request_class = None, None
+        if method_descriptor:
+            request_class = self.get_request_class(method_descriptor)
+            method = getattr(self.stub, name)
+            if self.profiling:
+                from pymaid.utils.profiler import profiling
+                method = profiling(name)(method)
+            self.methods[name] = method, request_class
+        return method, request_class
 
     def print_summary(slef):
         from pymaid.utils.profiler import default
@@ -26,8 +41,8 @@ class ServiceAgent(object):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        method_descriptor = self.get_method_by_name(name)
-        if not method_descriptor:
+        method, request_class = self.get_method(name)
+        if not method:
             return object.__getattr__(self, name)
 
         def rpc(controller=None, request=None, done=None, conn=None, **kwargs):
@@ -38,12 +53,8 @@ class ServiceAgent(object):
                 controller.conn = conn or self.conn
 
             if not request:
-                request_class = self.get_request_class(method_descriptor)
+                assert request_class
                 request = request_class(**kwargs)
 
-            method = getattr(self.stub, name)
-            if self.profiling:
-                from pymaid.utils.profiler import profiling
-                method = profiling(name)(method)
             return method(controller, request, done)
         return rpc
