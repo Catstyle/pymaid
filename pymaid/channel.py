@@ -42,6 +42,7 @@ class Channel(RpcChannel):
         self._income_connections = {}
         self._outcome_connections = {}
         self.services = {}
+        self.service_method = {}
 
         self.need_heartbeat = False
         self.heartbeat_interval = 0
@@ -226,9 +227,27 @@ class Channel(RpcChannel):
                 raise
             self.new_connection(client_socket, server_side=True)
 
+    def get_service_method(self, meta):
+        service_name, method_name = meta.service_name, meta.method_name
+        service_method = service_name + method_name
+        if service_method in self.service_method:
+            return self.service_method[service_method]
+
+        if service_name not in self.services:
+            raise ServiceNotExist(service_name=service_name)
+
+        service = self.services[service_name]
+        method = service.DESCRIPTOR.FindMethodByName(method_name)
+        if not method:
+            raise MethodNotExist(service_name=service_name, method_name=method_name)
+
+        request_class = service.GetRequestClass(method)
+        self.service_method[service_method] = service, method, request_class
+        return service, method, request_class
+
     def handle_cb(self, conn):
         recv, reason, controller = conn.recv, None, Controller()
-        recv_request, recv_response = self._recv_request, self._recv_response
+        handle_request, handle_response = self.handle_request, self.handle_response
         meta_data = controller.meta_data
         try:
             while 1:
@@ -239,32 +258,23 @@ class Channel(RpcChannel):
                 meta_data.ParseFromString(packet)
                 if meta_data.from_stub: # request
                     #print 'request', meta_data.transmission_id
-                    recv_request(conn, controller)
+                    handle_request(conn, controller)
                 else:
                     #print 'response', meta_data.transmission_id
-                    recv_response(conn, controller)
+                    handle_response(conn, controller)
         except Exception as ex:
             reason = ex
         finally:
             conn.close(reason)
 
-    def _recv_request(self, conn, controller):
+    def handle_request(self, conn, controller):
         meta_data = controller.meta_data
         meta_data.from_stub = False
 
-        service_name, method_name = meta_data.service_name, meta_data.method_name
-        service = self.services[service_name] if service_name in self.services else None
-
-        if not service:
-            controller.SetFailed(ServiceNotExist(service_name=service_name))
-            conn.send(meta_data.SerializeToString())
-            return
-
-        method = service.DESCRIPTOR.FindMethodByName(method_name)
-        if not method:
-            controller.SetFailed(
-                MethodNotExist(service_name=service_name, method_name=method_name)
-            )
+        try:
+            service, method, request_class = self.get_service_method(meta_data)
+        except (ServiceNotExist, MethodNotExist) as ex:
+            controller.SetFailed(ex)
             conn.send(meta_data.SerializeToString())
             return
 
@@ -274,12 +284,11 @@ class Channel(RpcChannel):
             meta_data.message = response.SerializeToString()
             conn.send(meta_data.SerializeToString())
 
-        request_class = service.GetRequestClass(method)
         request = request_class()
         request.ParseFromString(meta_data.message)
         service.CallMethod(method, controller, request, send_response)
 
-    def _recv_response(self, conn, controller):
+    def handle_response(self, conn, controller):
         transmission_id = controller.meta_data.transmission_id
         assert transmission_id in self.pending_results
         assert transmission_id in conn.transmissions
@@ -293,13 +302,12 @@ class Channel(RpcChannel):
             ex = cls()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
-            return
-
-        response = response_class()
-        try:
-            response.ParseFromString(controller.meta_data.message)
-        except DecodeError as ex:
-            async_result.set_exception(ex)
         else:
-            #print 'recv resp, current', transmission_id
-            async_result.set(response)
+            response = response_class()
+            try:
+                response.ParseFromString(controller.meta_data.message)
+            except DecodeError as ex:
+                async_result.set_exception(ex)
+            else:
+                #print 'recv resp, current', transmission_id
+                async_result.set(response)

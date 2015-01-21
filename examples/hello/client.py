@@ -24,9 +24,9 @@ def main():
     gc.enable()
 
     pool = Pool()
-    pool.spawn(wrapper, 111111, 30000)
-    for x in xrange(10000):
-        pool.spawn(wrapper, x, 1)
+    pool.spawn(wrapper, 111111, 10000)
+    for x in xrange(200):
+        pool.spawn(wrapper, x, 500)
 
     try:
         pool.join()
