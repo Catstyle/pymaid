@@ -134,7 +134,7 @@ class Channel(RpcChannel):
         accept_watcher.start(self._do_accept, sock)
 
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
-        conn = Connection(sock, server_side)
+        conn = Connection(self.loop, sock, server_side)
         #print 'new_connection', conn.conn_id
         conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self.handle_cb, conn)
