@@ -13,12 +13,6 @@ class Controller(RpcController):
         self.wide = False
         self.group = None
 
-    def SerializeToString(self):
-        return self.meta_data.SerializeToString()
-
-    def ParseFromString(self, value):
-        self.meta_data.ParseFromString(value)
-
     def Reset(self):
         self.meta_data.Clear()
         self.wide = False
