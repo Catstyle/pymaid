@@ -159,18 +159,16 @@ class Connection(object):
         if not qsize: 
             return
 
-        get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
-        pack, HEADER, MAX_SEND = struct.pack, self.HEADER, self.MAX_SEND
         try:
-            for _ in xrange(min(qsize, MAX_SEND)):
-                packet_buffer = get_packet()
+            for _ in xrange(min(qsize, self.MAX_SEND)):
+                packet_buffer = self._send_queue.get()
                 if not packet_buffer:
                     break
 
-                header_buffer = pack(HEADER, len(packet_buffer))
+                header_buffer = struct.pack(self.HEADER, len(packet_buffer))
                 # see pydoc of socket.sendall
                 #print 'send_loop', header_buffer+packet_buffer
-                sendall(header_buffer+packet_buffer)
+                self._socket.sendall(header_buffer+packet_buffer)
         except socket.error as ex:
             self.close(ex)
 
@@ -199,31 +197,30 @@ class Connection(object):
         length = self._recv_n(self.RCVBUF)
 
         # handle all received data even if receive EOF or catch exception
-        buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
-        count, buffers_length, unpack = 0, len(buffers), struct.unpack
-        HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
-        MAX_PACKET_LENGTH = self.MAX_PACKET_LENGTH
-        while count < buffers_length:
-            header = buffers[count:count+HEADER_LENGTH]
-            if len(header) < HEADER_LENGTH:
+        buffers = ''.join(self.buffers)
+        current, buffers_length = 0, len(buffers)
+        while current < buffers_length:
+            handled = current
+            header = buffers[handled:handled+self.HEADER_LENGTH]
+            if len(header) < self.HEADER_LENGTH:
                 break
-            count += HEADER_LENGTH
+            handled += self.HEADER_LENGTH
 
-            packet_length = unpack(HEADER, header)[0]
-            if packet_length >= MAX_PACKET_LENGTH:
+            packet_length = struct.unpack(self.HEADER, header)[0]
+            if packet_length >= self.MAX_PACKET_LENGTH:
                 self.close('[packet_length|%d] out of limitation' % packet_length)
                 break
 
-            packet_buffer = buffers[count:count+packet_length]
+            packet_buffer = buffers[handled:handled+packet_length]
             if len(packet_buffer) < packet_length:
                 break
             #print 'recv_packet', packet_buffer
-            recv_packet(packet_buffer)
-            count += packet_length
+            self._recv_queue.put(packet_buffer)
+            current = handled + packet_length
 
         del self.buffers[:]
-        if count < buffers_length and not self.is_closed:
-            self.buffers.append(buffers[count:])
+        if current < buffers_length and not self.is_closed:
+            self.buffers.append(buffers[current:])
 
         # close if receive EOF or catch exception
         if not length:
