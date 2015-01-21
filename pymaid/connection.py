@@ -23,7 +23,7 @@ class Connection(object):
 
     # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
     # the doubled value is max size for one socket recv call
-    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower the that
+    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower than that
     # in some situation, the basic value is something like 212992
     # so MAX_RECV * MAX_PACKET_LENGTH = 81920 < 212992 is ok here
     MAX_SEND = 10
@@ -57,7 +57,7 @@ class Connection(object):
         self._monitor_agent = None
         self.need_heartbeat = 0
 
-        self.conn_id = self.__class__.CONN_ID
+        self.conn_id = self.CONN_ID
         self.__class__.CONN_ID += 1
         self.fileno = sock.fileno()
 
