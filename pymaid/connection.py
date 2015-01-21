@@ -3,7 +3,6 @@ __all__ = ['Connection']
 import time
 import struct
 
-from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent import socket
@@ -35,7 +34,7 @@ class Connection(object):
     CONN_ID = 1
 
     __slots__ = [
-        'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
+        'loop', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
         'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
         'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
@@ -43,8 +42,8 @@ class Connection(object):
         'close_cb', '_monitor_agent',
     ]
 
-    def __init__(self, sock, server_side):
-        self.hub = get_hub()
+    def __init__(self, loop, sock, server_side):
+        self.loop = loop
         self.server_side = server_side
 
         self._setsockopt(sock)
@@ -66,7 +65,7 @@ class Connection(object):
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._socket_watcher = self.hub.loop.io(self.fileno, READ)
+        self._socket_watcher = self.loop.io(self.fileno, READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
