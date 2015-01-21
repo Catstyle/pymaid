@@ -12,8 +12,7 @@ message = string.letters + string.digits
 message *= 23
 def wrapper(pid, n, message=message):
     conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
-    method = service.get_method_by_name('echo')
-    request_class = service.get_request_class(method)
+    method, request_class = service.get_method('echo')
     m = message + str(n)
     request = request_class(message=m)
     for x in xrange(n):

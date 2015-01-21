@@ -3,29 +3,24 @@ from pymaid.controller import Controller
 
 class ServiceAgent(object):
 
-    __slots__ = [
-        'stub', 'conn', 'controller', 'get_method_by_name', 'get_request_class',
-        'profiling', 'methods'
-    ]
+    __slots__ = ['stub', 'conn', 'controller', 'profiling', 'methods']
 
     def __init__(self, stub, conn=None, profiling=False):
         self.stub, self.conn, self.controller = stub, conn, Controller()
-        self.get_method_by_name = stub.GetDescriptor().FindMethodByName
-        self.get_request_class = stub.GetRequestClass
         self.profiling, self.methods = profiling, {}
 
     def close(self):
         self.stub, self.conn, self.controller = None, None, None
-        self.get_method_by_name, self.get_request_class = None, None
+        self.methods.clear()
 
     def get_method(self, name):
         if name in self.methods:
             return self.methods[name]
 
-        method_descriptor = self.get_method_by_name(name)
+        method_descriptor = self.stub.DESCRIPTOR.FindMethodByName(name)
         method, request_class = None, None
         if method_descriptor:
-            request_class = self.get_request_class(method_descriptor)
+            request_class = self.stub.GetRequestClass(method_descriptor)
             method = getattr(self.stub, name)
             if self.profiling:
                 from pymaid.utils.profiler import profiling
