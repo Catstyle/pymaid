@@ -157,7 +157,7 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
-            async_result = self.pending_results[transmission_id][0]
+            async_result = self.pending_results.pop(transmission_id)[0]
             # we should not reach here with async_result left
             # that should be an exception
             async_result.set_exception(reason)
