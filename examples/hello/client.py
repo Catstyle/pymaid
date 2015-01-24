@@ -18,7 +18,6 @@ channel = Channel()
 service = ServiceAgent(HelloService_Stub(channel), conn=None, profiling=True)
 def main():
     import gc
-    import sys
     from collections import Counter
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
@@ -39,8 +38,6 @@ def main():
 
         objects = gc.get_objects()
         print Counter(map(type, objects))
-        print
-        print Counter({type(obj): sys.getsizeof(obj) for obj in objects})
     else:
         assert len(channel.pending_results) == 0, channel.pending_results
         assert len(channel._outcome_connections) == 0, channel._outcome_connections

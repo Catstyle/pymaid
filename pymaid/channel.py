@@ -43,6 +43,8 @@ class Channel(RpcChannel):
         self._outcome_connections = {}
         self.services = {}
         self.service_method = {}
+        self.request_response = {}
+        self.stub_response = {}
 
         self.need_heartbeat = False
         self.heartbeat_interval = 0
@@ -86,10 +88,12 @@ class Channel(RpcChannel):
         if not require_response:
             return
 
+        service_method = meta_data.service_name + meta_data.method_name
+        self.stub_response.getdefault(service_method, response_class)
         assert transmission_id not in self.pending_results
         controller.conn.transmissions.add(transmission_id)
         async_result = AsyncResult()
-        self.pending_results[transmission_id] = async_result, response_class
+        self.pending_results[transmission_id] = async_result
         return async_result.get()
 
     def append_service(self, service):
@@ -157,7 +161,7 @@ class Channel(RpcChannel):
             assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
         for transmission_id in conn.transmissions:
-            async_result = self.pending_results.pop(transmission_id)[0]
+            async_result = self.pending_results.pop(transmission_id)
             # we should not reach here with async_result left
             # that should be an exception
             async_result.set_exception(reason)
@@ -242,8 +246,20 @@ class Channel(RpcChannel):
             raise MethodNotExist(service_name=service_name, method_name=method_name)
 
         request_class = service.GetRequestClass(method)
-        self.service_method[service_method] = service, method, request_class
-        return service, method, request_class
+        response_class = service.GetResponseClass(method)
+        self.service_method[service_method] = service, method
+        self.request_response[service_method] = request_class, response_class
+        return service, method
+
+    def get_request_response(self, meta):
+        service_name, method_name = meta.service_name, meta.method_name
+        service_method = service_name + method_name
+        if service_method not in self.request_response:
+            self.get_service_method(meta)
+        return self.request_response[service_method]
+
+    def get_stub_response_class(self, meta):
+        return self.stub_response[meta.service_name + meta.method_name]
 
     def handle_cb(self, conn):
         recv, reason, controller = conn.recv, None, Controller()
@@ -272,14 +288,16 @@ class Channel(RpcChannel):
         meta_data.from_stub = False
 
         try:
-            service, method, request_class = self.get_service_method(meta_data)
+            service, method = self.get_service_method(meta_data)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
             conn.send(meta_data.SerializeToString())
             return
 
+        request_class, response_class = self.get_request_response(meta_data)
         def send_response(response):
             assert response, 'rpc does not require a response of None'
+            assert isinstance(response, response_class)
             #print 'send_response response', meta_data.transmission_id
             meta_data.message = response.SerializeToString()
             conn.send(meta_data.SerializeToString())
@@ -292,7 +310,7 @@ class Channel(RpcChannel):
         transmission_id = controller.meta_data.transmission_id
         assert transmission_id in self.pending_results
         assert transmission_id in conn.transmissions
-        async_result, response_class = self.pending_results.pop(transmission_id)
+        async_result= self.pending_results.pop(transmission_id)
         conn.transmissions.remove(transmission_id)
 
         if controller.Failed():
@@ -303,6 +321,7 @@ class Channel(RpcChannel):
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
+            response_class = self.get_stub_response_class(controller.meta_data)
             response = response_class()
             try:
                 response.ParseFromString(controller.meta_data.message)
