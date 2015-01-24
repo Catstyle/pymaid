@@ -169,6 +169,8 @@ class Connection(object):
                 #print 'send_loop', header_buffer+packet_buffer
                 self._socket.sendall(header_buffer+packet_buffer)
         except socket.error as ex:
+            if ex.args[0] == socket.EWOULDBLOCK:
+                return
             self.close(ex)
 
     def _recv_n(self, nbytes):
