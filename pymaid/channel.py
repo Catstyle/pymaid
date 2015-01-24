@@ -89,7 +89,7 @@ class Channel(RpcChannel):
             return
 
         service_method = meta_data.service_name + meta_data.method_name
-        self.stub_response.getdefault(service_method, response_class)
+        self.stub_response.setdefault(service_method, response_class)
         assert transmission_id not in self.pending_results
         controller.conn.transmissions.add(transmission_id)
         async_result = AsyncResult()
