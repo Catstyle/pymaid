@@ -20,8 +20,8 @@ from pymaid.pb import pymaid_pb2 as pymaid_dot_pb_dot_pymaid__pb2
 
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/heartbeat/heartbeat.proto',
-  package='example.heartbeat',
-  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\x11\x65xample.heartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2O\n\x0bLongPlaying\x12@\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x1b.example.heartbeat.ResponseB\x03\x90\x01\x01\x62\x06proto3')
+  package='heartbeat',
+  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\theartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2G\n\x0bLongPlaying\x12\x38\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x13.heartbeat.ResponseB\x03\x90\x01\x01\x62\x06proto3')
   ,
   dependencies=[pymaid_dot_pb_dot_pymaid__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
@@ -31,7 +31,7 @@ _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 _RESPONSE = _descriptor.Descriptor(
   name='Response',
-  full_name='example.heartbeat.Response',
+  full_name='heartbeat.Response',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
@@ -47,8 +47,8 @@ _RESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=81,
-  serialized_end=91,
+  serialized_start=73,
+  serialized_end=83,
 )
 
 DESCRIPTOR.message_types_by_name['Response'] = _RESPONSE
@@ -56,7 +56,7 @@ DESCRIPTOR.message_types_by_name['Response'] = _RESPONSE
 Response = _reflection.GeneratedProtocolMessageType('Response', (_message.Message,), dict(
   DESCRIPTOR = _RESPONSE,
   __module__ = 'examples.heartbeat.heartbeat_pb2'
-  # @@protoc_insertion_point(class_scope:example.heartbeat.Response)
+  # @@protoc_insertion_point(class_scope:heartbeat.Response)
   ))
 _sym_db.RegisterMessage(Response)
 
@@ -66,16 +66,16 @@ DESCRIPTOR._options = _descriptor._ParseOptions(descriptor_pb2.FileOptions(), _b
 
 _LONGPLAYING = _descriptor.ServiceDescriptor(
   name='LongPlaying',
-  full_name='example.heartbeat.LongPlaying',
+  full_name='heartbeat.LongPlaying',
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=93,
-  serialized_end=172,
+  serialized_start=85,
+  serialized_end=156,
   methods=[
   _descriptor.MethodDescriptor(
     name='over_two_seconds',
-    full_name='example.heartbeat.LongPlaying.over_two_seconds',
+    full_name='heartbeat.LongPlaying.over_two_seconds',
     index=0,
     containing_service=None,
     input_type=pymaid_dot_pb_dot_pymaid__pb2._VOID,
