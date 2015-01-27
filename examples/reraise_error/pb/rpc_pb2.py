@@ -20,20 +20,27 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/reraise_error/pb/rpc.proto',
   package='reraise',
-  serialized_pb=_b('\n#examples/reraise_error/pb/rpc.proto\x12\x07reraise\"\x06\n\x04Void2?\n\x0bRemoteError\x12\x30\n\x10player_not_exist\x12\r.reraise.Void\x1a\r.reraise.VoidB\x03\x90\x01\x01\x62\x06proto3')
+  serialized_pb=_b('\n#examples/reraise_error/pb/rpc.proto\x12\x07reraise\"\x19\n\x06UserId\x12\x0f\n\x07user_id\x18\x01 \x01(\r\"+\n\x06Player\x12\x0f\n\x07user_id\x18\x01 \x01(\r\x12\x10\n\x08nickname\x18\x02 \x01(\t2A\n\x0bRemoteError\x12\x32\n\x0eplayer_profile\x12\x0f.reraise.UserId\x1a\x0f.reraise.PlayerB\x03\x90\x01\x01\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
 
 
-_VOID = _descriptor.Descriptor(
-  name='Void',
-  full_name='reraise.Void',
+_USERID = _descriptor.Descriptor(
+  name='UserId',
+  full_name='reraise.UserId',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
+    _descriptor.FieldDescriptor(
+      name='user_id', full_name='reraise.UserId.user_id', index=0,
+      number=1, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
   ],
   extensions=[
   ],
@@ -46,17 +53,62 @@ _VOID = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=48,
-  serialized_end=54,
+  serialized_end=73,
 )
 
-DESCRIPTOR.message_types_by_name['Void'] = _VOID
 
-Void = _reflection.GeneratedProtocolMessageType('Void', (_message.Message,), dict(
-  DESCRIPTOR = _VOID,
+_PLAYER = _descriptor.Descriptor(
+  name='Player',
+  full_name='reraise.Player',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='user_id', full_name='reraise.Player.user_id', index=0,
+      number=1, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='nickname', full_name='reraise.Player.nickname', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=75,
+  serialized_end=118,
+)
+
+DESCRIPTOR.message_types_by_name['UserId'] = _USERID
+DESCRIPTOR.message_types_by_name['Player'] = _PLAYER
+
+UserId = _reflection.GeneratedProtocolMessageType('UserId', (_message.Message,), dict(
+  DESCRIPTOR = _USERID,
   __module__ = 'examples.reraise_error.pb.rpc_pb2'
-  # @@protoc_insertion_point(class_scope:reraise.Void)
+  # @@protoc_insertion_point(class_scope:reraise.UserId)
   ))
-_sym_db.RegisterMessage(Void)
+_sym_db.RegisterMessage(UserId)
+
+Player = _reflection.GeneratedProtocolMessageType('Player', (_message.Message,), dict(
+  DESCRIPTOR = _PLAYER,
+  __module__ = 'examples.reraise_error.pb.rpc_pb2'
+  # @@protoc_insertion_point(class_scope:reraise.Player)
+  ))
+_sym_db.RegisterMessage(Player)
 
 
 DESCRIPTOR.has_options = True
@@ -68,16 +120,16 @@ _REMOTEERROR = _descriptor.ServiceDescriptor(
   file=DESCRIPTOR,
   index=0,
   options=None,
-  serialized_start=56,
-  serialized_end=119,
+  serialized_start=120,
+  serialized_end=185,
   methods=[
   _descriptor.MethodDescriptor(
-    name='player_not_exist',
-    full_name='reraise.RemoteError.player_not_exist',
+    name='player_profile',
+    full_name='reraise.RemoteError.player_profile',
     index=0,
     containing_service=None,
-    input_type=_VOID,
-    output_type=_VOID,
+    input_type=_USERID,
+    output_type=_PLAYER,
     options=None,
   ),
 ])

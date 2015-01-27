@@ -1,12 +1,19 @@
 syntax = "proto3";
+
 package reraise;
 option py_generic_services = true;
 
 
-message Void {
-};
+message UserId {
+    uint32 user_id = 1;
+}
+
+message Player {
+    uint32 user_id = 1;
+    string nickname = 2;
+}
 
 
 service RemoteError {
-    rpc player_not_exist(Void) returns (Void);
+    rpc player_profile(UserId) returns (Player);
 };

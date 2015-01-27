@@ -14,7 +14,7 @@ from google.protobuf.message import DecodeError
 from pymaid.connection import Connection
 from pymaid.controller import Controller
 from pymaid.apps.monitor import MonitorServiceImpl
-from pymaid.error import BaseMeta, ServiceNotExist, MethodNotExist
+from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
@@ -304,7 +304,11 @@ class Channel(RpcChannel):
 
         request = request_class()
         request.ParseFromString(meta_data.message)
-        service.CallMethod(method, controller, request, send_response)
+        try:
+            service.CallMethod(method, controller, request, send_response)
+        except BaseError as ex:
+            controller.SetFailed(ex)
+            conn.send(meta_data.SerializeToString())
 
     def handle_response(self, conn, controller):
         transmission_id = controller.meta_data.transmission_id

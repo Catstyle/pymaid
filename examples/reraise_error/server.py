@@ -5,14 +5,16 @@ from error import PlayerNotExist
 
 class RemoteErrorImpl(RemoteError):
 
-    def player_not_exist(self, controller, request, done):
+    def player_profile(self, controller, request, done):
         raise PlayerNotExist
+
 
 def main():
     channel = Channel()
     channel.listen("127.0.0.1", 8888)
     channel.append_service(RemoteErrorImpl())
     channel.serve_forever()
+
 
 if __name__ == "__main__":
     main()
