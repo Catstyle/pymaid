@@ -6,7 +6,7 @@ from pymaid.utils import greenlet_pool
 
 class HelloServiceImpl(HelloService):
 
-    def Hello(self, controller, request, done):
+    def hello(self, controller, request, done):
         response = HelloResponse()
         response.message = "from pymaid"
         done(response)
