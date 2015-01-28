@@ -1,4 +1,4 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package hello;
 option py_generic_services = true;
@@ -9,7 +9,7 @@ message HelloRequest {
 
 
 message HelloResponse {
-    string message = 1;
+    required string message = 1;
 }
 
 

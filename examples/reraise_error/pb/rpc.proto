@@ -1,16 +1,16 @@
-syntax = "proto3";
+syntax = "proto2";
 
 package reraise;
 option py_generic_services = true;
 
 
 message UserId {
-    uint32 user_id = 1;
+    required uint32 user_id = 1;
 }
 
 message Player {
-    uint32 user_id = 1;
-    string nickname = 2;
+    required uint32 user_id = 1;
+    required string nickname = 2;
 }
 
 

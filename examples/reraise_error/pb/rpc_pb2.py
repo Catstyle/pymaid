@@ -20,7 +20,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/reraise_error/pb/rpc.proto',
   package='reraise',
-  serialized_pb=_b('\n#examples/reraise_error/pb/rpc.proto\x12\x07reraise\"\x19\n\x06UserId\x12\x0f\n\x07user_id\x18\x01 \x01(\r\"+\n\x06Player\x12\x0f\n\x07user_id\x18\x01 \x01(\r\x12\x10\n\x08nickname\x18\x02 \x01(\t2A\n\x0bRemoteError\x12\x32\n\x0eplayer_profile\x12\x0f.reraise.UserId\x1a\x0f.reraise.PlayerB\x03\x90\x01\x01\x62\x06proto3')
+  serialized_pb=_b('\n#examples/reraise_error/pb/rpc.proto\x12\x07reraise\"\x19\n\x06UserId\x12\x0f\n\x07user_id\x18\x01 \x02(\r\"+\n\x06Player\x12\x0f\n\x07user_id\x18\x01 \x02(\r\x12\x10\n\x08nickname\x18\x02 \x02(\t2A\n\x0bRemoteError\x12\x32\n\x0eplayer_profile\x12\x0f.reraise.UserId\x1a\x0f.reraise.PlayerB\x03\x90\x01\x01')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -36,7 +36,7 @@ _USERID = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='user_id', full_name='reraise.UserId.user_id', index=0,
-      number=1, type=13, cpp_type=3, label=1,
+      number=1, type=13, cpp_type=3, label=2,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -66,14 +66,14 @@ _PLAYER = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='user_id', full_name='reraise.Player.user_id', index=0,
-      number=1, type=13, cpp_type=3, label=1,
+      number=1, type=13, cpp_type=3, label=2,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
       name='nickname', full_name='reraise.Player.nickname', index=1,
-      number=2, type=9, cpp_type=9, label=1,
+      number=2, type=9, cpp_type=9, label=2,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,

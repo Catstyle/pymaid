@@ -20,7 +20,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/hello/hello.proto',
   package='hello',
-  serialized_pb=_b('\n\x1a\x65xamples/hello/hello.proto\x12\x05hello\"\x0e\n\x0cHelloRequest\" \n\rHelloResponse\x12\x0f\n\x07message\x18\x01 \x01(\t2B\n\x0cHelloService\x12\x32\n\x05hello\x12\x13.hello.HelloRequest\x1a\x14.hello.HelloResponseB\x03\x90\x01\x01\x62\x06proto3')
+  serialized_pb=_b('\n\x1a\x65xamples/hello/hello.proto\x12\x05hello\"\x0e\n\x0cHelloRequest\" \n\rHelloResponse\x12\x0f\n\x07message\x18\x01 \x02(\t2B\n\x0cHelloService\x12\x32\n\x05hello\x12\x13.hello.HelloRequest\x1a\x14.hello.HelloResponseB\x03\x90\x01\x01')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -59,7 +59,7 @@ _HELLORESPONSE = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='message', full_name='hello.HelloResponse.message', index=0,
-      number=1, type=9, cpp_type=9, label=1,
+      number=1, type=9, cpp_type=9, label=2,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
