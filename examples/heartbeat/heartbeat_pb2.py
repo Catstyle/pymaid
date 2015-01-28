@@ -21,7 +21,7 @@ from pymaid.pb import pymaid_pb2 as pymaid_dot_pb_dot_pymaid__pb2
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='examples/heartbeat/heartbeat.proto',
   package='heartbeat',
-  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\theartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2G\n\x0bLongPlaying\x12\x38\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x13.heartbeat.ResponseB\x03\x90\x01\x01\x62\x06proto3')
+  serialized_pb=_b('\n\"examples/heartbeat/heartbeat.proto\x12\theartbeat\x1a\x16pymaid/pb/pymaid.proto\"\n\n\x08Response2G\n\x0bLongPlaying\x12\x38\n\x10over_two_seconds\x12\x0f.pymaid.pb.Void\x1a\x13.heartbeat.ResponseB\x03\x90\x01\x01')
   ,
   dependencies=[pymaid_dot_pb_dot_pymaid__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
