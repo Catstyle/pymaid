@@ -25,7 +25,6 @@ def main():
     try:
         channel.serve_forever()
     except:
-        print len(channel.pending_results)
         print len(channel._outcome_connections)
         print len(channel._income_connections)
         print greenlet_pool.size, len(greenlet_pool.greenlets)

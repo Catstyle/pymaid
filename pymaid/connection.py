@@ -24,9 +24,9 @@ class Connection(object):
     # the doubled value is max size for one socket recv call
     # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower than that
     # in some situation, the basic value is something like 212992
-    # so MAX_RECV * MAX_PACKET_LENGTH = 81920 < 212992 is ok here
-    MAX_SEND = 10
-    MAX_RECV = 10
+    # so MAX_RECV * MAX_PACKET_LENGTH = 24576 < 212992 is ok here
+    MAX_SEND = 5
+    MAX_RECV = 3
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
 
@@ -57,11 +57,11 @@ class Connection(object):
         self.need_heartbeat = 0
 
         self.conn_id = self.CONN_ID
-        self.__class__.CONN_ID += 1
+        Connection.CONN_ID += 1
         self.fileno = sock.fileno()
 
         self.buffers = []
-        self.transmissions = set()
+        self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
@@ -164,10 +164,10 @@ class Connection(object):
                 if not packet_buffer:
                     break
 
-                header_buffer = struct.pack(self.HEADER, len(packet_buffer))
                 # see pydoc of socket.sendall
-                #print 'send_loop', header_buffer+packet_buffer
-                self._socket.sendall(header_buffer+packet_buffer)
+                self._socket.sendall(
+                    struct.pack(self.HEADER, len(packet_buffer))+packet_buffer
+                )
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
                 return
