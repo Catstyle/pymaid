@@ -36,7 +36,6 @@ class Channel(RpcChannel):
         super(Channel, self).__init__()
 
         self.transmission_id = 1
-        self.pending_results = {}
         self.loop = loop or get_hub().loop
 
         self._income_connections = {}
@@ -50,8 +49,8 @@ class Channel(RpcChannel):
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
 
-        self._server_heartbeat_timer = self.loop.timer(0, 1, priority=1)
-        self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=2)
+        self._server_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI-1)
+        self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
         self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
     def CallMethod(self, method, controller, request, response_class, done):
@@ -90,10 +89,8 @@ class Channel(RpcChannel):
 
         service_method = meta_data.service_name + meta_data.method_name
         self.stub_response.setdefault(service_method, response_class)
-        assert transmission_id not in self.pending_results
-        controller.conn.transmissions.add(transmission_id)
         async_result = AsyncResult()
-        self.pending_results[transmission_id] = async_result
+        controller.conn.transmissions[transmission_id] = async_result
         return async_result.get()
 
     def append_service(self, service):
@@ -126,7 +123,7 @@ class Channel(RpcChannel):
         conn = self.new_connection(sock, False, ignore_heartbeat)
         return conn
 
-    def listen(self, host, port, backlog=2048):
+    def listen(self, host, port, backlog=MAX_ACCEPT):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -160,8 +157,7 @@ class Channel(RpcChannel):
         else:
             assert conn.conn_id in self._outcome_connections, conn.conn_id
             del self._outcome_connections[conn.conn_id]
-        for transmission_id in conn.transmissions:
-            async_result = self.pending_results.pop(transmission_id)
+        for async_result in conn.transmissions.itervalues():
             # we should not reach here with async_result left
             # that should be an exception
             async_result.set_exception(reason)
@@ -312,21 +308,17 @@ class Channel(RpcChannel):
 
     def handle_response(self, conn, controller):
         transmission_id = controller.meta_data.transmission_id
-        assert transmission_id in self.pending_results
         assert transmission_id in conn.transmissions
-        async_result= self.pending_results.pop(transmission_id)
-        conn.transmissions.remove(transmission_id)
+        async_result = conn.transmissions.pop(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()
             error_message.ParseFromString(controller.meta_data.message)
-            cls = BaseMeta.get_by_code(error_message.error_code)
-            ex = cls()
+            ex = BaseMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response_class = self.get_stub_response_class(controller.meta_data)
-            response = response_class()
+            response = self.get_stub_response_class(controller.meta_data)()
             try:
                 response.ParseFromString(controller.meta_data.message)
             except DecodeError as ex:

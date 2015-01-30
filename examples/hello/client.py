@@ -15,7 +15,7 @@ def wrapper(pid, n):
 
 
 channel = Channel()
-service = ServiceAgent(HelloService_Stub(channel), conn=None, profiling=True)
+service = ServiceAgent(HelloService_Stub(channel), conn=None)
 def main():
     import gc
     from collections import Counter
@@ -30,7 +30,6 @@ def main():
     try:
         pool.join()
     except:
-        print len(channel.pending_results)
         print len(channel._outcome_connections)
         print len(channel._income_connections)
         print pool.size, len(pool.greenlets)
@@ -39,7 +38,6 @@ def main():
         objects = gc.get_objects()
         print Counter(map(type, objects))
     else:
-        assert len(channel.pending_results) == 0, channel.pending_results
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
     service.print_summary()

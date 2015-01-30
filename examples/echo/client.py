@@ -37,14 +37,12 @@ def main():
     try:
         pool.join()
     except:
-        print len(channel.pending_results)
         print len(channel._outcome_connections)
         print len(channel._income_connections)
         print pool.size, len(pool.greenlets)
         print greenlet_pool.size, len(greenlet_pool.greenlets)
 
     else:
-        assert len(channel.pending_results) == 0, channel.pending_results
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
     objects = gc.get_objects()
