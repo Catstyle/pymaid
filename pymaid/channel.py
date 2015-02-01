@@ -15,11 +15,11 @@ from pymaid.connection import Connection
 from pymaid.controller import Controller
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
-from pymaid.utils import greenlet_pool, logger_wrapper
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
 
-@logger_wrapper
+@pymaid_logger_wrapper
 class Channel(RpcChannel):
 
     # Sets the maximum number of consecutive accepts that a process may perform
@@ -35,7 +35,6 @@ class Channel(RpcChannel):
     def __init__(self, loop=None):
         super(Channel, self).__init__()
 
-        self.transmission_id = 1
         self.loop = loop or get_hub().loop
 
         self._income_connections = {}
@@ -63,8 +62,8 @@ class Channel(RpcChannel):
 
         require_response = not issubclass(response_class, Void)
         if require_response:
-            transmission_id = self.transmission_id
-            self.transmission_id += 1
+            transmission_id = controller.conn.transmission_id
+            controller.conn.transmission_id += 1
             meta_data.transmission_id = transmission_id
 
         packet = meta_data.SerializeToString()
@@ -136,7 +135,6 @@ class Channel(RpcChannel):
 
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(self.loop, sock, server_side)
-        #print 'new_connection', conn.conn_id
         conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self.handle_cb, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
@@ -147,10 +145,12 @@ class Channel(RpcChannel):
         else:
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
+        self.logger.debug(
+            '[Connection|%d][peername|%s] made', conn.conn_id, conn.peername
+        )
         return conn
 
     def connection_closed(self, conn, reason=None):
-        #print 'connection_closed', reason, conn.sockname, conn.peername
         if conn.server_side:
             assert conn.conn_id in self._income_connections, conn.conn_id
             del self._income_connections[conn.conn_id]
@@ -190,28 +190,32 @@ class Channel(RpcChannel):
     def _server_heartbeat(self):
         # network delay compensation
         now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
-        #print '_server_heartbeat', now
+        self.logger.debug('[server_heartbeat] start')
         connections = self._income_connections
         for conn_id in connections.keys():
             conn = connections[conn_id]
             if now - conn.last_check_heartbeat >= server_interval:
                 conn.last_check_heartbeat = now
                 conn.heartbeat_timeout()
-        #print 'done _server_heartbeat', time.time() - now
+        self.logger.debug(
+            '[server_heartbeat][escaped|%f] loop done', time.time() - now
+        )
         self._server_heartbeat_timer.again(self._server_heartbeat)
 
     def _peer_heartbeat(self):
         now= time.time()
         # event iteration compensation
         factor = self.size >= 14142 and .64 or .89
-        #print '_peer_heartbeat', now
+        self.logger.debug('[peer_heartbeat] start')
         for conn in self._outcome_connections.itervalues():
             if not conn.need_heartbeat:
                 continue
             if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
                 conn.last_check_heartbeat = now
                 conn.notify_heartbeat()
-        #print 'done _peer_heartbeat', time.time() - now
+        self.logger.debug(
+            '[peer_heartbeat][escaped|%f] loop done', time.time() - now
+        )
         self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
     def _do_accept(self, sock):
@@ -269,10 +273,8 @@ class Channel(RpcChannel):
                 controller.Reset()
                 meta_data.ParseFromString(packet)
                 if meta_data.from_stub: # request
-                    #print 'request', meta_data.transmission_id
                     handle_request(conn, controller)
                 else:
-                    #print 'response', meta_data.transmission_id
                     handle_response(conn, controller)
         except Exception as ex:
             reason = ex
@@ -294,7 +296,6 @@ class Channel(RpcChannel):
         def send_response(response):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            #print 'send_response response', meta_data.transmission_id
             meta_data.message = response.SerializeToString()
             conn.send(meta_data.SerializeToString())
 
@@ -324,5 +325,4 @@ class Channel(RpcChannel):
             except DecodeError as ex:
                 async_result.set_exception(ex)
             else:
-                #print 'recv resp, current', transmission_id
                 async_result.set(response)

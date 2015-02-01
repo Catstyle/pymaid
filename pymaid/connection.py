@@ -10,11 +10,11 @@ from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.utils import logger_wrapper
+from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import HeartbeatTimeout
 
 
-@logger_wrapper
+@pymaid_logger_wrapper
 class Connection(object):
 
     HEADER = '!I'
@@ -36,7 +36,7 @@ class Connection(object):
     __slots__ = [
         'loop', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
         'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
-        'need_heartbeat', 'heartbeat_interval',
+        'transmission_id', 'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
         'close_cb', '_monitor_agent',
@@ -45,6 +45,7 @@ class Connection(object):
     def __init__(self, loop, sock, server_side):
         self.loop = loop
         self.server_side = server_side
+        self.transmission_id = 1
 
         self._setsockopt(sock)
         self._socket = sock
@@ -118,7 +119,6 @@ class Connection(object):
         if self.is_closed:
             return
         self.is_closed = True
-        #print 'connection close', reason, self.sockname, self.peername
 
         if isinstance(reason, Greenlet):
             reason = reason.exception
@@ -147,7 +147,6 @@ class Connection(object):
         self.close_cb = close_cb
     
     def _io_loop(self, event):
-        #print '_io_loop', event, self.conn_id
         if event & READ:
             self._handle_recv()
         if event & WRITE:
@@ -215,7 +214,6 @@ class Connection(object):
             packet_buffer = buffers[handled:handled+packet_length]
             if len(packet_buffer) < packet_length:
                 break
-            #print 'recv_packet', packet_buffer
             self._recv_queue.put(packet_buffer)
             current = handled + packet_length
 
