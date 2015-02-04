@@ -17,7 +17,7 @@ setup(
          ['pymaid/pb/pymaid.proto']),
     ],
     install_requires=[
-        'gevent>=1.0',
-        'protobuf>=2.6',
+        'gevent>=1.0.1',
+        'protobuf>=2.6.1',
     ],
 )
