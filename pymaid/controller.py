@@ -28,12 +28,14 @@ class Controller(RpcController):
         pass
 
     def SetFailed(self, reason):
-        assert isinstance(reason, BaseError)
         self.meta_data.is_failed = True
-        message = ErrorMessage(
-            error_code=reason.code, error_message=reason.message
-        )
-        self.meta_data.message = message.SerializeToString()
+        if isinstance(reason, BaseError):
+            message = ErrorMessage(
+                error_code=reason.code, error_message=reason.message
+            )
+            self.meta_data.message = message.SerializeToString()
+        else:
+            self.meta_data.message = repr(reason)
 
     def IsCanceled(self):
         return self.meta_data.is_canceled

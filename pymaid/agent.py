@@ -40,10 +40,14 @@ class ServiceAgent(object):
         if not method:
             return object.__getattr__(self, name)
 
-        def rpc(controller=None, request=None, done=None, conn=None, **kwargs):
+        def rpc(controller=None, request=None, done=None, conn=None,
+                broadcast=False, group=None, **kwargs):
             if not controller:
                 controller = self.controller
                 controller.Reset()
+
+            controller.broadcast, controller.group = broadcast, group
+            if not (broadcast or group):
                 assert conn or self.conn
                 controller.conn = conn or self.conn
 

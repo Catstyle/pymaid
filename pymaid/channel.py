@@ -67,7 +67,7 @@ class Channel(RpcChannel):
             meta_data.transmission_id = transmission_id
 
         packet = meta_data.SerializeToString()
-        if controller.wide:
+        if controller.broadcast:
             # broadcast
             assert not require_response
             for conn in self._income_connections.itervalues():
@@ -294,6 +294,10 @@ class Channel(RpcChannel):
 
         request_class, response_class = self.get_request_response(meta_data)
         def send_response(response):
+            # received broadcast, just ignore the unwanted response
+            # just in case, it may be error
+            if response_class is Void:
+                return
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
             meta_data.message = response.SerializeToString()
