@@ -48,9 +48,9 @@ class Channel(RpcChannel):
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
 
+        self._notify_heartbeat_connections = []
         self._server_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI-1)
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
-        self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
 
     def CallMethod(self, method, controller, request, response_class, done):
         meta_data = controller.meta_data
@@ -120,6 +120,8 @@ class Channel(RpcChannel):
     def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
         conn = self.new_connection(sock, False, ignore_heartbeat)
+        if not self._peer_heartbeat_timer.active:
+            self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
         return conn
 
     def listen(self, host, port, backlog=MAX_ACCEPT):
@@ -151,17 +153,21 @@ class Channel(RpcChannel):
         return conn
 
     def connection_closed(self, conn, reason=None):
+        conn_id = conn.conn_id
         if conn.server_side:
-            assert conn.conn_id in self._income_connections, conn.conn_id
-            del self._income_connections[conn.conn_id]
+            assert conn_id in self._income_connections, conn_id
+            del self._income_connections[conn_id]
         else:
-            assert conn.conn_id in self._outcome_connections, conn.conn_id
-            del self._outcome_connections[conn.conn_id]
+            assert conn_id in self._outcome_connections, conn_id
+            del self._outcome_connections[conn_id]
         for async_result in conn.transmissions.itervalues():
             # we should not reach here with async_result left
             # that should be an exception
             async_result.set_exception(reason)
         conn.transmissions.clear()
+        if conn.need_heartbeat:
+            assert conn_id in self._notify_heartbeat_connections
+            del self._notify_heartbeat_connections[conn_id]
 
     def serve_forever(self):
         wait()
@@ -180,6 +186,9 @@ class Channel(RpcChannel):
         monitor_service.channel = self
         self.append_service(monitor_service)
 
+    def add_notify_heartbeat_conn(self, conn_id):
+        self._notify_heartbeat_connections.append(conn_id)
+
     def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
         if server_side:
             if self.need_heartbeat:
@@ -190,7 +199,6 @@ class Channel(RpcChannel):
     def _server_heartbeat(self):
         # network delay compensation
         now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
-        self.logger.debug('[server_heartbeat] start')
         connections = self._income_connections
         for conn_id in connections.keys():
             conn = connections[conn_id]
@@ -203,11 +211,12 @@ class Channel(RpcChannel):
         self._server_heartbeat_timer.again(self._server_heartbeat)
 
     def _peer_heartbeat(self):
-        now= time.time()
+        now = time.time()
         # event iteration compensation
         factor = self.size >= 14142 and .64 or .89
-        self.logger.debug('[peer_heartbeat] start')
-        for conn in self._outcome_connections.itervalues():
+        connections = self._outcome_connections
+        for conn_id in self._notify_heartbeat_connections:
+            conn = connections[conn_id]
             if not conn.need_heartbeat:
                 continue
             if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
