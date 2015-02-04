@@ -4,22 +4,19 @@ __all__ = [
     'Error', 'Warning', 'logger', 'pool', 'profiler'
 ]
 
+
 __version__ = '0.0.1'
 VERSION = tuple(map(int, __version__.split('.')))
 
-import gevent
-from gevent import monkey
-monkey.patch_all()
 
 import sys
 platform = sys.platform
 if 'linux' in platform or 'darwin' in platform:
     import os
     if 'GEVENT_RESOLVER' not in os.environ:
-        from gevent import resolver_ares
-        hub = gevent.get_hub()
-        hub.resolver = resolver_ares.Resolver()
-        hub.resolver_class = resolver_ares.Resolver
+        os.environ['GEVENT_RESOLVER'] = 'ares'
+        import gevent
+        reload(gevent)
     else:
         gevent_resolver = os.environ['GEVENT_RESOLVER']
         if 'ares' not in gevent_resolver:
@@ -36,6 +33,7 @@ if 'linux' in platform or 'darwin' in platform:
             'pb>=2.6 new C++ implementation also require to '
             '`export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION_VERSION=2`'
         )
+
 
 from pymaid.agent import ServiceAgent
 from pymaid.channel import Channel
