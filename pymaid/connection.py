@@ -35,7 +35,7 @@ class Connection(object):
 
     __slots__ = [
         'loop', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
+        'buffers', 'last_check_heartbeat', 'transmissions',
         'transmission_id', 'need_heartbeat', 'heartbeat_interval',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
@@ -59,14 +59,13 @@ class Connection(object):
 
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
-        self.fileno = sock.fileno()
 
         self.buffers = []
         self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._socket_watcher = self.loop.io(self.fileno, READ)
+        self._socket_watcher = self.loop.io(sock.fileno(), READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
@@ -76,6 +75,9 @@ class Connection(object):
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
         # system will doubled this buffer
         #sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
+
+    def setsockopt(self, *args, **kwargs):
+        self._socket.setsockopt(*args, **kwargs)
 
     def setup_server_heartbeat(self, max_heartbeat_timeout_count):
         assert max_heartbeat_timeout_count >= 1
@@ -93,6 +95,7 @@ class Connection(object):
         self.need_heartbeat = 1
         self.heartbeat_interval = resp.heartbeat_interval
         self.last_check_heartbeat = time.time()
+        channel.add_notify_heartbeat_conn(self.conn_id)
 
     def clear_heartbeat_counter(self):
         self.last_check_heartbeat = time.time()
