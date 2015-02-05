@@ -6,16 +6,16 @@ from pb.pymaid_pb2 import ControllerMeta, ErrorMessage
 
 class Controller(RpcController):
 
-    def __init__(self):
-        super(Controller, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(Controller, self).__init__(*args, **kwargs)
         self.meta_data = ControllerMeta()
         self.conn = None
-        self.wide = False
+        self.broadcast = False
         self.group = None
 
     def Reset(self):
         self.meta_data.Clear()
-        self.wide = False
+        self.broadcast = False
         self.group = None
 
     def Failed(self):

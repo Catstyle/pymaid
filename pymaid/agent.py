@@ -50,6 +50,8 @@ class ServiceAgent(object):
             if not (broadcast or group):
                 assert conn or self.conn
                 controller.conn = conn or self.conn
+            else:
+                controller.meta_data.is_notification = True
 
             if not request:
                 assert request_class
