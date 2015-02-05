@@ -7,10 +7,10 @@ from echo_pb2 import EchoService
 
 class EchoServiceImpl(EchoService):
 
-    def echo(self, controller, request, done):
+    def echo(self, controller, request, callback):
         response = Message()
         response.message = request.message
-        done(response)
+        callback(response)
 
 def main():
     import gc

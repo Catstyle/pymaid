@@ -52,7 +52,7 @@ class Channel(RpcChannel):
         self._server_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI-1)
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
 
-    def CallMethod(self, method, controller, request, response_class, done):
+    def CallMethod(self, method, controller, request, response_class, callback):
         meta_data = controller.meta_data
         meta_data.from_stub = True
         meta_data.service_name = method.containing_service.full_name

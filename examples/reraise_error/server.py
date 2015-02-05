@@ -5,7 +5,7 @@ from error import PlayerNotExist
 
 class RemoteErrorImpl(RemoteError):
 
-    def player_profile(self, controller, request, done):
+    def player_profile(self, controller, request, callback):
         raise PlayerNotExist
 
 

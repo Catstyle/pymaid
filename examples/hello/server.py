@@ -6,14 +6,13 @@ from pymaid.utils import greenlet_pool
 
 class HelloServiceImpl(HelloService):
 
-    def hello(self, controller, request, done):
+    def hello(self, controller, request, callback):
         response = HelloResponse()
         response.message = "from pymaid"
-        done(response)
+        callback(response)
 
 def main():
     import gc
-    import sys
     from collections import Counter
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
@@ -31,8 +30,6 @@ def main():
 
         objects = gc.get_objects()
         print Counter(map(type, objects))
-        print
-        print Counter({type(obj): sys.getsizeof(obj) for obj in objects})
 
 if __name__ == "__main__":
     main()

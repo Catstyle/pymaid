@@ -16,7 +16,7 @@ def wrapper(pid, n, message=message):
     m = message + str(n)
     request = request_class(message=m)
     for x in xrange(n):
-        response = service.echo(conn=conn, request=request)
+        response = service.echo(request, conn=conn)
         assert response.message == m, response.message
     conn.close()
 

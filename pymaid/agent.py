@@ -40,7 +40,7 @@ class ServiceAgent(object):
         if not method:
             return object.__getattr__(self, name)
 
-        def rpc(controller=None, request=None, done=None, conn=None,
+        def rpc(request=None, controller=None, callback=None, conn=None,
                 broadcast=False, group=None, **kwargs):
             if not controller:
                 controller = self.controller
@@ -55,5 +55,5 @@ class ServiceAgent(object):
                 assert request_class
                 request = request_class(**kwargs)
 
-            return method(controller, request, done)
+            return method(controller, request, callback)
         return rpc
