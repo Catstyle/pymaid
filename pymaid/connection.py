@@ -2,7 +2,6 @@ __all__ = ['Connection']
 
 import time
 import struct
-import traceback
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -128,8 +127,8 @@ class Connection(object):
             reason = reason.exception
         if reason:
             self.logger.warn(
-                '[host|%s][peer|%s] closed with reason: %s\n%s',
-                self.sockname, self.peername, reason, traceback.format_exc()
+                '[host|%s][peer|%s] closed with reason: %s',
+                self.sockname, self.peername, reason
             )
         else:
             self.logger.info(
