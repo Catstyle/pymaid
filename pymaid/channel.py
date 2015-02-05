@@ -26,10 +26,10 @@ class Channel(RpcChannel):
     # on a single wake up. High values give higher priority to high connection
     # rates, while lower values give higher priority to already established
     # connections.
-    # Default is 1024. Note, that in case of multiple working processes on the
+    # Default is 256. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
-    MAX_ACCEPT = 1024
+    MAX_ACCEPT = 256
     MAX_CONCURRENCY = 50000
 
     def __init__(self, loop=None):
@@ -124,7 +124,7 @@ class Channel(RpcChannel):
             self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
         return conn
 
-    def listen(self, host, port, backlog=MAX_ACCEPT):
+    def listen(self, host, port, backlog=MAX_ACCEPT*2):
         self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
@@ -148,7 +148,8 @@ class Channel(RpcChannel):
             assert conn.conn_id not in self._outcome_connections
             self._outcome_connections[conn.conn_id] = conn
         self.logger.debug(
-            '[Connection|%d][peername|%s] made', conn.conn_id, conn.peername
+            '[Connection|%d][host|%s][peer|%s] made',
+            conn.conn_id, conn.sockname, conn.peername
         )
         return conn
 
@@ -273,7 +274,8 @@ class Channel(RpcChannel):
     def handle_cb(self, conn):
         recv, reason, controller = conn.recv, None, Controller()
         handle_request, handle_response = self.handle_request, self.handle_response
-        meta_data = controller.meta_data
+        handle_notification = self.handle_notification
+        meta_data, controller.conn = controller.meta_data, conn
         try:
             while 1:
                 packet = recv()
@@ -282,7 +284,10 @@ class Channel(RpcChannel):
                 controller.Reset()
                 meta_data.ParseFromString(packet)
                 if meta_data.from_stub: # request
-                    handle_request(conn, controller)
+                    if meta_data.is_notification:
+                        handle_notification(conn, controller)
+                    else:
+                        handle_request(conn, controller)
                 else:
                     handle_response(conn, controller)
         except Exception as ex:
@@ -319,6 +324,23 @@ class Channel(RpcChannel):
         except BaseError as ex:
             controller.SetFailed(ex)
             conn.send(meta_data.SerializeToString())
+
+    def handle_notification(self, conn, controller):
+        meta_data = controller.meta_data
+        try:
+            service, method = self.get_service_method(meta_data)
+        except (ServiceNotExist, MethodNotExist):
+            # failed silently when handle_notification
+            return
+
+        request_class, response_class = self.get_request_response(meta_data)
+        request = request_class()
+        request.ParseFromString(meta_data.message)
+        try:
+            service.CallMethod(method, controller, request, None)
+        except BaseError:
+            # failed silently when handle_notification
+            pass
 
     def handle_response(self, conn, controller):
         transmission_id = controller.meta_data.transmission_id
