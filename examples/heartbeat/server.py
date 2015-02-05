@@ -6,10 +6,10 @@ from heartbeat_pb2 import LongPlaying
 
 class LongPlayingImpl(LongPlaying):
 
-    def over_two_seconds(self, controller, request, done):
+    def over_two_seconds(self, controller, request, callback):
         gevent.sleep(2)
         response = Response()
-        done(response)
+        callback(response)
 
 def main():
     channel = Channel()
