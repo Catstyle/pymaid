@@ -1,7 +1,7 @@
 import logging
 import logging.config
 
-__all__ = ['configure_root_logger', 'pymaid_logger_wrapper', 'logger_wrapper']
+__all__ = ['configure_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper']
 
 basic_logging = {
     'version': 1,
@@ -20,6 +20,11 @@ basic_logging = {
         },
     },
     'loggers': {
+        'root': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
         'pymaid': {
             'handlers': ['console'],
             'level': 'DEBUG',
@@ -29,15 +34,16 @@ basic_logging = {
 }
 logging.config.dictConfig(basic_logging)
 
+root_logger = logging.getLogger('root')
 pymaid_logger = logging.getLogger('pymaid')
-root_logger = None
+project_logger = None
 
 
-def configure_root_logger(name):
-    global root_logger
-    assert not root_logger
-    root_logger = logging.getLogger(name)
-    return root_logger
+def configure_project_logger(name):
+    global project_logger
+    assert not project_logger
+    project_logger = logging.getLogger(name)
+    return project_logger
 
 
 def pymaid_logger_wrapper(cls):
@@ -46,8 +52,8 @@ def pymaid_logger_wrapper(cls):
 
 
 def logger_wrapper(cls):
-    if root_logger:
-        cls.logger = root_logger.getChild(cls.__name__)
+    if project_logger:
+        cls.logger = project_logger.getChild(cls.__name__)
     else:
-        cls.logger = logging.getLogger(cls.__name__)
+        cls.logger = root_logger.getChild(cls.__name__)
     return cls
