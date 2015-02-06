@@ -46,10 +46,11 @@ class ServiceAgent(object):
                 controller = self.controller
                 controller.Reset()
 
-            controller.broadcast, controller.group = broadcast, group
+            controller.set_broadcast(broadcast)
+            controller.set_group(group)
             if not (broadcast or group):
                 assert conn or self.conn
-                controller.conn = conn or self.conn
+                controller.set_conn(conn or self.conn)
             else:
                 controller.is_notification = True
 

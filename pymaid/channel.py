@@ -274,7 +274,7 @@ class Channel(RpcChannel):
         recv, reason, controller = conn.recv, None, Controller()
         handle_request, handle_response = self.handle_request, self.handle_response
         handle_notification = self.handle_notification
-        controller.conn = conn
+        controller.set_conn(conn)
         try:
             while 1:
                 packet = recv()
