@@ -53,20 +53,19 @@ class Channel(RpcChannel):
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
 
     def CallMethod(self, method, controller, request, response_class, callback):
-        meta_data = controller.meta_data
-        meta_data.from_stub = True
-        meta_data.service_name = method.containing_service.full_name
-        meta_data.method_name = method.name
+        controller.from_stub = True
+        controller.service_name = method.containing_service.full_name
+        controller.method_name = method.name
         if not isinstance(request, Void):
-            meta_data.message = request.SerializeToString()
+            controller.message = request.SerializeToString()
 
         require_response = not issubclass(response_class, Void)
         if require_response:
             transmission_id = controller.conn.transmission_id
             controller.conn.transmission_id += 1
-            meta_data.transmission_id = transmission_id
+            controller.transmission_id = transmission_id
 
-        packet = meta_data.SerializeToString()
+        packet = controller.SerializeToString()
         if controller.broadcast:
             # broadcast
             assert not require_response
@@ -86,7 +85,7 @@ class Channel(RpcChannel):
         if not require_response:
             return
 
-        service_method = meta_data.service_name + meta_data.method_name
+        service_method = controller.service_name + controller.method_name
         self.stub_response.setdefault(service_method, response_class)
         async_result = AsyncResult()
         controller.conn.transmissions[transmission_id] = async_result
@@ -275,16 +274,16 @@ class Channel(RpcChannel):
         recv, reason, controller = conn.recv, None, Controller()
         handle_request, handle_response = self.handle_request, self.handle_response
         handle_notification = self.handle_notification
-        meta_data, controller.conn = controller.meta_data, conn
+        controller.conn = conn
         try:
             while 1:
                 packet = recv()
                 if not packet:
                     break
                 controller.Reset()
-                meta_data.ParseFromString(packet)
-                if meta_data.from_stub: # request
-                    if meta_data.is_notification:
+                controller.ParseFromString(packet)
+                if controller.from_stub: # request
+                    if controller.is_notification:
                         handle_notification(conn, controller)
                     else:
                         handle_request(conn, controller)
@@ -296,17 +295,16 @@ class Channel(RpcChannel):
             conn.close(reason)
 
     def handle_request(self, conn, controller):
-        meta_data = controller.meta_data
-        meta_data.from_stub = False
+        controller.from_stub = False
 
         try:
-            service, method = self.get_service_method(meta_data)
+            service, method = self.get_service_method(controller)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
-            conn.send(meta_data.SerializeToString())
+            conn.send(controller.SerializeToString())
             return
 
-        request_class, response_class = self.get_request_response(meta_data)
+        request_class, response_class = self.get_request_response(controller)
         def send_response(response):
             # received broadcast, just ignore the unwanted response
             # just in case, it may be error
@@ -314,28 +312,27 @@ class Channel(RpcChannel):
                 return
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            meta_data.message = response.SerializeToString()
-            conn.send(meta_data.SerializeToString())
+            controller.message = response.SerializeToString()
+            conn.send(controller.SerializeToString())
 
         request = request_class()
-        request.ParseFromString(meta_data.message)
+        request.ParseFromString(controller.message)
         try:
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(meta_data.SerializeToString())
+            conn.send(controller.SerializeToString())
 
     def handle_notification(self, conn, controller):
-        meta_data = controller.meta_data
         try:
-            service, method = self.get_service_method(meta_data)
+            service, method = self.get_service_method(controller)
         except (ServiceNotExist, MethodNotExist):
             # failed silently when handle_notification
             return
 
-        request_class, response_class = self.get_request_response(meta_data)
+        request_class, response_class = self.get_request_response(controller)
         request = request_class()
-        request.ParseFromString(meta_data.message)
+        request.ParseFromString(controller.message)
         try:
             service.CallMethod(method, controller, request, None)
         except BaseError:
@@ -343,20 +340,20 @@ class Channel(RpcChannel):
             pass
 
     def handle_response(self, conn, controller):
-        transmission_id = controller.meta_data.transmission_id
+        transmission_id = controller.transmission_id
         assert transmission_id in conn.transmissions
         async_result = conn.transmissions.pop(transmission_id)
 
         if controller.Failed():
             error_message = ErrorMessage()
-            error_message.ParseFromString(controller.meta_data.message)
+            error_message.ParseFromString(controller.message)
             ex = BaseMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response = self.get_stub_response_class(controller.meta_data)()
+            response = self.get_stub_response_class(controller)()
             try:
-                response.ParseFromString(controller.meta_data.message)
+                response.ParseFromString(controller.message)
             except DecodeError as ex:
                 async_result.set_exception(ex)
             else:
