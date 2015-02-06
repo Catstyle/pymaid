@@ -51,7 +51,7 @@ class ServiceAgent(object):
                 assert conn or self.conn
                 controller.conn = conn or self.conn
             else:
-                controller.meta_data.is_notification = True
+                controller.is_notification = True
 
             if not request:
                 assert request_class
