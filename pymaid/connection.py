@@ -1,7 +1,6 @@
 __all__ = ['Connection']
 
 import time
-import struct
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -13,15 +12,13 @@ from google.protobuf.message import DecodeError
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import pymaid_logger_wrapper
+from pymaid.utils.struct import HEADER_LENGTH, LINGER_PACK, header_struct
 from pymaid.error import BaseMeta, HeartbeatTimeout
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
 @pymaid_logger_wrapper
 class Connection(object):
-
-    HEADER = '!I'
-    HEADER_LENGTH = struct.calcsize(HEADER)
 
     # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
     # the doubled value is max size for one socket recv call
@@ -33,7 +30,6 @@ class Connection(object):
     MAX_PACKET_LENGTH = 8 * 1024
     RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
 
-    LINGER_PACK = struct.pack('ii', 1, 0)
     CONN_ID = 1
 
     __slots__ = [
@@ -77,7 +73,7 @@ class Connection(object):
         sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, LINGER_PACK)
         # system will doubled this buffer
         #sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
@@ -170,6 +166,7 @@ class Connection(object):
         if not qsize: 
             return
 
+        pack_header = header_struct.pack
         try:
             for _ in xrange(min(qsize, self.MAX_SEND)):
                 packet_buffer = self._send_queue.get()
@@ -178,7 +175,7 @@ class Connection(object):
 
                 # see pydoc of socket.sendall
                 self._socket.sendall(
-                    struct.pack(self.HEADER, len(packet_buffer))+packet_buffer
+                    pack_header(len(packet_buffer)) + packet_buffer
                 )
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
@@ -211,15 +208,16 @@ class Connection(object):
 
         # handle all received data even if receive EOF or catch exception
         buffers = ''.join(self.buffers)
-        current, buffers_length = 0, len(buffers)
+        current, buffers_length, header_length = 0, len(buffers), HEADER_LENGTH
+        unpack_header = header_struct.unpack
         while current < buffers_length:
             handled = current
-            header = buffers[handled:handled+self.HEADER_LENGTH]
-            if len(header) < self.HEADER_LENGTH:
+            header = buffers[handled:handled+header_length]
+            if len(header) < header_length:
                 break
-            handled += self.HEADER_LENGTH
+            handled += header_length
 
-            packet_length = struct.unpack(self.HEADER, header)[0]
+            packet_length = unpack_header(header)[0]
             if packet_length >= self.MAX_PACKET_LENGTH:
                 self.close('[packet_length|%d] out of limitation' % packet_length)
                 break
