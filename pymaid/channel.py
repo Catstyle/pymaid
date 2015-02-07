@@ -9,14 +9,13 @@ from gevent.core import READ, MAXPRI
 from gevent.hub import get_hub
 
 from google.protobuf.service import RpcChannel
-from google.protobuf.message import DecodeError
 
 from pymaid.connection import Connection
-from pymaid.controller import Controller
+from pymaid.parser import DEFAULT_PARSER
 from pymaid.apps.monitor import MonitorServiceImpl
-from pymaid.error import BaseMeta, BaseError, ServiceNotExist, MethodNotExist
+from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
-from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
+from pymaid.pb.pymaid_pb2 import Void
 
 
 @pymaid_logger_wrapper
@@ -37,8 +36,11 @@ class Channel(RpcChannel):
 
         self.loop = loop or get_hub().loop
 
+        self.listers = []
+        self._had_setup_server = False
         self._income_connections = {}
         self._outcome_connections = {}
+
         self.services = {}
         self.service_method = {}
         self.request_response = {}
@@ -116,15 +118,17 @@ class Channel(RpcChannel):
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
 
-    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
+    def connect(self, host, port, parser=DEFAULT_PARSER, timeout=None,
+                ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self.new_connection(sock, False, ignore_heartbeat)
+        conn = self.new_connection(sock, parser, False, ignore_heartbeat)
         if not self._peer_heartbeat_timer.active:
             self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
         return conn
 
-    def listen(self, host, port, backlog=MAX_ACCEPT*2):
-        self._setup_server()
+    def listen(self, host, port, parser=DEFAULT_PARSER, backlog=MAX_ACCEPT*2):
+        if not self._had_setup_server:
+            self._setup_server()
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM, 0)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -132,10 +136,11 @@ class Channel(RpcChannel):
         sock.listen(backlog)
         sock.setblocking(0)
         accept_watcher = self.loop.io(sock.fileno(), READ, priority=MAXPRI)
-        accept_watcher.start(self._do_accept, sock)
+        accept_watcher.start(self._do_accept, sock, parser)
+        self.listers.append((sock, accept_watcher))
 
-    def new_connection(self, sock, server_side, ignore_heartbeat=False):
-        conn = Connection(self.loop, sock, server_side)
+    def new_connection(self, sock, parser, server_side, ignore_heartbeat=False):
+        conn = Connection(self, sock, parser, server_side)
         conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self.handle_cb, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
@@ -182,6 +187,7 @@ class Channel(RpcChannel):
 
     def _setup_server(self):
         # only server need monitor service
+        self._had_setup_server = True
         monitor_service = MonitorServiceImpl()
         monitor_service.channel = self
         self.append_service(monitor_service)
@@ -227,18 +233,18 @@ class Channel(RpcChannel):
         )
         self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
-    def _do_accept(self, sock):
+    def _do_accept(self, sock, parser):
         for _ in xrange(self.MAX_ACCEPT):
             if self.is_full:
                 return
             try:
-                client_socket, address = sock.accept()
+                peer_socket, address = sock.accept()
             except socket.error as ex:
                 if ex.args[0] == socket.EWOULDBLOCK:
                     return
                 self.logger.exception(ex)
                 raise
-            self.new_connection(client_socket, server_side=True)
+            self.new_connection(peer_socket, parser, server_side=True)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
@@ -271,24 +277,19 @@ class Channel(RpcChannel):
         return self.stub_response[meta.service_name + meta.method_name]
 
     def handle_cb(self, conn):
-        recv, reason, controller = conn.recv, None, Controller()
-        handle_request, handle_response = self.handle_request, self.handle_response
+        recv, reason = conn.recv, None
+        handle_request = self.handle_request
         handle_notification = self.handle_notification
-        controller.set_conn(conn)
         try:
             while 1:
-                packet = recv()
-                if not packet:
+                controller = recv()
+                if not controller:
                     break
-                controller.Reset()
-                controller.ParseFromString(packet)
-                if controller.from_stub: # request
-                    if controller.is_notification:
-                        handle_notification(conn, controller)
-                    else:
-                        handle_request(conn, controller)
+                controller.set_conn(conn)
+                if controller.is_notification:
+                    handle_notification(conn, controller)
                 else:
-                    handle_response(conn, controller)
+                    handle_request(conn, controller)
         except Exception as ex:
             reason = ex
         finally:
@@ -338,23 +339,3 @@ class Channel(RpcChannel):
         except BaseError:
             # failed silently when handle_notification
             pass
-
-    def handle_response(self, conn, controller):
-        transmission_id = controller.transmission_id
-        assert transmission_id in conn.transmissions
-        async_result = conn.transmissions.pop(transmission_id)
-
-        if controller.Failed():
-            error_message = ErrorMessage()
-            error_message.ParseFromString(controller.message)
-            ex = BaseMeta.get_by_code(error_message.error_code)()
-            ex.message = error_message.error_message
-            async_result.set_exception(ex)
-        else:
-            response = self.get_stub_response_class(controller)()
-            try:
-                response.ParseFromString(controller.message)
-            except DecodeError as ex:
-                async_result.set_exception(ex)
-            else:
-                async_result.set(response)
