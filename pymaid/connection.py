@@ -14,7 +14,7 @@ from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import get_parser, REQUEST
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseMeta, HeartbeatTimeout
+from pymaid.error import BaseMeta, HeartbeatTimeout, ParserNotExist
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -236,7 +236,12 @@ class Connection(object):
             if len(packet_buffer) < packet_length:
                 break
 
-            controller = get_parser(parser_type).unpack_packet(packet_buffer)
+            try:
+                controller = get_parser(parser_type).unpack_packet(packet_buffer)
+            except (ParserNotExist, DecodeError) as ex:
+                self.close(ex, reset=True)
+                break
+
             if packet_type == REQUEST:
                 controller.set_parser_type(parser_type)
                 self._recv_queue.put(controller)
