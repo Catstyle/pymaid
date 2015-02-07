@@ -65,3 +65,5 @@ Controller.NotifyOnCancel = NotifyOnCancel
 property_setter(Controller, 'conn')
 property_setter(Controller, 'broadcast')
 property_setter(Controller, 'group')
+property_setter(Controller, 'parser_type')
+property_setter(Controller, 'packet_type')
