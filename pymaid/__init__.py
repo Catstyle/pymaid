@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 __all__ = [
     'ServiceAgent', 'Channel', 'Controller', 'Connection',
-    'Error', 'Warning', 'logger', 'pool', 'profiler'
+    'Error', 'Warning', 'parser', 'logger', 'pool', 'profiler'
 ]
 
 
@@ -39,5 +39,6 @@ from pymaid.agent import ServiceAgent
 from pymaid.channel import Channel
 from pymaid.controller import Controller
 from pymaid.connection import Connection
+from pymaid import parser
 from pymaid.error import Error, Warning
 from pymaid.utils import logger, pool, profiler

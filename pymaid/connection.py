@@ -8,10 +8,13 @@ from gevent.queue import Queue
 from gevent import socket
 from gevent.core import READ, WRITE, EVENTS
 
+from google.protobuf.message import DecodeError
+
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import HeartbeatTimeout
+from pymaid.error import BaseMeta, HeartbeatTimeout
+from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
 @pymaid_logger_wrapper
@@ -34,16 +37,17 @@ class Connection(object):
     CONN_ID = 1
 
     __slots__ = [
-        'loop', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'last_check_heartbeat', 'transmissions',
-        'transmission_id', 'need_heartbeat', 'heartbeat_interval',
+        'channel', 'server_side', 'conn_id', 'peername', 'sockname',
+        'is_closed', 'close_cb', 'parser',
+        'buffers', 'transmissions', 'transmission_id',
+        'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        'close_cb', '_monitor_agent',
+        '_monitor_agent',
     ]
 
-    def __init__(self, loop, sock, server_side):
-        self.loop = loop
+    def __init__(self, channel, sock, parser, server_side):
+        self.channel = channel
         self.server_side = server_side
         self.transmission_id = 1
 
@@ -60,12 +64,13 @@ class Connection(object):
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
+        self.parser = parser
         self.buffers = []
         self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._socket_watcher = self.loop.io(sock.fileno(), READ)
+        self._socket_watcher = self.channel.loop.io(sock.fileno(), READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
@@ -222,7 +227,12 @@ class Connection(object):
             packet_buffer = buffers[handled:handled+packet_length]
             if len(packet_buffer) < packet_length:
                 break
-            self._recv_queue.put(packet_buffer)
+
+            controller = self.parser.parse_packet(packet_buffer)
+            if controller.from_stub:
+                self._recv_queue.put(controller)
+            else:
+                self._handle_response(controller)
             current = handled + packet_length
 
         del self.buffers[:]
@@ -235,3 +245,23 @@ class Connection(object):
         elif not isinstance(length, (int, long)):
             # exception
             self.close(length, reset=True)
+
+    def _handle_response(self, controller):
+        transmission_id = controller.transmission_id
+        assert transmission_id in self.transmissions
+        async_result = self.transmissions.pop(transmission_id)
+
+        if controller.Failed():
+            error_message = ErrorMessage()
+            error_message.ParseFromString(controller.message)
+            ex = BaseMeta.get_by_code(error_message.error_code)()
+            ex.message = error_message.error_message
+            async_result.set_exception(ex)
+        else:
+            response = self.channel.get_stub_response_class(controller)()
+            try:
+                response.ParseFromString(controller.message)
+            except DecodeError as ex:
+                async_result.set_exception(ex)
+            else:
+                async_result.set(response)
