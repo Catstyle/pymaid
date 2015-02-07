@@ -1,6 +1,7 @@
 __all__ = ['Connection']
 
 import time
+import struct
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -12,13 +13,18 @@ from google.protobuf.message import DecodeError
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.utils.struct import HEADER_LENGTH, LINGER_PACK, header_struct
 from pymaid.error import BaseMeta, HeartbeatTimeout
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
 @pymaid_logger_wrapper
 class Connection(object):
+
+    HEADER = '!I'
+    HEADER_LENGTH = struct.calcsize(HEADER)
+    LINGER_PACK = struct.pack('ii', 1, 0)
+
+    HEADER_STRUCT = struct.Struct(HEADER)
 
     # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
     # the doubled value is max size for one socket recv call
@@ -73,7 +79,7 @@ class Connection(object):
         sock.setblocking(0)
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, LINGER_PACK)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
         # system will doubled this buffer
         #sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
@@ -166,7 +172,7 @@ class Connection(object):
         if not qsize: 
             return
 
-        pack_header = header_struct.pack
+        pack_header = self.HEADER_STRUCT.pack
         try:
             for _ in xrange(min(qsize, self.MAX_SEND)):
                 packet_buffer = self._send_queue.get()
@@ -208,8 +214,8 @@ class Connection(object):
 
         # handle all received data even if receive EOF or catch exception
         buffers = ''.join(self.buffers)
-        current, buffers_length, header_length = 0, len(buffers), HEADER_LENGTH
-        unpack_header = header_struct.unpack
+        current, buffers_length = 0, len(buffers)
+        unpack_header, header_length = self.HEADER_STRUCT.unpack, self.HEADER_LENGTH
         while current < buffers_length:
             handled = current
             header = buffers[handled:handled+header_length]
