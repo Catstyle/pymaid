@@ -15,7 +15,13 @@ class MethodNotExist(Error):
     message_format = '[service|{service_name}][method|{method_name}] not found'
 
 
-class HeartbeatTimeout(Error):
+class ParserNotExist(Error):
 
     code = module_index + 3
+    message_format = '[parser|{parser_type}] not found'
+
+
+class HeartbeatTimeout(Error):
+
+    code = module_index + 4
     message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'

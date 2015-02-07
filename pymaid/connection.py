@@ -12,6 +12,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
+from pymaid.parser import get_parser, REQUEST
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseMeta, HeartbeatTimeout
 from pymaid.pb.pymaid_pb2 import ErrorMessage
@@ -20,7 +21,7 @@ from pymaid.pb.pymaid_pb2 import ErrorMessage
 @pymaid_logger_wrapper
 class Connection(object):
 
-    HEADER = '!I'
+    HEADER = '!2BI'
     HEADER_LENGTH = struct.calcsize(HEADER)
     LINGER_PACK = struct.pack('ii', 1, 0)
 
@@ -40,7 +41,7 @@ class Connection(object):
 
     __slots__ = [
         'channel', 'server_side', 'conn_id', 'peername', 'sockname',
-        'is_closed', 'close_cb', 'parser',
+        'is_closed', 'close_cb',
         'buffers', 'transmissions', 'transmission_id',
         'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
@@ -48,7 +49,7 @@ class Connection(object):
         '_monitor_agent',
     ]
 
-    def __init__(self, channel, sock, parser, server_side):
+    def __init__(self, channel, sock, server_side):
         self.channel = channel
         self.server_side = server_side
         self.transmission_id = 1
@@ -66,7 +67,6 @@ class Connection(object):
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
-        self.parser = parser
         self.buffers = []
         self.transmissions = {}
         self._send_queue = Queue()
@@ -116,9 +116,11 @@ class Connection(object):
     def notify_heartbeat(self):
         self._monitor_agent.notify_heartbeat()
 
-    def send(self, packet_buffer):
-        assert packet_buffer
-        self._send_queue.put(packet_buffer)
+    def send(self, controller):
+        assert controller
+        parser_type, packet_type = controller.parser_type, controller.packet_type
+        packet_buffer = get_parser(parser_type).pack_packet(controller)
+        self._send_queue.put((parser_type, packet_type, packet_buffer))
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
@@ -175,13 +177,15 @@ class Connection(object):
         pack_header = self.HEADER_STRUCT.pack
         try:
             for _ in xrange(min(qsize, self.MAX_SEND)):
-                packet_buffer = self._send_queue.get()
-                if not packet_buffer:
+                controller = self._send_queue.get()
+                if not controller:
                     break
+                parser_type, packet_type, packet_buffer = controller
 
                 # see pydoc of socket.sendall
                 self._socket.sendall(
-                    pack_header(len(packet_buffer)) + packet_buffer
+                    pack_header(parser_type, packet_type, len(packet_buffer)) +
+                    packet_buffer
                 )
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
@@ -223,7 +227,7 @@ class Connection(object):
                 break
             handled += header_length
 
-            packet_length = unpack_header(header)[0]
+            parser_type, packet_type, packet_length = unpack_header(header)
             if packet_length >= self.MAX_PACKET_LENGTH:
                 self.close('[packet_length|%d] out of limitation' % packet_length)
                 break
@@ -232,10 +236,12 @@ class Connection(object):
             if len(packet_buffer) < packet_length:
                 break
 
-            controller = self.parser.parse_packet(packet_buffer)
-            if controller.from_stub:
+            controller = get_parser(parser_type).unpack_packet(packet_buffer)
+            if packet_type == REQUEST:
+                controller.set_parser_type(parser_type)
                 self._recv_queue.put(controller)
             else:
+                # now we have REQUEST/RESPONSE two packet_type
                 self._handle_response(controller)
             current = handled + packet_length
 
