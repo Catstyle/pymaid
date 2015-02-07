@@ -1,44 +1,67 @@
-from google.protobuf.service import RpcController
-
 from pymaid.error import BaseError
-from pb.pymaid_pb2 import ControllerMeta, ErrorMessage
+from pb.pymaid_pb2 import Controller, ErrorMessage
 
 
-class Controller(RpcController):
+def __init__(self, *args, **kwargs):
+    super(Controller, self).__init__(*args, **kwargs)
+    self.__dict__['conn'] = None
+    self.__dict__['broadcast'] = False
+    self.__dict__['group'] = None
 
-    def __init__(self, *args, **kwargs):
-        super(Controller, self).__init__(*args, **kwargs)
-        self.meta_data = ControllerMeta()
-        self.conn = None
-        self.broadcast = False
-        self.group = None
 
-    def Reset(self):
-        self.meta_data.Clear()
-        self.broadcast = False
-        self.group = None
+def Reset(self):
+    self.Clear()
+    self.__dict__['broadcast'] = False
+    self.__dict__['group'] = None
 
-    def Failed(self):
-        return self.meta_data.is_failed
 
-    def ErrorText(self):
-        return self.meta_data.message
+def Failed(self):
+    return self.is_failed
 
-    def StartCancel(self):
-        pass
 
-    def SetFailed(self, reason):
-        self.meta_data.is_failed = True
-        if isinstance(reason, BaseError):
-            message = ErrorMessage(
-                error_code=reason.code, error_message=reason.message
-            )
-            self.meta_data.message = message.SerializeToString()
-        else:
-            self.meta_data.message = repr(reason)
+def ErrorText(self):
+    return self.message
 
-    def IsCanceled(self):
-        return self.meta_data.is_canceled
 
-    def NotifyOnCancel(self, callback):
-        pass
+def StartCancel(self):
+    pass
+
+
+def SetFailed(self, reason):
+    self.is_failed = True
+    if isinstance(reason, BaseError):
+        message = ErrorMessage(
+            error_code=reason.code, error_message=reason.message
+        )
+        self.message = message.SerializeToString()
+    else:
+        self.message = repr(reason)
+
+
+def IsCanceled(self):
+    return self.is_canceled
+
+
+def NotifyOnCancel(self, callback):
+    pass
+
+
+def property_setter(controller, name):
+
+    def setter(self, value):
+        self.__dict__[name] = value
+    setattr(controller, 'set_' + name, setter)
+
+
+Controller.__init__ = __init__
+Controller.Reset = Reset
+Controller.Failed = Failed
+Controller.ErrorText = ErrorText
+Controller.StartCancel = StartCancel
+Controller.SetFailed = SetFailed
+Controller.IsCanceled = IsCanceled
+Controller.NotifyOnCancel = NotifyOnCancel
+
+property_setter(Controller, 'conn')
+property_setter(Controller, 'broadcast')
+property_setter(Controller, 'group')
