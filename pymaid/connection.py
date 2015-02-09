@@ -213,80 +213,67 @@ class Connection(object):
 
         # receive header
         buffers_size = sum(map(len, self.buffers))
-        if buffers_size < header_length:
-            remain = header_length - buffers_size
-            try:
-                buf = self._recv_n(remain)
-            except Exception as ex:
-                self.close(ex)
-                return
-
-            self.buffers.append(buf)
-            if len(buf) < remain:
-                # received data not enough
-                return
-
-        buffers = ''.join(self.buffers)
-        buffers_size = len(buffers)
-        header = buffers[:header_length]
-        assert len(header) == header_length
-        parser_type, packet_length = unpack_header(header)
-        if packet_length >= self.MAX_PACKET_LENGTH:
-            self.close(PacketTooLarge(packet_length=packet_length))
-            return
-
-        controller_length = header_length + packet_length
-        if buffers_size < controller_length:
-            remain = controller_length - buffers_size
-            try:
-                buf = self._recv_n(remain)
-            except Exception as ex:
-                self.close(ex)
-                return
-
-            self.buffers.append(buf)
-            if len(buf) < remain:
-                # received data not enough
-                return
-            else:
-                buffers += buf
-
-        buffers_size = len(buffers)
-        assert buffers_size >= controller_length
-        packet_buffer = buffers[header_length:controller_length]
-
         try:
-            controller = unpack_packet(packet_buffer, parser_type)
-        except (ParserNotExist, DecodeError) as ex:
-            self.close(ex, reset=True)
-            return
+            if buffers_size < header_length:
+                remain = header_length - buffers_size
+                buf = self._recv_n(remain)
 
-        meta = controller.meta
-        if meta.content_size:
-            content_length = controller_length + meta.content_size
-            if buffers_size < content_length:
-                remain = content_length - buffers_size
-                try:
-                    buf = self._recv_n(remain)
-                except Exception as ex:
-                    self.close(ex)
-                    return
-
+                self.buffers.append(buf)
                 if len(buf) < remain:
                     # received data not enough
-                    self.buffers.append(buf)
+                    return
+
+            buffers = ''.join(self.buffers)
+            buffers_size = len(buffers)
+            header = buffers[:header_length]
+            assert len(header) == header_length
+            parser_type, packet_length = unpack_header(header)
+            if packet_length >= self.MAX_PACKET_LENGTH:
+                self.close(PacketTooLarge(packet_length=packet_length))
+                return
+
+            controller_length = header_length + packet_length
+            if buffers_size < controller_length:
+                remain = controller_length - buffers_size
+                buf = self._recv_n(remain)
+
+                self.buffers.append(buf)
+                if len(buf) < remain:
+                    # received data not enough
                     return
                 else:
-                    controller.content = (
-                        buffers[controller_length:content_length] + buf
-                    )
+                    buffers += buf
 
-        if meta.packet_type == RESPONSE:
-            self._handle_response(controller)
-        else:
-            controller.parser_type = parser_type
-            self._recv_queue.put(controller)
-        del self.buffers[:]
+            buffers_size = len(buffers)
+            assert buffers_size >= controller_length
+            packet_buffer = buffers[header_length:controller_length]
+
+            controller = unpack_packet(packet_buffer, parser_type)
+
+            meta = controller.meta
+            if meta.content_size:
+                content_length = controller_length + meta.content_size
+                if buffers_size < content_length:
+                    remain = content_length - buffers_size
+                    buf = self._recv_n(remain)
+
+                    if len(buf) < remain:
+                        # received data not enough
+                        self.buffers.append(buf)
+                        return
+                    else:
+                        controller.content = (
+                            buffers[controller_length:content_length] + buf
+                        )
+
+            if meta.packet_type == RESPONSE:
+                self._handle_response(controller)
+            else:
+                controller.parser_type = parser_type
+                self._recv_queue.put(controller)
+            del self.buffers[:]
+        except Exception as ex:
+            self.close(ex)
 
     def _handle_response(self, controller):
         transmission_id = controller.meta.transmission_id
