@@ -12,7 +12,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.parser import get_parser, REQUEST
+from pymaid.parser import pack_packet, unpack_packet, REQUEST
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import (
     BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge, EOF
@@ -123,7 +123,7 @@ class Connection(object):
     def send(self, controller):
         assert controller
         parser_type, packet_type = controller.parser_type, controller.packet_type
-        packet_buffer = get_parser(parser_type).pack_packet(controller)
+        packet_buffer = pack_packet(controller, parser_type)
         self._send_queue.put(
             self.pack_header(parser_type, packet_type, len(packet_buffer)) +
             packet_buffer
@@ -275,7 +275,7 @@ class Connection(object):
         packet_buffer = buffers[header_length:total_length]
 
         try:
-            controller = get_parser(parser_type).unpack_packet(packet_buffer)
+            controller = unpack_packet(packet_buffer, parser_type)
         except (ParserNotExist, DecodeError) as ex:
             self.close(ex, reset=True)
             return
@@ -287,7 +287,6 @@ class Connection(object):
             # now we have REQUEST/RESPONSE two packet_type
             self._handle_response(controller)
         del self.buffers[:]
-
 
     def _handle_response(self, controller):
         transmission_id = controller.transmission_id
