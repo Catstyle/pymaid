@@ -1,4 +1,5 @@
 from pymaid.controller import Controller
+from pymaid.parser import DEFAULT_PARSER
 
 
 class ServiceAgent(object):
@@ -41,13 +42,14 @@ class ServiceAgent(object):
             return object.__getattr__(self, name)
 
         def rpc(request=None, controller=None, callback=None, conn=None,
-                broadcast=False, group=None, **kwargs):
+                broadcast=False, group=None, parser_type=DEFAULT_PARSER,
+                **kwargs):
             if not controller:
                 controller = self.controller
-                controller.Reset()
 
             controller.set_broadcast(broadcast)
             controller.set_group(group)
+            controller.set_parser_type(parser_type)
             if not (broadcast or group):
                 assert conn or self.conn
                 controller.set_conn(conn or self.conn)
