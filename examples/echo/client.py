@@ -1,21 +1,32 @@
 from gevent.pool import Pool
 
 from pymaid.channel import Channel
+from pymaid.connection import Connection
 from pymaid.agent import ServiceAgent
-from hello_pb2 import HelloService_Stub
 from pymaid.utils import greenlet_pool
 
+from echo_pb2 import EchoService_Stub
 
-def wrapper(pid, n):
+Connection.MAX_PACKET_LENGTH = 10000000
+
+
+import string
+message = string.letters + string.digits
+message *= 23
+message = 'a' * 1000000
+def wrapper(pid, n, message=message):
     conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    method, request_class = service.get_method('echo')
+    m = message + str(n)
+    request = request_class(message=m)
     for x in xrange(n):
-        response = service.hello(conn=conn)
-        assert response.message == 'from pymaid', response.message
+        response = service.echo(request, conn=conn)
+        assert response.message == m, response.message
     conn.close()
 
 
 channel = Channel()
-service = ServiceAgent(HelloService_Stub(channel), conn=None)
+service = ServiceAgent(EchoService_Stub(channel))
 def main():
     import gc
     from collections import Counter
@@ -24,8 +35,8 @@ def main():
 
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
-    for x in xrange(200):
-        pool.spawn(wrapper, x, 500)
+    for x in xrange(100):
+        pool.spawn(wrapper, x, 100)
 
     try:
         pool.join()
@@ -35,11 +46,12 @@ def main():
         print pool.size, len(pool.greenlets)
         print greenlet_pool.size, len(greenlet_pool.greenlets)
 
-        objects = gc.get_objects()
-        print Counter(map(type, objects))
     else:
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
+    objects = gc.get_objects()
+    print Counter(map(type, objects))
+    print
     service.print_summary()
 
 if __name__ == "__main__":

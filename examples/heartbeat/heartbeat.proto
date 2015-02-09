@@ -1,4 +1,6 @@
-package example.heartbeat;
+syntax = "proto2";
+
+package heartbeat;
 option py_generic_services = true;
 
 import 'pymaid/pb/pymaid.proto';

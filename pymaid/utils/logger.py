@@ -1,23 +1,59 @@
 import logging
+import logging.config
 
-__all__ = [
-    'configure_root_logger', 'logger_wrapper',
-]
+__all__ = ['configure_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper']
 
-root_logger = None
+basic_logging = {
+    'version': 1,
+    'formatters': {
+        'standard': {
+            'format': ('[%(asctime)s.%(msecs).03d] [process|%(process)d] '
+                       '[%(name)s:%(lineno)d] [%(levelname)s] %(message)s'),
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        }
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
+    },
+    'loggers': {
+        'root': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'pymaid': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+logging.config.dictConfig(basic_logging)
+
+root_logger = logging.getLogger('root')
+pymaid_logger = logging.getLogger('pymaid')
+project_logger = None
 
 
-def configure_root_logger(root):
-    global root_logger
-    assert root_logger is None
-    root_logger = logging.getLogger(root)
-    assert root_logger is not None
-    return root_logger
+def configure_project_logger(name):
+    global project_logger
+    assert not project_logger
+    project_logger = logging.getLogger(name)
+    return project_logger
+
+
+def pymaid_logger_wrapper(cls):
+    cls.logger = pymaid_logger.getChild(cls.__name__)
+    return cls
 
 
 def logger_wrapper(cls):
-    if root_logger is None:
-        cls.logger = logging.getLogger(cls.__name__)
+    if project_logger:
+        cls.logger = project_logger.getChild(cls.__name__)
     else:
         cls.logger = root_logger.getChild(cls.__name__)
     return cls

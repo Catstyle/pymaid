@@ -3,49 +3,53 @@ __all__ = ['Connection']
 import time
 import struct
 
-from gevent.hub import get_hub
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent import socket
 from gevent.core import READ, WRITE, EVENTS
 
+from google.protobuf.message import DecodeError
+
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.utils import logger_wrapper
-from pymaid.error import HeartbeatTimeout
+from pymaid.parser import pack_packet, unpack_packet, RESPONSE
+from pymaid.utils import pymaid_logger_wrapper
+from pymaid.error import (
+    BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge, EOF
+)
+from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
-@logger_wrapper
+@pymaid_logger_wrapper
 class Connection(object):
 
-    HEADER = '!I'
+    HEADER = '!BH'
     HEADER_LENGTH = struct.calcsize(HEADER)
-
-    # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
-    # the doubled value is max size for one socket recv call
-    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower the that
-    # in some situation, the basic value is something like 212992
-    # so MAX_RECV * MAX_PACKET_LENGTH = 81920 < 212992 is ok here
-    MAX_SEND = 10
-    MAX_RECV = 10
-    MAX_PACKET_LENGTH = 8 * 1024
-    RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
-
     LINGER_PACK = struct.pack('ii', 1, 0)
+
+    HEADER_STRUCT = struct.Struct(HEADER)
+    pack_header = HEADER_STRUCT.pack
+    unpack_header = HEADER_STRUCT.unpack
+
+    MAX_SEND = 5
+    MAX_PACKET_LENGTH = 8 * 1024
+
     CONN_ID = 1
 
     __slots__ = [
-        'hub', 'server_side', 'peername', 'sockname', 'is_closed', 'conn_id',
-        'buffers', 'fileno',  'last_check_heartbeat', 'transmissions',
-        'need_heartbeat', 'heartbeat_interval',
+        'channel', 'server_side', 'conn_id', 'peername', 'sockname',
+        'is_closed', 'close_cb',
+        'buffers', 'transmissions', 'transmission_id',
+        'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        '_close_cb', '_monitor_agent',
+        '_monitor_agent',
     ]
 
-    def __init__(self, sock, server_side):
-        self.hub = get_hub()
+    def __init__(self, channel, sock, server_side):
+        self.channel = channel
         self.server_side = server_side
+        self.transmission_id = 1
 
         self._setsockopt(sock)
         self._socket = sock
@@ -53,20 +57,19 @@ class Connection(object):
         self.sockname = sock.getsockname()
 
         self.is_closed = False
-        self._close_cb = None
+        self.close_cb = None
         self._monitor_agent = None
         self.need_heartbeat = 0
 
-        self.conn_id = self.__class__.CONN_ID
-        self.__class__.CONN_ID += 1
-        self.fileno = sock.fileno()
+        self.conn_id = self.CONN_ID
+        Connection.CONN_ID += 1
 
         self.buffers = []
-        self.transmissions = set()
+        self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
 
-        self._socket_watcher = self.hub.loop.io(self.fileno, READ)
+        self._socket_watcher = self.channel.loop.io(sock.fileno(), READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
 
     def _setsockopt(self, sock):
@@ -74,8 +77,9 @@ class Connection(object):
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
-        # system will doubled this buffer
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
+
+    def setsockopt(self, *args, **kwargs):
+        self._socket.setsockopt(*args, **kwargs)
 
     def setup_server_heartbeat(self, max_heartbeat_timeout_count):
         assert max_heartbeat_timeout_count >= 1
@@ -93,6 +97,7 @@ class Connection(object):
         self.need_heartbeat = 1
         self.heartbeat_interval = resp.heartbeat_interval
         self.last_check_heartbeat = time.time()
+        channel.add_notify_heartbeat_conn(self.conn_id)
 
     def clear_heartbeat_counter(self):
         self.last_check_heartbeat = time.time()
@@ -106,9 +111,15 @@ class Connection(object):
     def notify_heartbeat(self):
         self._monitor_agent.notify_heartbeat()
 
-    def send(self, packet_buffer):
-        assert packet_buffer
-        self._send_queue.put(packet_buffer)
+    def send(self, controller):
+        assert controller
+        parser_type = controller.parser_type
+        packet_buffer = pack_packet(controller.meta, parser_type)
+        self._send_queue.put(
+            self.pack_header(parser_type, len(packet_buffer)) +
+            packet_buffer +
+            controller.content
+        )
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
@@ -119,16 +130,22 @@ class Connection(object):
         if self.is_closed:
             return
         self.is_closed = True
-        #print 'connection close', reason, self.sockname, self.peername
 
         if isinstance(reason, Greenlet):
             reason = reason.exception
-        self.logger.info(
-            '[host|%s][peer|%s] closed with reason: %s',
-            self.sockname, self.peername, reason
-        )
+        if reason:
+            self.logger.warn(
+                '[host|%s][peer|%s] closed with reason: %s',
+                self.sockname, self.peername, repr(reason)
+            )
+            #import traceback
+            #traceback.print_exc()
+        else:
+            self.logger.info(
+                '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
+            )
 
-        if self._monitor_agent is not None:
+        if self._monitor_agent:
             self._monitor_agent.close()
 
         self._send_queue.queue.clear()
@@ -138,96 +155,142 @@ class Connection(object):
         self._socket.close()
         del self.buffers[:]
 
-        if self._close_cb:
-            self._close_cb(self, reason)
-        self._close_cb = None
+        if self.close_cb:
+            self.close_cb(self, reason)
+        self.close_cb = None
 
     def set_close_cb(self, close_cb):
-        assert self._close_cb is None
+        assert not self.close_cb
         assert callable(close_cb)
-        self._close_cb = close_cb
+        self.close_cb = close_cb
     
     def _io_loop(self, event):
-        #print '_io_loop', event, self.conn_id
         if event & READ:
-            self._recv_loop()
+            self._handle_recv()
         if event & WRITE:
-            self._send_loop()
+            self._handle_send()
 
-    def _send_loop(self):
+    def _handle_send(self):
         qsize = self._send_queue.qsize()
-        if qsize == 0:
+        if not qsize: 
             return
 
-        get_packet, sendall = self._send_queue.get_nowait, self._socket.sendall
-        pack, HEADER, MAX_SEND = struct.pack, self.HEADER, self.MAX_SEND
         try:
-            for _ in xrange(min(qsize, MAX_SEND)):
-                packet_buffer = get_packet()
-                if packet_buffer is None:
+            for _ in xrange(min(qsize, self.MAX_SEND)):
+                buffers = self._send_queue.get()
+                if not buffers:
                     break
 
-                header_buffer = pack(HEADER, len(packet_buffer))
-                # see pydoc of socket.sendall
-                #print 'send_loop', header_buffer+packet_buffer
-                sendall(header_buffer+packet_buffer)
+                # see pydoc of socket.send
+                self._socket.send(buffers)
         except socket.error as ex:
+            if ex.args[0] == socket.EWOULDBLOCK:
+                self._send_queue.queue.appendleft(buffers)
+                return
             self.close(ex)
 
     def _recv_n(self, nbytes):
-        recv, append, length = self._socket.recv, self.buffers.append, 0
+        buffers = []
+        recv, append, length = self._socket.recv, buffers.append, 0
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
                 if not t:
-                    ret = 0
-                    break
+                    raise EOF()
                 append(t)
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = length
+                ret = ''.join(buffers)
             else:
-                ret = ex
-        except Exception as ex:
-            ret = ex
+                raise
         else:
-            ret = length
+            ret = ''.join(buffers)
         return ret
 
-    def _recv_loop(self):
-        length = self._recv_n(self.RCVBUF)
+    def _handle_recv(self):
+        unpack_header, header_length = self.unpack_header, self.HEADER_LENGTH
 
-        # handle all received data even if receive EOF or catch exception
-        buffers, recv_packet = ''.join(self.buffers), self._recv_queue.put
-        count, buffers_length, unpack = 0, len(buffers), struct.unpack
-        HEADER, HEADER_LENGTH = self.HEADER, self.HEADER_LENGTH
-        MAX_PACKET_LENGTH = self.MAX_PACKET_LENGTH
-        while count < buffers_length:
-            header = buffers[count:count+HEADER_LENGTH]
-            if len(header) < HEADER_LENGTH:
-                break
-            count += HEADER_LENGTH
+        # receive header
+        buffers_size = sum(map(len, self.buffers))
+        try:
+            if buffers_size < header_length:
+                remain = header_length - buffers_size
+                buf = self._recv_n(remain)
 
-            packet_length = unpack(HEADER, header)[0]
-            if packet_length >= MAX_PACKET_LENGTH:
-                self.close('[packet_length|%d] out of limitation' % packet_length)
-                break
+                self.buffers.append(buf)
+                if len(buf) < remain:
+                    # received data not enough
+                    return
 
-            packet_buffer = buffers[count:count+packet_length]
-            if len(packet_buffer) < packet_length:
-                break
-            #print 'recv_packet', packet_buffer
-            recv_packet(packet_buffer)
-            count += packet_length
+            buffers = ''.join(self.buffers)
+            buffers_size = len(buffers)
+            header = buffers[:header_length]
+            assert len(header) == header_length
+            parser_type, packet_length = unpack_header(header)
+            if packet_length >= self.MAX_PACKET_LENGTH:
+                self.close(PacketTooLarge(packet_length=packet_length))
+                return
 
-        del self.buffers[:]
-        if count < buffers_length and not self.is_closed:
-            self.buffers.append(buffers[count:])
+            controller_length = header_length + packet_length
+            if buffers_size < controller_length:
+                remain = controller_length - buffers_size
+                buf = self._recv_n(remain)
 
-        # close if receive EOF or catch exception
-        if length == 0:
-            self.close('has received EOF', reset=True)
-        elif not isinstance(length, (int, long)):
-            # exception
-            self.close(length, reset=True)
+                self.buffers.append(buf)
+                if len(buf) < remain:
+                    # received data not enough
+                    return
+                else:
+                    buffers += buf
+
+            buffers_size = len(buffers)
+            assert buffers_size >= controller_length
+            packet_buffer = buffers[header_length:controller_length]
+
+            controller = unpack_packet(packet_buffer, parser_type)
+
+            meta = controller.meta
+            if meta.content_size:
+                content_length = controller_length + meta.content_size
+                if buffers_size < content_length:
+                    remain = content_length - buffers_size
+                    buf = self._recv_n(remain)
+
+                    if len(buf) < remain:
+                        # received data not enough
+                        self.buffers.append(buf)
+                        return
+                    else:
+                        controller.content = (
+                            buffers[controller_length:content_length] + buf
+                        )
+
+            if meta.packet_type == RESPONSE:
+                self._handle_response(controller)
+            else:
+                controller.parser_type = parser_type
+                self._recv_queue.put(controller)
+            del self.buffers[:]
+        except Exception as ex:
+            self.close(ex)
+
+    def _handle_response(self, controller):
+        transmission_id = controller.meta.transmission_id
+        assert transmission_id in self.transmissions
+        async_result = self.transmissions.pop(transmission_id)
+
+        if controller.Failed():
+            error_message = ErrorMessage()
+            error_message.ParseFromString(controller.content)
+            ex = BaseMeta.get_by_code(error_message.error_code)()
+            ex.message = error_message.error_message
+            async_result.set_exception(ex)
+        else:
+            response = self.channel.get_stub_response_class(controller.meta)()
+            try:
+                response.ParseFromString(controller.content)
+            except DecodeError as ex:
+                async_result.set_exception(ex)
+            else:
+                async_result.set(response)

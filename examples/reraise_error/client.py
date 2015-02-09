@@ -2,18 +2,17 @@ from gevent.pool import Pool
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
-from pymaid.utils import ProfilerContext
 
 from pb.rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888)
+    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
     global cnt
     for x in xrange(n):
         try:
-            service.player_not_exist(conn=conn)
+            service.player_profile(conn=conn, user_id=x)
         except PlayerNotExist:
             cnt += 1
         else:
@@ -30,11 +29,9 @@ def main():
         pool.spawn(wrapper, x, 1)
 
     pool.join()
-    assert len(channel.pending_results) == 0, channel.pending_results
     assert len(channel._outcome_connections) == 0, channel._outcome_connections
     assert len(channel._income_connections) == 0, channel._income_connections
     assert cnt == 3000
 
 if __name__ == "__main__":
-    with ProfilerContext():
-        main()
+    main()
