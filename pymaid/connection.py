@@ -15,7 +15,7 @@ from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import get_parser, REQUEST
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import (
-    BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge
+    BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge, EOF
 )
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
@@ -196,73 +196,98 @@ class Connection(object):
             self.close(ex)
 
     def _recv_n(self, nbytes):
-        recv, append, length = self._socket.recv, self.buffers.append, 0
+        buffers = []
+        recv, append, length = self._socket.recv, buffers.append, 0
         try:
             while length < nbytes:
                 t = recv(nbytes - length)
                 if not t:
-                    ret = 0
+                    ret = ''
                     break
                 append(t)
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = length
+                ret = ''.join(buffers)
             else:
                 ret = ex
         except Exception as ex:
             ret = ex
         else:
-            ret = length
+            ret = ''.join(buffers)
         return ret
 
     def _handle_recv(self):
-        length = self._recv_n(self.RCVBUF)
-
-        # handle all received data even if receive EOF or catch exception
-        buffers = ''.join(self.buffers)
-        current, buffers_length = 0, len(buffers)
         unpack_header, header_length = self.unpack_header, self.HEADER_LENGTH
-        while current < buffers_length:
-            handled = current
-            header = buffers[handled:handled+header_length]
-            if len(header) < header_length:
-                break
-            handled += header_length
 
-            parser_type, packet_type, packet_length = unpack_header(header)
-            if packet_length >= self.MAX_PACKET_LENGTH:
-                self.close(PacketTooLarge(packet_length=packet_length))
-                break
+        # receive header
+        buf_size = sum(map(len, self.buffers))
+        if buf_size < header_length:
+            remain = header_length - buf_size
+            buf = self._recv_n(remain)
 
-            packet_buffer = buffers[handled:handled+packet_length]
-            if len(packet_buffer) < packet_length:
-                break
+            # close if receive EOF or catch exception
+            if not buf:
+                self.close(EOF(), reset=True)
+                return
+            elif not isinstance(buf, str):
+                # exception
+                self.close(buf, reset=True)
+                return
 
-            try:
-                controller = get_parser(parser_type).unpack_packet(packet_buffer)
-            except (ParserNotExist, DecodeError) as ex:
-                self.close(ex, reset=True)
-                break
+            self.buffers.append(buf)
+            if len(buf) < remain:
+                # received data not enough
+                return
 
-            if packet_type == REQUEST:
-                controller.set_parser_type(parser_type)
-                self._recv_queue.put(controller)
+        buffers = ''.join(self.buffers)
+        buffers_size = len(buffers)
+        header = buffers[:header_length]
+        assert len(header) == header_length
+        parser_type, packet_type, packet_length = unpack_header(header)
+        if packet_length >= self.MAX_PACKET_LENGTH:
+            self.close(PacketTooLarge(packet_length=packet_length))
+            return
+
+        total_length = header_length + packet_length
+        if buffers_size < total_length:
+            remain = total_length - buffers_size
+            buf = self._recv_n(remain)
+
+            # close if receive EOF or catch exception
+            if not buf:
+                self.close(EOF(), reset=True)
+                return
+            elif not isinstance(buf, str):
+                # exception
+                self.close(buf, reset=True)
+                return
+
+            buffers += buf
+            if len(buf) < remain:
+                # received data not enough
+                self.buffers.append(buf)
+                return
             else:
-                # now we have REQUEST/RESPONSE two packet_type
-                self._handle_response(controller)
-            current = handled + packet_length
+                buffers += buf
 
+        assert len(buffers) == total_length
+        packet_buffer = buffers[header_length:total_length]
+
+        try:
+            controller = get_parser(parser_type).unpack_packet(packet_buffer)
+        except (ParserNotExist, DecodeError) as ex:
+            self.close(ex, reset=True)
+            return
+
+        if packet_type == REQUEST:
+            controller.set_parser_type(parser_type)
+            self._recv_queue.put(controller)
+        else:
+            # now we have REQUEST/RESPONSE two packet_type
+            self._handle_response(controller)
         del self.buffers[:]
-        if current < buffers_length and not self.is_closed:
-            self.buffers.append(buffers[current:])
 
-        # close if receive EOF or catch exception
-        if not length:
-            self.close(reset=True)
-        elif not isinstance(length, (int, long)):
-            # exception
-            self.close(length, reset=True)
 
     def _handle_response(self, controller):
         transmission_id = controller.transmission_id
