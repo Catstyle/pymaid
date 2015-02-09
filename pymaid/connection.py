@@ -114,7 +114,7 @@ class Connection(object):
     def send(self, controller):
         assert controller
         parser_type = controller.parser_type
-        packet_buffer = pack_packet(controller, parser_type)
+        packet_buffer = pack_packet(controller.meta, parser_type)
         self._send_queue.put(
             self.pack_header(parser_type, len(packet_buffer)) +
             packet_buffer +
@@ -177,15 +177,15 @@ class Connection(object):
 
         try:
             for _ in xrange(min(qsize, self.MAX_SEND)):
-                controller = self._send_queue.get()
-                if not controller:
+                buffers = self._send_queue.get()
+                if not buffers:
                     break
 
                 # see pydoc of socket.send
-                self._socket.send(controller)
+                self._socket.send(buffers)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                self._send_queue.queue.appendleft(controller)
+                self._send_queue.queue.appendleft(buffers)
                 return
             self.close(ex)
 
@@ -212,9 +212,9 @@ class Connection(object):
         unpack_header, header_length = self.unpack_header, self.HEADER_LENGTH
 
         # receive header
-        buf_size = sum(map(len, self.buffers))
-        if buf_size < header_length:
-            remain = header_length - buf_size
+        buffers_size = sum(map(len, self.buffers))
+        if buffers_size < header_length:
+            remain = header_length - buffers_size
             try:
                 buf = self._recv_n(remain)
             except Exception as ex:
@@ -261,8 +261,9 @@ class Connection(object):
             self.close(ex, reset=True)
             return
 
-        if controller.content_size:
-            content_length = controller_length + controller.content_size
+        meta = controller.meta
+        if meta.content_size:
+            content_length = controller_length + meta.content_size
             if buffers_size < content_length:
                 remain = content_length - buffers_size
                 try:
@@ -276,19 +277,19 @@ class Connection(object):
                     self.buffers.append(buf)
                     return
                 else:
-                    controller.set_content(
-                        buffers[controller_length:content_length]+buf
+                    controller.content = (
+                        buffers[controller_length:content_length] + buf
                     )
 
-        if controller.packet_type == RESPONSE:
+        if meta.packet_type == RESPONSE:
             self._handle_response(controller)
         else:
-            controller.set_parser_type(parser_type)
+            controller.parser_type = parser_type
             self._recv_queue.put(controller)
         del self.buffers[:]
 
     def _handle_response(self, controller):
-        transmission_id = controller.transmission_id
+        transmission_id = controller.meta.transmission_id
         assert transmission_id in self.transmissions
         async_result = self.transmissions.pop(transmission_id)
 
@@ -299,7 +300,7 @@ class Connection(object):
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response = self.channel.get_stub_response_class(controller)()
+            response = self.channel.get_stub_response_class(controller.meta)()
             try:
                 response.ParseFromString(controller.content)
             except DecodeError as ex:

@@ -22,7 +22,7 @@ class PBParser(object):
     @staticmethod
     def unpack_packet(packet_buffer):
         controller = Controller()
-        controller.ParseFromString(packet_buffer)
+        controller.meta.ParseFromString(packet_buffer)
         return controller
 
 

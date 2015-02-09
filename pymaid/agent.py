@@ -46,15 +46,13 @@ class ServiceAgent(object):
                 **kwargs):
             if not controller:
                 controller = self.controller
+                controller.Reset()
 
-            controller.set_broadcast(broadcast)
-            controller.set_group(group)
-            controller.set_parser_type(parser_type)
+            controller.broadcast, controller.group = broadcast, group
+            controller.parser_type = parser_type
             if not (broadcast or group):
                 assert conn or self.conn
-                controller.set_conn(conn or self.conn)
-            else:
-                controller.is_notification = True
+                controller.conn = conn or self.conn
 
             if not request:
                 assert request_class
