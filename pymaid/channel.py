@@ -59,7 +59,7 @@ class Channel(RpcChannel):
         controller.service_name = method.containing_service.full_name
         controller.method_name = method.name
         if not isinstance(request, Void):
-            controller.message = request.SerializeToString()
+            controller.set_content(request.SerializeToString())
 
         require_response = not issubclass(response_class, Void)
         if require_response:
@@ -311,11 +311,11 @@ class Channel(RpcChannel):
                 return
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            controller.message = response.SerializeToString()
+            controller.set_content(response.SerializeToString())
             conn.send(controller)
 
         request = request_class()
-        request.ParseFromString(controller.message)
+        request.ParseFromString(controller.content)
         try:
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
@@ -331,7 +331,7 @@ class Channel(RpcChannel):
 
         request_class, response_class = self.get_request_response(controller)
         request = request_class()
-        request.ParseFromString(controller.message)
+        request.ParseFromString(controller.content)
         try:
             service.CallMethod(method, controller, request, None)
         except BaseError:

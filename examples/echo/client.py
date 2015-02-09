@@ -36,7 +36,7 @@ def main():
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
     for x in xrange(100):
-        pool.spawn(wrapper, x, 10)
+        pool.spawn(wrapper, x, 100)
 
     try:
         pool.join()

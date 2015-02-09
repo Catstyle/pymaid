@@ -7,5 +7,6 @@ a rpc framework based on gevent and google protocol buffer
 packet format
 ======
 
-basic format: |---1 byte---|-----1 byte----|----------4 bytes--------------|-----n bytes----|
-description : |---parser---|--packet type--|-Controller length(Big Endian)-|---Controller---|
+basic format: |-1 byte-|---1 byte----|-------2 bytes-----|--n bytes---|-controller.content_size-|
+description : |-parser-|-packet type-|-Controller length-|-Controller-|---------Content---------|
+              |-----------------Big Endian---------------|

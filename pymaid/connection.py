@@ -23,7 +23,7 @@ from pymaid.pb.pymaid_pb2 import ErrorMessage
 @pymaid_logger_wrapper
 class Connection(object):
 
-    HEADER = '!2BI'
+    HEADER = '!2BH'
     HEADER_LENGTH = struct.calcsize(HEADER)
     LINGER_PACK = struct.pack('ii', 1, 0)
 
@@ -31,15 +31,8 @@ class Connection(object):
     pack_header = HEADER_STRUCT.pack
     unpack_header = HEADER_STRUCT.unpack
 
-    # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
-    # the doubled value is max size for one socket recv call
-    # you need to ensure *MAX_RECV* times *MAX_PACKET_LENGTH* is lower than that
-    # in some situation, the basic value is something like 212992
-    # so MAX_RECV * MAX_PACKET_LENGTH = 24576 < 212992 is ok here
     MAX_SEND = 5
-    MAX_RECV = 3
     MAX_PACKET_LENGTH = 8 * 1024
-    RCVBUF = MAX_RECV * MAX_PACKET_LENGTH
 
     CONN_ID = 1
 
@@ -84,8 +77,6 @@ class Connection(object):
         sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
-        # system will doubled this buffer
-        #sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, self.RCVBUF/2)
 
     def setsockopt(self, *args, **kwargs):
         self._socket.setsockopt(*args, **kwargs)
@@ -126,7 +117,8 @@ class Connection(object):
         packet_buffer = pack_packet(controller, parser_type)
         self._send_queue.put(
             self.pack_header(parser_type, packet_type, len(packet_buffer)) +
-            packet_buffer
+            packet_buffer +
+            controller.content
         )
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
@@ -146,6 +138,8 @@ class Connection(object):
                 '[host|%s][peer|%s] closed with reason: %s',
                 self.sockname, self.peername, repr(reason)
             )
+            #import traceback
+            #traceback.print_exc()
         else:
             self.logger.info(
                 '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
@@ -202,17 +196,14 @@ class Connection(object):
             while length < nbytes:
                 t = recv(nbytes - length)
                 if not t:
-                    ret = ''
-                    break
+                    raise EOF()
                 append(t)
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
                 ret = ''.join(buffers)
             else:
-                ret = ex
-        except Exception as ex:
-            ret = ex
+                raise
         else:
             ret = ''.join(buffers)
         return ret
@@ -224,15 +215,10 @@ class Connection(object):
         buf_size = sum(map(len, self.buffers))
         if buf_size < header_length:
             remain = header_length - buf_size
-            buf = self._recv_n(remain)
-
-            # close if receive EOF or catch exception
-            if not buf:
-                self.close(EOF(), reset=True)
-                return
-            elif not isinstance(buf, str):
-                # exception
-                self.close(buf, reset=True)
+            try:
+                buf = self._recv_n(remain)
+            except Exception as ex:
+                self.close(ex)
                 return
 
             self.buffers.append(buf)
@@ -249,36 +235,50 @@ class Connection(object):
             self.close(PacketTooLarge(packet_length=packet_length))
             return
 
-        total_length = header_length + packet_length
-        if buffers_size < total_length:
-            remain = total_length - buffers_size
-            buf = self._recv_n(remain)
-
-            # close if receive EOF or catch exception
-            if not buf:
-                self.close(EOF(), reset=True)
-                return
-            elif not isinstance(buf, str):
-                # exception
-                self.close(buf, reset=True)
+        controller_length = header_length + packet_length
+        if buffers_size < controller_length:
+            remain = controller_length - buffers_size
+            try:
+                buf = self._recv_n(remain)
+            except Exception as ex:
+                self.close(ex)
                 return
 
-            buffers += buf
+            self.buffers.append(buf)
             if len(buf) < remain:
                 # received data not enough
-                self.buffers.append(buf)
                 return
             else:
                 buffers += buf
 
-        assert len(buffers) == total_length
-        packet_buffer = buffers[header_length:total_length]
+        buffers_size = len(buffers)
+        assert buffers_size >= controller_length
+        packet_buffer = buffers[header_length:controller_length]
 
         try:
             controller = unpack_packet(packet_buffer, parser_type)
         except (ParserNotExist, DecodeError) as ex:
             self.close(ex, reset=True)
             return
+
+        if controller.content_size:
+            content_length = controller_length + controller.content_size
+            if buffers_size < content_length:
+                remain = content_length - buffers_size
+                try:
+                    buf = self._recv_n(remain)
+                except Exception as ex:
+                    self.close(ex)
+                    return
+
+                if len(buf) < remain:
+                    # received data not enough
+                    self.buffers.append(buf)
+                    return
+                else:
+                    controller.set_content(
+                        buffers[controller_length:content_length]+buf
+                    )
 
         if packet_type == REQUEST:
             controller.set_parser_type(parser_type)
@@ -295,14 +295,14 @@ class Connection(object):
 
         if controller.Failed():
             error_message = ErrorMessage()
-            error_message.ParseFromString(controller.message)
+            error_message.ParseFromString(controller.content)
             ex = BaseMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
             response = self.channel.get_stub_response_class(controller)()
             try:
-                response.ParseFromString(controller.message)
+                response.ParseFromString(controller.content)
             except DecodeError as ex:
                 async_result.set_exception(ex)
             else:
