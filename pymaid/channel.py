@@ -55,19 +55,20 @@ class Channel(RpcChannel):
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
 
     def CallMethod(self, method, controller, request, response_class, callback):
-        controller.service_name = method.containing_service.full_name
-        controller.method_name = method.name
+        meta = controller.meta
+        meta.service_name = method.containing_service.full_name
+        meta.method_name = method.name
         if not isinstance(request, Void):
-            controller.set_content(request.SerializeToString())
+            controller.content = request.SerializeToString()
 
         require_response = not issubclass(response_class, Void)
         if require_response:
-            controller.packet_type = REQUEST
+            meta.packet_type = REQUEST
             transmission_id = controller.conn.transmission_id
             controller.conn.transmission_id += 1
-            controller.transmission_id = transmission_id
+            meta.transmission_id = transmission_id
         else:
-            controller.packet_type = NOTIFICATION
+            meta.packet_type = NOTIFICATION
 
         if controller.broadcast:
             # broadcast
@@ -88,7 +89,7 @@ class Channel(RpcChannel):
         if not require_response:
             return
 
-        service_method = controller.service_name + controller.method_name
+        service_method = meta.service_name + meta.method_name
         self.stub_response.setdefault(service_method, response_class)
         async_result = AsyncResult()
         controller.conn.transmissions[transmission_id] = async_result
@@ -285,8 +286,8 @@ class Channel(RpcChannel):
                 controller = recv()
                 if not controller:
                     break
-                controller.set_conn(conn)
-                if controller.packet_type == REQUEST:
+                controller.conn = conn
+                if controller.meta.packet_type == REQUEST:
                     handle_request(conn, controller)
                 else:
                     handle_notification(conn, controller)
@@ -296,24 +297,21 @@ class Channel(RpcChannel):
             conn.close(reason)
 
     def handle_request(self, conn, controller):
-        controller.packet_type = RESPONSE
+        meta = controller.meta
+        meta.packet_type = RESPONSE
 
         try:
-            service, method = self.get_service_method(controller)
+            service, method = self.get_service_method(meta)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
             conn.send(controller)
             return
 
-        request_class, response_class = self.get_request_response(controller)
+        request_class, response_class = self.get_request_response(meta)
         def send_response(response):
-            # received broadcast, just ignore the unwanted response
-            # just in case, it may be error
-            if response_class is Void:
-                return
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            controller.set_content(response.SerializeToString())
+            controller.content = response.SerializeToString()
             conn.send(controller)
 
         request = request_class()
@@ -325,13 +323,14 @@ class Channel(RpcChannel):
             conn.send(controller)
 
     def handle_notification(self, conn, controller):
+        meta = controller.meta
         try:
-            service, method = self.get_service_method(controller)
+            service, method = self.get_service_method(meta)
         except (ServiceNotExist, MethodNotExist):
             # failed silently when handle_notification
             return
 
-        request_class, response_class = self.get_request_response(controller)
+        request_class, response_class = self.get_request_response(meta)
         request = request_class()
         request.ParseFromString(controller.content)
         try:
