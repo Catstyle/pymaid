@@ -14,9 +14,7 @@ from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import (
-    BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge, EOF
-)
+from pymaid.error import BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -134,12 +132,10 @@ class Connection(object):
         if isinstance(reason, Greenlet):
             reason = reason.exception
         if reason:
-            self.logger.warn(
+            self.logger.exception(
                 '[host|%s][peer|%s] closed with reason: %s',
-                self.sockname, self.peername, repr(reason)
+                self.sockname, self.peername, reason
             )
-            #import traceback
-            #traceback.print_exc()
         else:
             self.logger.info(
                 '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
