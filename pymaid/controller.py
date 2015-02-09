@@ -1,48 +1,53 @@
+__all__ = ['Controller']
+
 from google.protobuf.service import RpcController
 
 from pymaid.error import BaseError
-from pb.pymaid_pb2 import ControllerMeta, ErrorMessage
+from pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
 
 class Controller(RpcController):
 
     def __init__(self):
-        super(Controller, self).__init__()
-        self.meta_data = ControllerMeta()
-        self.conn = None
-        self.wide = False
-        self.group = None
-
-    def SerializeToString(self):
-        return self.meta_data.SerializeToString()
-
-    def ParseFromString(self, value):
-        self.meta_data.ParseFromString(value)
+        self.meta, self.broadcast, self.group = Meta(), False, None
+        self._content = ''
 
     def Reset(self):
-        self.meta_data.Clear()
-        self.wide = False
+        self.meta.Clear()
+        self.broadcast = False
         self.group = None
+        self._content = ''
 
     def Failed(self):
-        return self.meta_data.is_failed
+        return self.meta.is_failed
 
     def ErrorText(self):
-        return self.meta_data.message
+        return self._content
+
+    @property
+    def content(self):
+        return self._content
+
+    @content.setter
+    def content(self, value):
+        self._content = value
+        self.meta.content_size = len(value)
 
     def StartCancel(self):
         pass
 
     def SetFailed(self, reason):
-        assert isinstance(reason, BaseError)
-        self.meta_data.is_failed = True
-        message = ErrorMessage(
-            error_code=reason.code, error_message=reason.message
-        )
-        self.meta_data.message = message.SerializeToString()
+        self.meta.is_failed = True
+        if isinstance(reason, BaseError):
+            message = ErrorMessage(
+                error_code=reason.code, error_message=reason.message
+            )
+            self.content = message.SerializeToString()
+        else:
+            self.content = repr(reason)
 
     def IsCanceled(self):
-        return self.meta_data.is_canceled
+        return self.meta.is_canceled
 
     def NotifyOnCancel(self, callback):
         pass

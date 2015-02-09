@@ -1,3 +1,5 @@
+syntax = "proto2";
+
 package pymaid.apps.monitor;
 option py_generic_services = true;
 

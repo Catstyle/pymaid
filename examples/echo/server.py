@@ -1,14 +1,18 @@
 from pymaid.channel import Channel
-from hello_pb2 import HelloResponse
-from hello_pb2 import HelloService
+from pymaid.connection import Connection
 from pymaid.utils import greenlet_pool
 
+from echo_pb2 import Message
+from echo_pb2 import EchoService
 
-class HelloServiceImpl(HelloService):
+Connection.MAX_PACKET_LENGTH = 10000000
 
-    def hello(self, controller, request, callback):
-        response = HelloResponse()
-        response.message = "from pymaid"
+
+class EchoServiceImpl(EchoService):
+
+    def echo(self, controller, request, callback):
+        response = Message()
+        response.message = request.message
         callback(response)
 
 def main():
@@ -19,8 +23,8 @@ def main():
 
     channel = Channel()
     channel.listen("127.0.0.1", 8888)
-    channel.append_service(HelloServiceImpl())
-    channel.enable_heartbeat(10, 3)
+    channel.append_service(EchoServiceImpl())
+    #channel.enable_heartbeat(10, 3)
     try:
         channel.serve_forever()
     except:
@@ -30,6 +34,7 @@ def main():
 
         objects = gc.get_objects()
         print Counter(map(type, objects))
+        print
 
 if __name__ == "__main__":
     main()

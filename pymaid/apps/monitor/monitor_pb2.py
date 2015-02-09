@@ -15,7 +15,7 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-import pymaid.pb.pymaid_pb2
+from pymaid.pb import pymaid_pb2 as pymaid_dot_pb_dot_pymaid__pb2
 
 
 DESCRIPTOR = _descriptor.FileDescriptor(
@@ -23,7 +23,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='pymaid.apps.monitor',
   serialized_pb=_b('\n!pymaid/apps/monitor/monitor.proto\x12\x13pymaid.apps.monitor\x1a\x16pymaid/pb/pymaid.proto\"C\n\rHeartbeatInfo\x12\x16\n\x0eneed_heartbeat\x18\x01 \x02(\x08\x12\x1a\n\x12heartbeat_interval\x18\x02 \x01(\x02\x32\x91\x01\n\x0eMonitorService\x12\x34\n\x10notify_heartbeat\x12\x0f.pymaid.pb.Void\x1a\x0f.pymaid.pb.Void\x12I\n\x12get_heartbeat_info\x12\x0f.pymaid.pb.Void\x1a\".pymaid.apps.monitor.HeartbeatInfoB\x03\x90\x01\x01')
   ,
-  dependencies=[pymaid.pb.pymaid_pb2.DESCRIPTOR,])
+  dependencies=[pymaid_dot_pb_dot_pymaid__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
@@ -92,8 +92,8 @@ _MONITORSERVICE = _descriptor.ServiceDescriptor(
     full_name='pymaid.apps.monitor.MonitorService.notify_heartbeat',
     index=0,
     containing_service=None,
-    input_type=pymaid.pb.pymaid_pb2._VOID,
-    output_type=pymaid.pb.pymaid_pb2._VOID,
+    input_type=pymaid_dot_pb_dot_pymaid__pb2._VOID,
+    output_type=pymaid_dot_pb_dot_pymaid__pb2._VOID,
     options=None,
   ),
   _descriptor.MethodDescriptor(
@@ -101,7 +101,7 @@ _MONITORSERVICE = _descriptor.ServiceDescriptor(
     full_name='pymaid.apps.monitor.MonitorService.get_heartbeat_info',
     index=1,
     containing_service=None,
-    input_type=pymaid.pb.pymaid_pb2._VOID,
+    input_type=pymaid_dot_pb_dot_pymaid__pb2._VOID,
     output_type=_HEARTBEATINFO,
     options=None,
   ),
