@@ -9,7 +9,7 @@ message Controller {
     optional uint32 transmission_id = 3;
     optional bool is_canceled = 4;
     optional bool is_failed = 5;
-    optional bytes message = 6;
+    optional uint32 content_size = 6 [default = 0];
     optional bool is_notification = 7;
 }
 

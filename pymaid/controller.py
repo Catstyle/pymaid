@@ -5,14 +5,14 @@ from pb.pymaid_pb2 import Controller, ErrorMessage
 def __init__(self, *args, **kwargs):
     super(Controller, self).__init__(*args, **kwargs)
     self.__dict__['conn'] = None
-    self.__dict__['broadcast'] = False
-    self.__dict__['group'] = None
+    self.Reset()
 
 
 def Reset(self):
     self.Clear()
     self.__dict__['broadcast'] = False
     self.__dict__['group'] = None
+    self.__dict__['content'] = ''
 
 
 def Failed(self):
@@ -20,7 +20,7 @@ def Failed(self):
 
 
 def ErrorText(self):
-    return self.message
+    return self.content
 
 
 def StartCancel(self):
@@ -33,9 +33,9 @@ def SetFailed(self, reason):
         message = ErrorMessage(
             error_code=reason.code, error_message=reason.message
         )
-        self.message = message.SerializeToString()
+        self.set_content(message.SerializeToString())
     else:
-        self.message = repr(reason)
+        self.set_content(repr(reason))
 
 
 def IsCanceled(self):
@@ -44,6 +44,11 @@ def IsCanceled(self):
 
 def NotifyOnCancel(self, callback):
     pass
+
+
+def set_content(self, content):
+    self.__dict__['content'] = content
+    self.content_size = len(content)
 
 
 def property_setter(controller, name):
@@ -61,6 +66,7 @@ Controller.StartCancel = StartCancel
 Controller.SetFailed = SetFailed
 Controller.IsCanceled = IsCanceled
 Controller.NotifyOnCancel = NotifyOnCancel
+Controller.set_content = set_content
 
 property_setter(Controller, 'conn')
 property_setter(Controller, 'broadcast')
