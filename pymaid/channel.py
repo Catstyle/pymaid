@@ -11,7 +11,7 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
-from pymaid.parser import DEFAULT_PARSER
+from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
@@ -55,24 +55,25 @@ class Channel(RpcChannel):
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
 
     def CallMethod(self, method, controller, request, response_class, callback):
-        controller.from_stub = True
         controller.service_name = method.containing_service.full_name
         controller.method_name = method.name
         if not isinstance(request, Void):
-            controller.message = request.SerializeToString()
+            controller.set_content(request.SerializeToString())
 
         require_response = not issubclass(response_class, Void)
         if require_response:
+            controller.packet_type = REQUEST
             transmission_id = controller.conn.transmission_id
             controller.conn.transmission_id += 1
             controller.transmission_id = transmission_id
+        else:
+            controller.packet_type = NOTIFICATION
 
-        packet = controller.SerializeToString()
         if controller.broadcast:
             # broadcast
             assert not require_response
             for conn in self._income_connections.itervalues():
-                conn.send(packet)
+                conn.send(controller)
         elif controller.group:
             # small broadcast
             assert not require_response
@@ -80,9 +81,9 @@ class Channel(RpcChannel):
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
-                    conn.send(packet)
+                    conn.send(controller)
         else:
-            controller.conn.send(packet)
+            controller.conn.send(controller)
 
         if not require_response:
             return
@@ -118,15 +119,14 @@ class Channel(RpcChannel):
     def get_outcome_connection(self, conn_id):
         return self._outcome_connections.get(conn_id)
 
-    def connect(self, host, port, parser=DEFAULT_PARSER, timeout=None,
-                ignore_heartbeat=False):
+    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self.new_connection(sock, parser, False, ignore_heartbeat)
+        conn = self.new_connection(sock, False, ignore_heartbeat)
         if not self._peer_heartbeat_timer.active:
             self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
         return conn
 
-    def listen(self, host, port, parser=DEFAULT_PARSER, backlog=MAX_ACCEPT*2):
+    def listen(self, host, port, backlog=MAX_ACCEPT*2):
         if not self._had_setup_server:
             self._setup_server()
 
@@ -136,11 +136,11 @@ class Channel(RpcChannel):
         sock.listen(backlog)
         sock.setblocking(0)
         accept_watcher = self.loop.io(sock.fileno(), READ, priority=MAXPRI)
-        accept_watcher.start(self._do_accept, sock, parser)
+        accept_watcher.start(self._do_accept, sock)
         self.listers.append((sock, accept_watcher))
 
-    def new_connection(self, sock, parser, server_side, ignore_heartbeat=False):
-        conn = Connection(self, sock, parser, server_side)
+    def new_connection(self, sock, server_side, ignore_heartbeat=False):
+        conn = Connection(self, sock, server_side)
         conn.set_close_cb(self.connection_closed)
         greenlet_pool.spawn(self.handle_cb, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
@@ -233,7 +233,7 @@ class Channel(RpcChannel):
         )
         self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
-    def _do_accept(self, sock, parser):
+    def _do_accept(self, sock):
         for _ in xrange(self.MAX_ACCEPT):
             if self.is_full:
                 return
@@ -244,7 +244,7 @@ class Channel(RpcChannel):
                     return
                 self.logger.exception(ex)
                 raise
-            self.new_connection(peer_socket, parser, server_side=True)
+            self.new_connection(peer_socket, server_side=True)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
@@ -286,23 +286,23 @@ class Channel(RpcChannel):
                 if not controller:
                     break
                 controller.set_conn(conn)
-                if controller.is_notification:
-                    handle_notification(conn, controller)
-                else:
+                if controller.packet_type == REQUEST:
                     handle_request(conn, controller)
+                else:
+                    handle_notification(conn, controller)
         except Exception as ex:
             reason = ex
         finally:
             conn.close(reason)
 
     def handle_request(self, conn, controller):
-        controller.from_stub = False
+        controller.packet_type = RESPONSE
 
         try:
             service, method = self.get_service_method(controller)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
-            conn.send(controller.SerializeToString())
+            conn.send(controller)
             return
 
         request_class, response_class = self.get_request_response(controller)
@@ -313,16 +313,16 @@ class Channel(RpcChannel):
                 return
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            controller.message = response.SerializeToString()
-            conn.send(controller.SerializeToString())
+            controller.set_content(response.SerializeToString())
+            conn.send(controller)
 
         request = request_class()
-        request.ParseFromString(controller.message)
+        request.ParseFromString(controller.content)
         try:
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(controller.SerializeToString())
+            conn.send(controller)
 
     def handle_notification(self, conn, controller):
         try:
@@ -333,7 +333,7 @@ class Channel(RpcChannel):
 
         request_class, response_class = self.get_request_response(controller)
         request = request_class()
-        request.ParseFromString(controller.message)
+        request.ParseFromString(controller.content)
         try:
             service.CallMethod(method, controller, request, None)
         except BaseError:

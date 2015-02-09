@@ -1,4 +1,4 @@
-from .base import Error
+from .base import Error, Warning
 
 module_index = 10000
 
@@ -15,7 +15,25 @@ class MethodNotExist(Error):
     message_format = '[service|{service_name}][method|{method_name}] not found'
 
 
-class HeartbeatTimeout(Error):
+class ParserNotExist(Error):
 
     code = module_index + 3
+    message_format = '[parser|{parser_type}] not found'
+
+
+class HeartbeatTimeout(Error):
+
+    code = module_index + 4
     message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'
+
+
+class PacketTooLarge(Error):
+
+    code = module_index + 5
+    message_format = '[packet_length|{packet_length}] out of limitation'
+
+
+class EOF(Warning):
+
+    code = module_index + 6
+    message_format = 'socket received eof'
