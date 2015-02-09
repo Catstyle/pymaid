@@ -1,4 +1,4 @@
-from .base import Error
+from .base import Error, Warning
 
 module_index = 10000
 
@@ -31,3 +31,9 @@ class PacketTooLarge(Error):
 
     code = module_index + 5
     message_format = '[packet_length|{packet_length}] out of limitation'
+
+
+class EOF(Warning):
+
+    code = module_index + 6
+    message_format = 'socket received eof'
