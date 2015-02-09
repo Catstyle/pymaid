@@ -1,15 +1,19 @@
 from gevent.pool import Pool
 
 from pymaid.channel import Channel
+from pymaid.connection import Connection
 from pymaid.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import EchoService_Stub
 
+Connection.MAX_PACKET_LENGTH = 10000000
+
 
 import string
 message = string.letters + string.digits
 message *= 23
+message = 'a' * 1000000
 def wrapper(pid, n, message=message):
     conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
     method, request_class = service.get_method('echo')
@@ -22,7 +26,7 @@ def wrapper(pid, n, message=message):
 
 
 channel = Channel()
-service = ServiceAgent(EchoService_Stub(channel), profiling=True)
+service = ServiceAgent(EchoService_Stub(channel))
 def main():
     import gc
     from collections import Counter
@@ -30,9 +34,9 @@ def main():
     gc.enable()
 
     pool = Pool()
-    pool.spawn(wrapper, 111111, 10000)
-    for x in xrange(20):
-        pool.spawn(wrapper, x, 500)
+    #pool.spawn(wrapper, 111111, 10000)
+    for x in xrange(1000):
+        pool.spawn(wrapper, x, 1000)
 
     try:
         pool.join()

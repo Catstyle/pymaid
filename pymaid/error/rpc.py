@@ -25,3 +25,9 @@ class HeartbeatTimeout(Error):
 
     code = module_index + 4
     message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'
+
+
+class PacketTooLarge(Error):
+
+    code = module_index + 5
+    message_format = '[packet_length|{packet_length}] out of limitation'

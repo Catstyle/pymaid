@@ -14,7 +14,9 @@ from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import get_parser, REQUEST
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseMeta, HeartbeatTimeout, ParserNotExist
+from pymaid.error import (
+    BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge
+)
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -26,6 +28,8 @@ class Connection(object):
     LINGER_PACK = struct.pack('ii', 1, 0)
 
     HEADER_STRUCT = struct.Struct(HEADER)
+    pack_header = HEADER_STRUCT.pack
+    unpack_header = HEADER_STRUCT.unpack
 
     # see /proc/sys/net/core/rmem_default and /proc/sys/net/core/rmem_max
     # the doubled value is max size for one socket recv call
@@ -120,7 +124,10 @@ class Connection(object):
         assert controller
         parser_type, packet_type = controller.parser_type, controller.packet_type
         packet_buffer = get_parser(parser_type).pack_packet(controller)
-        self._send_queue.put((parser_type, packet_type, packet_buffer))
+        self._send_queue.put(
+            self.pack_header(parser_type, packet_type, len(packet_buffer)) +
+            packet_buffer
+        )
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
@@ -174,21 +181,17 @@ class Connection(object):
         if not qsize: 
             return
 
-        pack_header = self.HEADER_STRUCT.pack
         try:
             for _ in xrange(min(qsize, self.MAX_SEND)):
                 controller = self._send_queue.get()
                 if not controller:
                     break
-                parser_type, packet_type, packet_buffer = controller
 
-                # see pydoc of socket.sendall
-                self._socket.sendall(
-                    pack_header(parser_type, packet_type, len(packet_buffer)) +
-                    packet_buffer
-                )
+                # see pydoc of socket.send
+                self._socket.send(controller)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
+                self._send_queue.queue.appendleft(controller)
                 return
             self.close(ex)
 
@@ -219,7 +222,7 @@ class Connection(object):
         # handle all received data even if receive EOF or catch exception
         buffers = ''.join(self.buffers)
         current, buffers_length = 0, len(buffers)
-        unpack_header, header_length = self.HEADER_STRUCT.unpack, self.HEADER_LENGTH
+        unpack_header, header_length = self.unpack_header, self.HEADER_LENGTH
         while current < buffers_length:
             handled = current
             header = buffers[handled:handled+header_length]
@@ -229,7 +232,7 @@ class Connection(object):
 
             parser_type, packet_type, packet_length = unpack_header(header)
             if packet_length >= self.MAX_PACKET_LENGTH:
-                self.close('[packet_length|%d] out of limitation' % packet_length)
+                self.close(PacketTooLarge(packet_length=packet_length))
                 break
 
             packet_buffer = buffers[handled:handled+packet_length]
@@ -256,7 +259,7 @@ class Connection(object):
 
         # close if receive EOF or catch exception
         if not length:
-            self.close('has received EOF', reset=True)
+            self.close(reset=True)
         elif not isinstance(length, (int, long)):
             # exception
             self.close(length, reset=True)
