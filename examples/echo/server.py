@@ -1,8 +1,11 @@
 from pymaid.channel import Channel
+from pymaid.connection import Connection
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import Message
 from echo_pb2 import EchoService
+
+Connection.MAX_PACKET_LENGTH = 10000000
 
 
 class EchoServiceImpl(EchoService):
