@@ -1,4 +1,7 @@
-__all__ = ['DEFAULT_PARSER', 'PBParser']
+__all__ = [
+    'DEFAULT_PARSER', 'PBParser', 'JSONParser', 'get_parser',
+    'pack_packet', 'unpack_packet'
+]
 
 try:
     import ujson as json
@@ -55,3 +58,15 @@ def get_parser(parser_type):
     if parser_type not in PARSERS:
         raise ParserNotExist(parser_type=parser_type)
     return PARSERS[parser_type]
+
+
+def pack_packet(packet, parser_type):
+    if parser_type not in PARSERS:
+        raise ParserNotExist(parser_type=parser_type)
+    return PARSERS[parser_type].pack_packet(packet)
+
+
+def unpack_packet(packet_buffer, parser_type):
+    if parser_type not in PARSERS:
+        raise ParserNotExist(parser_type=parser_type)
+    return PARSERS[parser_type].unpack_packet(packet_buffer)
