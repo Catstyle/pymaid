@@ -12,7 +12,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
-from pymaid.parser import pack_packet, unpack_packet, REQUEST
+from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import (
     BaseMeta, HeartbeatTimeout, ParserNotExist, PacketTooLarge, EOF
@@ -23,7 +23,7 @@ from pymaid.pb.pymaid_pb2 import ErrorMessage
 @pymaid_logger_wrapper
 class Connection(object):
 
-    HEADER = '!2BH'
+    HEADER = '!BH'
     HEADER_LENGTH = struct.calcsize(HEADER)
     LINGER_PACK = struct.pack('ii', 1, 0)
 
@@ -113,10 +113,10 @@ class Connection(object):
 
     def send(self, controller):
         assert controller
-        parser_type, packet_type = controller.parser_type, controller.packet_type
+        parser_type = controller.parser_type
         packet_buffer = pack_packet(controller, parser_type)
         self._send_queue.put(
-            self.pack_header(parser_type, packet_type, len(packet_buffer)) +
+            self.pack_header(parser_type, len(packet_buffer)) +
             packet_buffer +
             controller.content
         )
@@ -230,7 +230,7 @@ class Connection(object):
         buffers_size = len(buffers)
         header = buffers[:header_length]
         assert len(header) == header_length
-        parser_type, packet_type, packet_length = unpack_header(header)
+        parser_type, packet_length = unpack_header(header)
         if packet_length >= self.MAX_PACKET_LENGTH:
             self.close(PacketTooLarge(packet_length=packet_length))
             return
@@ -280,12 +280,11 @@ class Connection(object):
                         buffers[controller_length:content_length]+buf
                     )
 
-        if packet_type == REQUEST:
+        if controller.packet_type == RESPONSE:
+            self._handle_response(controller)
+        else:
             controller.set_parser_type(parser_type)
             self._recv_queue.put(controller)
-        else:
-            # now we have REQUEST/RESPONSE two packet_type
-            self._handle_response(controller)
         del self.buffers[:]
 
     def _handle_response(self, controller):

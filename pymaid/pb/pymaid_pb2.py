@@ -18,7 +18,7 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='pymaid/pb/pymaid.proto',
   package='pymaid.pb',
-  serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\"\xaa\x01\n\nController\x12\x14\n\x0cservice_name\x18\x01 \x01(\t\x12\x13\n\x0bmethod_name\x18\x02 \x01(\t\x12\x17\n\x0ftransmission_id\x18\x03 \x01(\r\x12\x13\n\x0bis_canceled\x18\x04 \x01(\x08\x12\x11\n\tis_failed\x18\x05 \x01(\x08\x12\x17\n\x0c\x63ontent_size\x18\x06 \x01(\r:\x01\x30\x12\x17\n\x0fis_notification\x18\x07 \x01(\x08\"\x06\n\x04Void\"9\n\x0c\x45rrorMessage\x12\x12\n\nerror_code\x18\x01 \x02(\r\x12\x15\n\rerror_message\x18\x02 \x02(\t')
+  serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\"\xa6\x01\n\nController\x12\x14\n\x0cservice_name\x18\x01 \x01(\t\x12\x13\n\x0bmethod_name\x18\x02 \x01(\t\x12\x13\n\x0bpacket_type\x18\x03 \x01(\r\x12\x17\n\x0ftransmission_id\x18\x04 \x01(\r\x12\x13\n\x0bis_canceled\x18\x05 \x01(\x08\x12\x11\n\tis_failed\x18\x06 \x01(\x08\x12\x17\n\x0c\x63ontent_size\x18\x07 \x01(\r:\x01\x30\"\x06\n\x04Void\"9\n\x0c\x45rrorMessage\x12\x12\n\nerror_code\x18\x01 \x02(\r\x12\x15\n\rerror_message\x18\x02 \x02(\t')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -47,37 +47,37 @@ _CONTROLLER = _descriptor.Descriptor(
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='transmission_id', full_name='pymaid.pb.Controller.transmission_id', index=2,
+      name='packet_type', full_name='pymaid.pb.Controller.packet_type', index=2,
       number=3, type=13, cpp_type=3, label=1,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='is_canceled', full_name='pymaid.pb.Controller.is_canceled', index=3,
-      number=4, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
+      name='transmission_id', full_name='pymaid.pb.Controller.transmission_id', index=3,
+      number=4, type=13, cpp_type=3, label=1,
+      has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='is_failed', full_name='pymaid.pb.Controller.is_failed', index=4,
+      name='is_canceled', full_name='pymaid.pb.Controller.is_canceled', index=4,
       number=5, type=8, cpp_type=7, label=1,
       has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='content_size', full_name='pymaid.pb.Controller.content_size', index=5,
-      number=6, type=13, cpp_type=3, label=1,
-      has_default_value=True, default_value=0,
+      name='is_failed', full_name='pymaid.pb.Controller.is_failed', index=5,
+      number=6, type=8, cpp_type=7, label=1,
+      has_default_value=False, default_value=False,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
-      name='is_notification', full_name='pymaid.pb.Controller.is_notification', index=6,
-      number=7, type=8, cpp_type=7, label=1,
-      has_default_value=False, default_value=False,
+      name='content_size', full_name='pymaid.pb.Controller.content_size', index=6,
+      number=7, type=13, cpp_type=3, label=1,
+      has_default_value=True, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -93,7 +93,7 @@ _CONTROLLER = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=38,
-  serialized_end=208,
+  serialized_end=204,
 )
 
 
@@ -115,8 +115,8 @@ _VOID = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=210,
-  serialized_end=216,
+  serialized_start=206,
+  serialized_end=212,
 )
 
 
@@ -152,8 +152,8 @@ _ERRORMESSAGE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=218,
-  serialized_end=275,
+  serialized_start=214,
+  serialized_end=271,
 )
 
 DESCRIPTOR.message_types_by_name['Controller'] = _CONTROLLER
