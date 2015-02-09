@@ -11,7 +11,7 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
-from pymaid.parser import REQUEST, RESPONSE
+from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
 from pymaid.apps.monitor import MonitorServiceImpl
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
@@ -55,7 +55,6 @@ class Channel(RpcChannel):
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
 
     def CallMethod(self, method, controller, request, response_class, callback):
-        controller.set_packet_type(REQUEST)
         controller.service_name = method.containing_service.full_name
         controller.method_name = method.name
         if not isinstance(request, Void):
@@ -63,9 +62,12 @@ class Channel(RpcChannel):
 
         require_response = not issubclass(response_class, Void)
         if require_response:
+            controller.packet_type = REQUEST
             transmission_id = controller.conn.transmission_id
             controller.conn.transmission_id += 1
             controller.transmission_id = transmission_id
+        else:
+            controller.packet_type = NOTIFICATION
 
         if controller.broadcast:
             # broadcast
@@ -284,17 +286,17 @@ class Channel(RpcChannel):
                 if not controller:
                     break
                 controller.set_conn(conn)
-                if controller.is_notification:
-                    handle_notification(conn, controller)
-                else:
+                if controller.packet_type == REQUEST:
                     handle_request(conn, controller)
+                else:
+                    handle_notification(conn, controller)
         except Exception as ex:
             reason = ex
         finally:
             conn.close(reason)
 
     def handle_request(self, conn, controller):
-        controller.set_packet_type(RESPONSE)
+        controller.packet_type = RESPONSE
 
         try:
             service, method = self.get_service_method(controller)

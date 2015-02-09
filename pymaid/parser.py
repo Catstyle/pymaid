@@ -41,6 +41,7 @@ class JSONParser(object):
 # packet type
 REQUEST = 1
 RESPONSE = 2
+NOTIFICATION = 3
 
 # parser type
 PB = 1
