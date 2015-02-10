@@ -134,11 +134,12 @@ class Channel(RpcChannel):
         else:
             meta.packet_type = NOTIFICATION
 
+        packet_buffer = controller.pack_packet()
         if controller.broadcast:
             # broadcast
             assert not require_response
             for conn in self._income_connections.itervalues():
-                conn.send(controller)
+                conn.send(packet_buffer)
         elif controller.group:
             # small broadcast
             assert not require_response
@@ -146,9 +147,9 @@ class Channel(RpcChannel):
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
-                    conn.send(controller)
+                    conn.send(packet_buffer)
         else:
-            controller.conn.send(controller)
+            controller.conn.send(packet_buffer)
 
         if not require_response:
             return
@@ -307,7 +308,7 @@ class Channel(RpcChannel):
             service, method = self.get_service_method(meta)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
-            conn.send(controller)
+            conn.send(controller.pack_packet())
             return
 
         request_class, response_class = self.get_request_response(meta)
@@ -315,7 +316,7 @@ class Channel(RpcChannel):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
             controller.content = response.SerializeToString()
-            conn.send(controller)
+            conn.send(controller.pack_packet())
 
         request = request_class()
         request.ParseFromString(controller.content)
@@ -323,7 +324,7 @@ class Channel(RpcChannel):
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(controller)
+            conn.send(controller.pack_packet())
 
     def handle_notification(self, conn, controller):
         meta = controller.meta
