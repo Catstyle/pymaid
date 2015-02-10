@@ -92,13 +92,14 @@ class Channel(RpcChannel):
         # event iteration compensation
         factor = self.size >= 14142 and .64 or .89
         connections = self._outcome_connections
+        notify_heartbeat = self.monitor_agent.notify_heartbeat
         for conn_id in self._notify_heartbeat_connections:
             conn = connections[conn_id]
             if not conn.need_heartbeat:
                 continue
             if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
                 conn.last_check_heartbeat = now
-                conn.notify_heartbeat()
+                notify_heartbeat(conn=conn)
         self.logger.debug(
             '[peer_heartbeat][escaped|%f] loop done', time.time() - now
         )
