@@ -227,9 +227,6 @@ class Connection(object):
         if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
 
-    def notify_heartbeat(self):
-        self.channel.monitor_agent.notify_heartbeat(conn=self)
-
     def send(self, controller):
         assert controller
         parser_type = controller.parser_type
