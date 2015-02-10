@@ -14,9 +14,7 @@ from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import (
-    BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
-)
+from pymaid.error import BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -78,91 +76,6 @@ class Connection(object):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
-    def setsockopt(self, *args, **kwargs):
-        self._socket.setsockopt(*args, **kwargs)
-
-    def setup_server_heartbeat(self, max_heartbeat_timeout_count):
-        assert max_heartbeat_timeout_count >= 1
-        self._heartbeat_timeout_counter = 0
-        self._max_heartbeat_timeout_count = max_heartbeat_timeout_count
-        self.last_check_heartbeat = time.time()
-
-    def setup_client_heartbeat(self, channel):
-        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
-        resp = self._monitor_agent.get_heartbeat_info()
-
-        if not resp.need_heartbeat:
-            return
-
-        self.need_heartbeat = 1
-        self.heartbeat_interval = resp.heartbeat_interval
-        self.last_check_heartbeat = time.time()
-        channel.add_notify_heartbeat_conn(self.conn_id)
-
-    def clear_heartbeat_counter(self):
-        self.last_check_heartbeat = time.time()
-        self._heartbeat_timeout_counter = 0
-
-    def heartbeat_timeout(self):
-        self._heartbeat_timeout_counter += 1
-        if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
-            self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
-
-    def notify_heartbeat(self):
-        self._monitor_agent.notify_heartbeat()
-
-    def send(self, controller):
-        assert controller
-        parser_type = controller.parser_type
-        packet_buffer = pack_packet(controller.meta, parser_type)
-        self._send_queue.put(
-            self.pack_header(parser_type, len(packet_buffer)) +
-            packet_buffer +
-            controller.content
-        )
-        # add WRITE event for once
-        self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
-
-    def recv(self, timeout=None):
-        return self._recv_queue.get(timeout=timeout)
-
-    def close(self, reason=None, reset=False):
-        if self.is_closed:
-            return
-        self.is_closed = True
-
-        if isinstance(reason, Greenlet):
-            reason = reason.exception
-
-        if reason:
-            self.logger.error(
-                '[host|%s][peer|%s] closed with reason: %s',
-                self.sockname, self.peername, reason
-            )
-        else:
-            self.logger.info(
-                '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
-            )
-
-        if self._monitor_agent:
-            self._monitor_agent.close()
-
-        self._send_queue.queue.clear()
-        self._recv_queue.queue.clear()
-        self._recv_queue.put(None)
-        self._socket_watcher.stop()
-        self._socket.close()
-        del self.buffers[:]
-
-        if self.close_cb:
-            self.close_cb(self, reason)
-        self.close_cb = None
-
-    def set_close_cb(self, close_cb):
-        assert not self.close_cb
-        assert callable(close_cb)
-        self.close_cb = close_cb
-    
     def _io_loop(self, event):
         if event & READ:
             self._handle_recv()
@@ -293,3 +206,88 @@ class Connection(object):
                 async_result.set_exception(ex)
             else:
                 async_result.set(response)
+
+    def setsockopt(self, *args, **kwargs):
+        self._socket.setsockopt(*args, **kwargs)
+
+    def setup_server_heartbeat(self, max_heartbeat_timeout_count):
+        assert max_heartbeat_timeout_count >= 1
+        self._heartbeat_timeout_counter = 0
+        self._max_heartbeat_timeout_count = max_heartbeat_timeout_count
+        self.last_check_heartbeat = time.time()
+
+    def setup_client_heartbeat(self, channel):
+        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
+        resp = self._monitor_agent.get_heartbeat_info()
+
+        if not resp.need_heartbeat:
+            return
+
+        self.need_heartbeat = 1
+        self.heartbeat_interval = resp.heartbeat_interval
+        self.last_check_heartbeat = time.time()
+        channel.add_notify_heartbeat_conn(self.conn_id)
+
+    def clear_heartbeat_counter(self):
+        self.last_check_heartbeat = time.time()
+        self._heartbeat_timeout_counter = 0
+
+    def heartbeat_timeout(self):
+        self._heartbeat_timeout_counter += 1
+        if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
+            self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
+
+    def notify_heartbeat(self):
+        self._monitor_agent.notify_heartbeat()
+
+    def send(self, controller):
+        assert controller
+        parser_type = controller.parser_type
+        packet_buffer = pack_packet(controller.meta, parser_type)
+        self._send_queue.put(
+            self.pack_header(parser_type, len(packet_buffer)) +
+            packet_buffer +
+            controller.content
+        )
+        # add WRITE event for once
+        self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
+
+    def recv(self, timeout=None):
+        return self._recv_queue.get(timeout=timeout)
+
+    def close(self, reason=None, reset=False):
+        if self.is_closed:
+            return
+        self.is_closed = True
+
+        if isinstance(reason, Greenlet):
+            reason = reason.exception
+
+        if reason:
+            self.logger.error(
+                '[host|%s][peer|%s] closed with reason: %s',
+                self.sockname, self.peername, reason
+            )
+        else:
+            self.logger.info(
+                '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
+            )
+
+        if self._monitor_agent:
+            self._monitor_agent.close()
+
+        self._send_queue.queue.clear()
+        self._recv_queue.queue.clear()
+        self._recv_queue.put(None)
+        self._socket_watcher.stop()
+        self._socket.close()
+        del self.buffers[:]
+
+        if self.close_cb:
+            self.close_cb(self, reason)
+        self.close_cb = None
+
+    def set_close_cb(self, close_cb):
+        assert not self.close_cb
+        assert callable(close_cb)
+        self.close_cb = close_cb
