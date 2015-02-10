@@ -97,7 +97,7 @@ class Connection(object):
             if ex.args[0] == socket.EWOULDBLOCK:
                 self._send_queue.queue.appendleft(buffers)
                 return
-            self.close(ex)
+            self.close(ex, reset=True)
 
     def _recv_n(self, nbytes):
         buffers = []
