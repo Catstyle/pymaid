@@ -10,8 +10,6 @@ from gevent.core import READ, WRITE, EVENTS
 
 from google.protobuf.message import DecodeError
 
-from pymaid.agent import ServiceAgent
-from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
@@ -41,7 +39,6 @@ class Connection(object):
         'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
-        '_monitor_agent',
     ]
 
     def __init__(self, channel, sock, server_side):
@@ -56,7 +53,6 @@ class Connection(object):
 
         self.is_closed = False
         self.close_cb = None
-        self._monitor_agent = None
         self.need_heartbeat = 0
 
         self.conn_id = self.CONN_ID
@@ -216,17 +212,11 @@ class Connection(object):
         self._max_heartbeat_timeout_count = max_heartbeat_timeout_count
         self.last_check_heartbeat = time.time()
 
-    def setup_client_heartbeat(self, channel):
-        self._monitor_agent = ServiceAgent(MonitorService_Stub(channel), self)
-        resp = self._monitor_agent.get_heartbeat_info()
-
-        if not resp.need_heartbeat:
-            return
-
+    def setup_client_heartbeat(self, heartbeat_interval):
+        assert heartbeat_interval >= 0
         self.need_heartbeat = 1
-        self.heartbeat_interval = resp.heartbeat_interval
+        self.heartbeat_interval = heartbeat_interval
         self.last_check_heartbeat = time.time()
-        channel.add_notify_heartbeat_conn(self.conn_id)
 
     def clear_heartbeat_counter(self):
         self.last_check_heartbeat = time.time()
@@ -238,7 +228,7 @@ class Connection(object):
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
 
     def notify_heartbeat(self):
-        self._monitor_agent.notify_heartbeat()
+        self.channel.monitor_agent.notify_heartbeat(conn=self)
 
     def send(self, controller):
         assert controller
@@ -272,9 +262,6 @@ class Connection(object):
             self.logger.info(
                 '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
             )
-
-        if self._monitor_agent:
-            self._monitor_agent.close()
 
         self._send_queue.queue.clear()
         self._recv_queue.queue.clear()

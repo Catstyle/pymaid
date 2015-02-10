@@ -12,7 +12,8 @@ from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
 from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
-from pymaid.apps.monitor import MonitorServiceImpl
+from pymaid.agent import ServiceAgent
+from pymaid.apps.monitor import MonitorServiceImpl, MonitorService_Stub
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void
@@ -46,6 +47,7 @@ class Channel(RpcChannel):
         self.request_response = {}
         self.stub_response = {}
 
+        self.monitor_agent = ServiceAgent(MonitorService_Stub(self))
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
@@ -66,7 +68,10 @@ class Channel(RpcChannel):
             if self.need_heartbeat:
                 conn.setup_server_heartbeat(self.max_heartbeat_timeout_count)
         elif not ignore_heartbeat:
-            conn.setup_client_heartbeat(channel=self)
+            resp = self.monitor_agent.get_heartbeat_info(conn=conn)
+            if resp.need_heartbeat:
+                conn.setup_client_heartbeat(resp.heartbeat_interval)
+                self.add_notify_heartbeat_conn(conn.conn_id)
 
     def _server_heartbeat(self):
         # network delay compensation
