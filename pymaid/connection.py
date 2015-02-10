@@ -12,7 +12,9 @@ from google.protobuf.message import DecodeError
 
 from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
+from pymaid.error import (
+    BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
+)
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -180,6 +182,8 @@ class Connection(object):
                 controller.parser_type = parser_type
                 self._recv_queue.put(controller)
             del self.buffers[:]
+        except socket.error as ex:
+            self.close(ex, reset=True)
         except Exception as ex:
             self.close(ex)
 
@@ -251,10 +255,16 @@ class Connection(object):
             reason = reason.exception
 
         if reason:
-            self.logger.error(
-                '[host|%s][peer|%s] closed with reason: %s',
-                self.sockname, self.peername, reason
-            )
+            if reset or isinstance(reason, BaseError):
+                self.logger.error(
+                    '[host|%s][peer|%s] closed with reason: %s',
+                    self.sockname, self.peername, reason
+                )
+            else:
+                self.logger.exception(
+                    '[host|%s][peer|%s] closed with reason: %s',
+                    self.sockname, self.peername, reason
+                )
         else:
             self.logger.info(
                 '[host|%s][peer|%s] closed cleanly', self.sockname, self.peername
