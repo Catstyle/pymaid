@@ -2,6 +2,7 @@ __all__ = ['Connection']
 
 import time
 import struct
+import logging
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -14,7 +15,9 @@ from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorService_Stub
 from pymaid.parser import pack_packet, unpack_packet, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
+from pymaid.error import (
+    BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
+)
 from pymaid.pb.pymaid_pb2 import ErrorMessage
 
 
@@ -131,8 +134,14 @@ class Connection(object):
 
         if isinstance(reason, Greenlet):
             reason = reason.exception
+
         if reason:
-            self.logger.exception(
+            if isinstance(reason, BaseError):
+                level = logging.ERROR
+            else:
+                level = logging.CRITICAL
+            self.logger.log(
+                level,
                 '[host|%s][peer|%s] closed with reason: %s',
                 self.sockname, self.peername, reason
             )
