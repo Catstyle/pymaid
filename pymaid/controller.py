@@ -14,8 +14,7 @@ class Controller(RpcController):
 
     def Reset(self):
         self.meta.Clear()
-        self.broadcast = False
-        self.group = None
+        self.conn, self.broadcast, self.group = None, False, None
         self._content = ''
 
     def Failed(self):

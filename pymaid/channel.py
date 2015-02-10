@@ -71,7 +71,7 @@ class Channel(RpcChannel):
             resp = self.monitor_agent.get_heartbeat_info(conn=conn)
             if resp.need_heartbeat:
                 conn.setup_client_heartbeat(resp.heartbeat_interval)
-                self.add_notify_heartbeat_conn(conn.conn_id)
+                self._notify_heartbeat_connections.append(conn.conn_id)
 
     def _server_heartbeat(self):
         # network delay compensation
@@ -230,14 +230,14 @@ class Channel(RpcChannel):
         else:
             assert conn_id in self._outcome_connections, conn_id
             del self._outcome_connections[conn_id]
-        for async_result in conn.transmissions.itervalues():
-            # we should not reach here with async_result left
-            # that should be an exception
-            async_result.set_exception(reason)
-        conn.transmissions.clear()
-        if conn.need_heartbeat:
-            assert conn_id in self._notify_heartbeat_connections
-            del self._notify_heartbeat_connections[conn_id]
+            for async_result in conn.transmissions.itervalues():
+                # we should not reach here with async_result left
+                # that should be an exception
+                async_result.set_exception(reason)
+            conn.transmissions.clear()
+            if conn.need_heartbeat:
+                assert conn_id in self._notify_heartbeat_connections, conn_id
+                self._notify_heartbeat_connections.remove(conn_id)
 
     def serve_forever(self):
         wait()
@@ -249,9 +249,6 @@ class Channel(RpcChannel):
     @property
     def size(self):
         return len(self._income_connections) + len(self._outcome_connections)
-
-    def add_notify_heartbeat_conn(self, conn_id):
-        self._notify_heartbeat_connections.append(conn_id)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
