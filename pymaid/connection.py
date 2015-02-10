@@ -2,7 +2,6 @@ __all__ = ['Connection']
 
 import time
 import struct
-import logging
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -136,12 +135,7 @@ class Connection(object):
             reason = reason.exception
 
         if reason:
-            if isinstance(reason, BaseError):
-                level = logging.ERROR
-            else:
-                level = logging.CRITICAL
-            self.logger.log(
-                level,
+            self.logger.error(
                 '[host|%s][peer|%s] closed with reason: %s',
                 self.sockname, self.peername, reason
             )
@@ -187,7 +181,7 @@ class Connection(object):
                     break
 
                 # see pydoc of socket.send
-                self._socket.send(buffers)
+                self._socket.send(memoryview(buffers))
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
                 self._send_queue.queue.appendleft(buffers)
