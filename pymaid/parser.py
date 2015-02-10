@@ -3,12 +3,13 @@ __all__ = [
     'pack_packet', 'unpack_packet'
 ]
 
+import struct
 try:
     import ujson as json
 except ImportError:
     import json as json
 
-from pymaid.controller import Controller
+import pymaid
 from pymaid.error import ParserNotExist
 
 
@@ -21,7 +22,7 @@ class PBParser(object):
 
     @staticmethod
     def unpack_packet(packet_buffer):
-        controller = Controller()
+        controller = pymaid.Controller()
         controller.meta.ParseFromString(packet_buffer)
         return controller
 
@@ -53,6 +54,13 @@ PARSERS = {
     PB: PBParser,
     JSON: JSONParser
 }
+
+
+HEADER = '!BH'
+HEADER_LENGTH = struct.calcsize(HEADER)
+HEADER_STRUCT = struct.Struct(HEADER)
+pack_header = HEADER_STRUCT.pack
+unpack_header = HEADER_STRUCT.unpack
 
 
 def get_parser(parser_type):

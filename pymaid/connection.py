@@ -10,7 +10,7 @@ from gevent.core import READ, WRITE, EVENTS
 
 from google.protobuf.message import DecodeError
 
-from pymaid.parser import pack_packet, unpack_packet, RESPONSE
+from pymaid.parser import unpack_header, unpack_packet, HEADER_LENGTH, RESPONSE
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import (
     BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
@@ -21,13 +21,7 @@ from pymaid.pb.pymaid_pb2 import ErrorMessage
 @pymaid_logger_wrapper
 class Connection(object):
 
-    HEADER = '!BH'
-    HEADER_LENGTH = struct.calcsize(HEADER)
     LINGER_PACK = struct.pack('ii', 1, 0)
-
-    HEADER_STRUCT = struct.Struct(HEADER)
-    pack_header = HEADER_STRUCT.pack
-    unpack_header = HEADER_STRUCT.unpack
 
     MAX_SEND = 5
     MAX_PACKET_LENGTH = 8 * 1024
@@ -119,7 +113,7 @@ class Connection(object):
         return ret
 
     def _handle_recv(self):
-        unpack_header, header_length = self.unpack_header, self.HEADER_LENGTH
+        header_length = HEADER_LENGTH
 
         # receive header
         buffers_size = sum(map(len, self.buffers))
@@ -231,15 +225,9 @@ class Connection(object):
         if self._heartbeat_timeout_counter >= self._max_heartbeat_timeout_count:
             self.close(HeartbeatTimeout(host=self.sockname, peer=self.peername))
 
-    def send(self, controller):
-        assert controller
-        parser_type = controller.parser_type
-        packet_buffer = pack_packet(controller.meta, parser_type)
-        self._send_queue.put(
-            self.pack_header(parser_type, len(packet_buffer)) +
-            packet_buffer +
-            controller.content
-        )
+    def send(self, packet_buffer):
+        assert packet_buffer
+        self._send_queue.put(packet_buffer)
         # add WRITE event for once
         self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
 
