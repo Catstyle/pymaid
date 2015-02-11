@@ -33,7 +33,7 @@ class Connection(object):
     __slots__ = [
         'channel', 'server_side', 'conn_id', 'peername', 'sockname',
         'is_closed', 'close_cb',
-        'buffers', 'transmissions', 'transmission_id',
+        'buffers', 'buffers_size', 'transmissions', 'transmission_id',
         'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
@@ -56,7 +56,8 @@ class Connection(object):
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
-        self.buffers = []
+        self.buffers = bytearray(self.MAX_PACKET_LENGTH)
+        self.buffers_size = 0
         self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
@@ -100,45 +101,45 @@ class Connection(object):
                 return
             self.close(ex, reset=True)
 
-    def _recv_n(self, nbytes):
-        buffers = []
-        recv, append, length = self._socket.recv, buffers.append, 0
+    def _recv_n(self, buffers, nbytes):
+        recv_into, length = self._socket.recv_into, 0
         try:
             while length < nbytes:
-                t = recv(nbytes - length)
+                t = recv_into(buffers[length:])
                 if not t:
+                    import traceback
+                    traceback.print_stack()
                     raise EOF()
-                append(t)
-                length += len(t)
+                length += t
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = b''.join(buffers)
+                ret = length
             else:
                 raise
         else:
-            ret = b''.join(buffers)
+            ret = length
         return ret
 
     def _handle_recv(self):
         header_length = HEADER_LENGTH
 
         # receive header
-        buffers_size = sum(map(len, self.buffers))
+        buffers, buffers_size = memoryview(self.buffers), self.buffers_size
         try:
             if buffers_size < header_length:
                 remain = header_length - buffers_size
-                buf = self._recv_n(remain)
-
-                self.buffers.append(buf)
-                if len(buf) < remain:
+                received = self._recv_n(
+                    buffers[buffers_size:header_length], remain
+                )
+                self.buffers_size += received
+                if received < remain:
                     # received data not enough
                     return
+                buffers_size += received
 
-            buffers = b''.join(self.buffers)
-            buffers_size = len(buffers)
             header = buffers[:header_length]
             assert len(header) == header_length
-            parser_type, packet_length = unpack_header(header)
+            parser_type, packet_length = unpack_header(header.tobytes())
             if packet_length >= self.MAX_PACKET_LENGTH:
                 self.close(PacketTooLarge(packet_length=packet_length))
                 return
@@ -146,15 +147,15 @@ class Connection(object):
             controller_length = header_length + packet_length
             if buffers_size < controller_length:
                 remain = controller_length - buffers_size
-                buf = self._recv_n(remain)
-
-                self.buffers.append(buf)
-                if len(buf) < remain:
+                received = self._recv_n(
+                    buffers[buffers_size:controller_length], remain
+                )
+                self.buffers_size += received
+                if received < remain:
                     # received data not enough
                     return
-                buffers += buf
+                buffers_size += received
 
-            buffers_size = len(buffers)
             assert buffers_size >= controller_length
             packet_buffer = buffers[header_length:controller_length]
 
@@ -164,19 +165,22 @@ class Connection(object):
                 content_length = controller_length + meta.content_size
                 if buffers_size < content_length:
                     remain = content_length - buffers_size
-                    buf = self._recv_n(remain)
-
-                    if len(buf) < remain:
+                    received = self._recv_n(
+                        buffers[buffers_size:content_length], remain
+                    )
+                    self.buffers_size += received
+                    if received < remain:
                         # received data not enough
-                        self.buffers.append(buf)
                         return
-                    controller.content = buffers[controller_length:] + buf
+                    controller.content = (
+                        buffers[controller_length:content_length].tobytes()
+                    )
 
             if meta.packet_type == RESPONSE:
                 self._handle_response(controller)
             else:
                 self._recv_queue.put(controller)
-            del self.buffers[:]
+            self.buffers_size = 0
         except socket.error as ex:
             self.close(ex, reset=True)
         except Exception as ex:
@@ -279,7 +283,7 @@ class Connection(object):
         self._recv_queue.put(None)
         self._socket_watcher.stop()
         self._socket.close()
-        del self.buffers[:]
+        self.buffers = None
 
         if self.close_cb:
             self.close_cb(self, reason)
