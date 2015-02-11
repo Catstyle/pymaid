@@ -9,6 +9,10 @@ from pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
 class Controller(RpcController):
 
+    __slots__  = [
+        'meta', 'conn', 'broadcast', 'group', 'parser_type', '_content'
+    ]
+
     def __init__(self):
         self.meta, self.broadcast, self.group = Meta(), False, None
         self._content = ''
