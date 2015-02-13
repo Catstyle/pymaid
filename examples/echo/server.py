@@ -15,7 +15,7 @@ class EchoServiceImpl(EchoService):
     @profiler.profile
     def echo(self, controller, request, callback):
         response = Message()
-        response.message = request.message
+        response.CopyFrom(request)
         callback(response)
 
 def main():
