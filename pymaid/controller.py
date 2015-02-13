@@ -40,11 +40,11 @@ class Controller(RpcController):
     def pack_packet(self):
         parser_type = self.parser_type
         packet_buffer = pack_packet(self.meta, parser_type)
-        return (
-            pack_header(parser_type, len(packet_buffer)) +
-            packet_buffer +
-            self.content
-        )
+        return ''.join([
+            pack_header(parser_type, len(packet_buffer)),
+            packet_buffer,
+            self._content
+        ])
 
     def StartCancel(self):
         pass
