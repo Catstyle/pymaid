@@ -149,15 +149,13 @@ class Connection(object):
                 if len(buf) < remain:
                     # received data not enough
                     return
-                else:
-                    buffers += buf
+                buffers += buf
 
             buffers_size = len(buffers)
             assert buffers_size >= controller_length
             packet_buffer = buffers[header_length:controller_length]
 
             controller = unpack_packet(packet_buffer, parser_type)
-
             meta = controller.meta
             if meta.content_size:
                 content_length = controller_length + meta.content_size
@@ -169,10 +167,7 @@ class Connection(object):
                         # received data not enough
                         self.buffers.append(buf)
                         return
-                    else:
-                        controller.content = (
-                            buffers[controller_length:content_length] + buf
-                        )
+                    controller.content = buffers[controller_length:] + buf
 
             if meta.packet_type == RESPONSE:
                 self._handle_response(controller)
@@ -191,19 +186,16 @@ class Connection(object):
         async_result = self.transmissions.pop(transmission_id)
 
         if controller.Failed():
-            error_message = ErrorMessage()
-            error_message.ParseFromString(controller.content)
+            error_message = ErrorMessage.FromString(controller.content)
             ex = BaseMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response = self.channel.get_stub_response_class(controller.meta)()
+            response_cls = self.channel.get_stub_response_class(controller.meta)
             try:
-                response.ParseFromString(controller.content)
+                async_result.set(response_cls.FromString(controller.content))
             except DecodeError as ex:
                 async_result.set_exception(ex)
-            else:
-                async_result.set(response)
 
     def setsockopt(self, *args, **kwargs):
         self._socket.setsockopt(*args, **kwargs)
