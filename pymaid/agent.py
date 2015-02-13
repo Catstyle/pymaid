@@ -9,6 +9,9 @@ class ServiceAgent(object):
     def __init__(self, stub, conn=None, profiling=False):
         self.stub, self.conn, self.controller = stub, conn, Controller()
         self.profiling, self.methods = profiling, {}
+        if profiling:
+            from pymaid.utils.profiler import profiler
+            profiler.enable_all()
 
     def close(self):
         self.stub, self.conn, self.controller = None, None, None
@@ -24,14 +27,14 @@ class ServiceAgent(object):
             request_class = self.stub.GetRequestClass(method_descriptor)
             method = getattr(self.stub, name)
             if self.profiling:
-                from pymaid.utils.profiler import profiling
-                method = profiling(name)(method)
+                from pymaid.utils.profiler import profiler
+                method = profiler.profile(method)
             self.methods[name] = method, request_class
         return method, request_class
 
     def print_summary(slef):
-        from pymaid.utils.profiler import default
-        default.print_summary()
+        from pymaid.utils.profiler import profiler
+        profiler.print_stats()
 
     def __dir__(self):
         return dir(self.stub)
