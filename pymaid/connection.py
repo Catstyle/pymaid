@@ -86,10 +86,14 @@ class Connection(object):
                     break
 
                 # see pydoc of socket.send
-                self._socket.send(memoryview(buffers))
+                sent, buffers_size = 0, len(buffers)
+                buffers = memoryview(buffers)
+                while sent < buffers_size:
+                    sent += self._socket.send(buffers[sent:])
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                self._send_queue.queue.appendleft(buffers)
+                self._send_queue.queue.appendleft(buffers[sent:])
+                self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
                 return
             self.close(ex, reset=True)
 
