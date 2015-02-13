@@ -10,7 +10,7 @@ from error import PlayerNotExist
 def wrapper(pid, n):
     conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
     global cnt
-    for x in xrange(n):
+    for x in range(n):
         try:
             service.player_profile(conn=conn, user_id=x)
         except PlayerNotExist:
@@ -25,7 +25,7 @@ service = ServiceAgent(RemoteError_Stub(channel), conn=None)
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
-    for x in xrange(1000):
+    for x in range(1000):
         pool.spawn(wrapper, x, 1)
 
     pool.join()

@@ -80,7 +80,7 @@ class Connection(object):
             return
 
         try:
-            for _ in xrange(min(qsize, self.MAX_SEND)):
+            for _ in range(min(qsize, self.MAX_SEND)):
                 buffers = self._send_queue.get()
                 if not buffers:
                     break
@@ -109,11 +109,11 @@ class Connection(object):
                 length += len(t)
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = ''.join(buffers)
+                ret = b''.join(buffers)
             else:
                 raise
         else:
-            ret = ''.join(buffers)
+            ret = b''.join(buffers)
         return ret
 
     def _handle_recv(self):
@@ -131,7 +131,7 @@ class Connection(object):
                     # received data not enough
                     return
 
-            buffers = ''.join(self.buffers)
+            buffers = b''.join(self.buffers)
             buffers_size = len(buffers)
             header = buffers[:header_length]
             assert len(header) == header_length
