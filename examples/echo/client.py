@@ -26,7 +26,7 @@ def wrapper(pid, n, message=message):
 
 
 channel = Channel()
-service = ServiceAgent(EchoService_Stub(channel))
+service = ServiceAgent(EchoService_Stub(channel), profiling=True)
 def main():
     import gc
     from collections import Counter
@@ -35,7 +35,7 @@ def main():
 
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
-    for x in xrange(100):
+    for x in xrange(10):
         pool.spawn(wrapper, x, 100)
 
     try:
