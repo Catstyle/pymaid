@@ -40,7 +40,7 @@ def main():
     else:
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
-    service.print_summary()
+    #service.print_summary()
 
 if __name__ == "__main__":
     main()
