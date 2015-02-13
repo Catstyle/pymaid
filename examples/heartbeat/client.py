@@ -3,7 +3,6 @@ import gevent
 
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
-from pymaid.utils import ProfilerContext
 from heartbeat_pb2 import LongPlaying_Stub
 
 
@@ -20,5 +19,4 @@ def main():
     assert conn.is_closed, conn.is_closed
 
 if __name__ == "__main__":
-    with ProfilerContext():
-        main()
+    main()

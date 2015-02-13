@@ -15,6 +15,10 @@ if 'linux' in platform or 'darwin' in platform:
     import os
     if 'GEVENT_RESOLVER' not in os.environ:
         os.environ['GEVENT_RESOLVER'] = 'ares'
+        try:
+            from imp import reload
+        except ImportError:
+            pass
         import gevent
         reload(gevent)
     else:
@@ -41,4 +45,4 @@ from pymaid.controller import Controller
 from pymaid.connection import Connection
 from pymaid import parser
 from pymaid.error import Error, Warning
-from pymaid.utils import logger, pool, profiler
+from pymaid.utils import logger, pool

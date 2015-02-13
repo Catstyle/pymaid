@@ -4,7 +4,7 @@ from google.protobuf.service import RpcController
 
 from pymaid.parser import pack_packet, pack_header
 from pymaid.error import BaseError
-from pb.pymaid_pb2 import Controller as Meta, ErrorMessage
+from pymaid.pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
 
 class Controller(RpcController):
@@ -15,12 +15,12 @@ class Controller(RpcController):
 
     def __init__(self):
         self.meta, self.broadcast, self.group = Meta(), False, None
-        self._content = ''
+        self._content = b''
 
     def Reset(self):
         self.meta.Clear()
         self.conn, self.broadcast, self.group = None, False, None
-        self._content = ''
+        self._content = b''
 
     def Failed(self):
         return self.meta.is_failed
@@ -40,7 +40,7 @@ class Controller(RpcController):
     def pack_packet(self):
         parser_type = self.parser_type
         packet_buffer = pack_packet(self.meta, parser_type)
-        return ''.join([
+        return b''.join([
             pack_header(parser_type, len(packet_buffer)),
             packet_buffer,
             self._content

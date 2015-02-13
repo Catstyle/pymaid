@@ -106,7 +106,7 @@ class Channel(RpcChannel):
         self._peer_heartbeat_timer.again(self._peer_heartbeat)
 
     def _do_accept(self, sock):
-        for _ in xrange(self.MAX_ACCEPT):
+        for _ in range(self.MAX_ACCEPT):
             if self.is_full:
                 return
             try:
@@ -138,7 +138,7 @@ class Channel(RpcChannel):
         if controller.broadcast:
             # broadcast
             assert not require_response
-            for conn in self._income_connections.itervalues():
+            for conn in self._income_connections.values():
                 conn.send(packet_buffer)
         elif controller.group:
             # small broadcast
@@ -231,7 +231,7 @@ class Channel(RpcChannel):
         else:
             assert conn_id in self._outcome_connections, conn_id
             del self._outcome_connections[conn_id]
-            for async_result in conn.transmissions.itervalues():
+            for async_result in conn.transmissions.values():
                 # we should not reach here with async_result left
                 # that should be an exception
                 async_result.set_exception(reason)
