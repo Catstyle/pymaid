@@ -1,7 +1,87 @@
+from __future__ import print_function
+
+import re
 import os
 import sys
-from setuptools import setup, find_packages
-from pymaid import __version__
+import shutil
+import subprocess
+
+from setuptools import setup
+from distutils.command.clean import clean as _clean
+if sys.version_info[0] >= 3:
+    # Python 3
+    from distutils.command.build_py import build_py_2to3 as _build_py
+else:
+    # Python 2
+    from distutils.command.build_py import build_py as _build_py
+from distutils.spawn import find_executable
+
+__version__ = re.search(
+    "__version__\s*=\s*'(.*)'", open('pymaid/__init__.py').read(), re.M
+).group(1)
+assert __version__
+
+
+protoc = find_executable("protoc")
+if not protoc:
+    sys.stderr.write(
+        "protoc is not installed, Please compile it "
+        "or install the binary package.\n"
+    )
+    sys.exit(-1)
+
+
+def generate_proto(source):
+  """Invokes the Protocol Compiler to generate a _pb2.py from the given
+  .proto file.  Does nothing if the output already exists and is newer than
+  the input."""
+
+  output = source.replace(".proto", "_pb2.py")
+
+  if (not os.path.exists(output) or
+      (os.path.exists(source) and
+       os.path.getmtime(source) > os.path.getmtime(output))):
+    print("Generating %s..." % output)
+
+    if not os.path.exists(source):
+      sys.stderr.write("Can't find required file: %s\n" % source)
+      sys.exit(-1)
+
+    protoc_command = [protoc, "-I.", "--python_out=.", source]
+    if subprocess.call(protoc_command) != 0:
+      sys.exit(-1)
+
+
+class clean(_clean):
+
+    def run(self):
+        # Delete generated files in the code tree.
+        for (dirpath, dirnames, filenames) in os.walk("."):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                if (filepath.endswith("_pb2.py") or
+                        filepath.endswith(".pyc") or
+                        filepath.endswith(".so") or
+                        filepath.endswith(".o")):
+                    os.remove(filepath)
+            for dirname in dirnames:
+                if dirname in ('build', 'dist', 'pymaid.egg-info'):
+                    shutil.rmtree(os.path.join(dirpath, dirname))
+        # _clean is an old-style class, so super() doesn't work.
+        _clean.run(self)
+
+
+class build_py(_build_py):
+
+    def run(self):
+        generate_proto('pymaid/pb/pymaid.proto')
+        generate_proto('examples/echo/echo.proto')
+        generate_proto('examples/heartbeat/heartbeat.proto')
+        generate_proto('examples/hello/hello.proto')
+        generate_proto('examples/reraise_error/rpc.proto')
+        open('pymaid/pb/__init__.py', 'a').close()
+        # _build_py is an old-style class, so super() doesn't work.
+        _build_py.run(self)
 
 
 setup(
@@ -10,7 +90,7 @@ setup(
     author="Catstyle",
     author_email="Catstyle.Lee@gmail.com",
     license="do what the f**k you want",
-    packages=find_packages(exclude='examples'),
+    packages=['pymaid'],
     zip_safe=True,
     data_files = [
         (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
@@ -20,4 +100,5 @@ setup(
         'gevent>=1.0.1',
         'protobuf>=2.6.1',
     ],
+    cmdclass = {'clean': clean, 'build_py': build_py},
 )
