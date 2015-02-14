@@ -3,7 +3,7 @@ from gevent.pool import Pool
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
 
-from pb.rpc_pb2 import RemoteError_Stub
+from rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
 
