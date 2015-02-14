@@ -31,6 +31,25 @@ if not protoc:
     sys.exit(-1)
 
 
+def get_packages():
+    # setuptools can't do the job :(
+    packages = []
+    for root, dirnames, filenames in os.walk('pymaid'):
+        if '__init__.py' in filenames:
+            packages.append(".".join(os.path.split(root)).strip("."))
+    return packages
+
+
+def get_protos():
+    # setuptools can't do the job :(
+    protos = []
+    for root, dirnames, filenames in os.walk('.'):
+        for filename in filenames:
+            if filename.endswith('.proto'):
+                protos.append(os.path.join(root, filename))
+    return protos 
+
+
 def generate_proto(source):
   """Invokes the Protocol Compiler to generate a _pb2.py from the given
   .proto file.  Does nothing if the output already exists and is newer than
@@ -74,11 +93,8 @@ class clean(_clean):
 class build_py(_build_py):
 
     def run(self):
-        generate_proto('pymaid/pb/pymaid.proto')
-        generate_proto('examples/echo/echo.proto')
-        generate_proto('examples/heartbeat/heartbeat.proto')
-        generate_proto('examples/hello/hello.proto')
-        generate_proto('examples/reraise_error/rpc.proto')
+        for proto in get_protos():
+            generate_proto(proto)
         open('pymaid/pb/__init__.py', 'a').close()
         # _build_py is an old-style class, so super() doesn't work.
         _build_py.run(self)
@@ -90,7 +106,7 @@ setup(
     author="Catstyle",
     author_email="Catstyle.Lee@gmail.com",
     license="do what the f**k you want",
-    packages=['pymaid'],
+    packages=get_packages(),
     zip_safe=True,
     data_files = [
         (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
