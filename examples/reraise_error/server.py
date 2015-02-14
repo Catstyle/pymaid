@@ -1,5 +1,5 @@
 from pymaid.channel import Channel
-from pb.rpc_pb2 import RemoteError
+from rpc_pb2 import RemoteError
 from error import PlayerNotExist
 
 
