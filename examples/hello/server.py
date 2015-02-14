@@ -1,7 +1,10 @@
+from __future__ import print_function
+
 from pymaid.channel import Channel
+from pymaid.utils import greenlet_pool
+
 from hello_pb2 import HelloResponse
 from hello_pb2 import HelloService
-from pymaid.utils import greenlet_pool
 
 
 class HelloServiceImpl(HelloService):
@@ -24,12 +27,12 @@ def main():
     try:
         channel.serve_forever()
     except:
-        print len(channel._outcome_connections)
-        print len(channel._income_connections)
-        print greenlet_pool.size, len(greenlet_pool.greenlets)
+        print(len(channel._outcome_connections))
+        print(len(channel._income_connections))
+        print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
         objects = gc.get_objects()
-        print Counter(map(type, objects))
+        print(Counter(map(type, objects)))
 
 if __name__ == "__main__":
     main()

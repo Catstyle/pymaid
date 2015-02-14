@@ -1,3 +1,6 @@
+import six
+
+
 class BaseMeta(type):
 
     errors = {}
@@ -20,16 +23,15 @@ class BaseMeta(type):
     def get_by_code(cls, error_code):
         if error_code in cls.errors:
             ret = cls.errors[error_code]
-        elif error_code in cls.warnings[error_code]:
+        elif error_code in cls.warnings:
             ret = cls.warnings[error_code]
         else:
             assert False, 'not definded error_code'
         return ret
 
 
+@six.add_metaclass(BaseMeta)
 class BaseError(Exception):
-
-    __metaclass__ = BaseMeta
 
     def __init__(self, **kwargs):
         if kwargs:
