@@ -8,5 +8,7 @@ packet format
 ======
 
 basic format: |-1 byte-|-------2 bytes-----|--n bytes---|-controller.contentsize-|
+
 description : |-parser-|-Controller length-|-Controller-|---------Content--------|
+
               |---------Big Endian---------|
