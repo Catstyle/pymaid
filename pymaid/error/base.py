@@ -1,3 +1,6 @@
+import six
+
+
 class BaseMeta(type):
 
     errors = {}
@@ -27,9 +30,8 @@ class BaseMeta(type):
         return ret
 
 
+@six.add_metaclass(BaseMeta)
 class BaseError(Exception):
-
-    __metaclass__ = BaseMeta
 
     def __init__(self, **kwargs):
         if kwargs:
