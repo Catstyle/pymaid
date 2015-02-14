@@ -12,7 +12,8 @@ from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
 from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
-from pymaid.apps.monitor import MonitorServiceImpl
+from pymaid.agent import ServiceAgent
+from pymaid.apps.monitor import MonitorServiceImpl, MonitorService_Stub
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void
@@ -46,6 +47,7 @@ class Channel(RpcChannel):
         self.request_response = {}
         self.stub_response = {}
 
+        self.monitor_agent = ServiceAgent(MonitorService_Stub(self))
         self.need_heartbeat = False
         self.heartbeat_interval = 0
         self.max_heartbeat_timeout_count = 0
@@ -53,6 +55,68 @@ class Channel(RpcChannel):
         self._notify_heartbeat_connections = []
         self._server_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI-1)
         self._peer_heartbeat_timer = self.loop.timer(0, 1, priority=MAXPRI)
+
+    def _setup_server(self):
+        # only server need monitor service
+        self._had_setup_server = True
+        monitor_service = MonitorServiceImpl()
+        monitor_service.channel = self
+        self.append_service(monitor_service)
+
+    def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
+        if server_side:
+            if self.need_heartbeat:
+                conn.setup_server_heartbeat(self.max_heartbeat_timeout_count)
+        elif not ignore_heartbeat:
+            resp = self.monitor_agent.get_heartbeat_info(conn=conn)
+            if resp.need_heartbeat:
+                conn.setup_client_heartbeat(resp.heartbeat_interval)
+                self._notify_heartbeat_connections.append(conn.conn_id)
+
+    def _server_heartbeat(self):
+        # network delay compensation
+        now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
+        connections = self._income_connections
+        for conn_id in connections.keys():
+            conn = connections[conn_id]
+            if now - conn.last_check_heartbeat >= server_interval:
+                conn.last_check_heartbeat = now
+                conn.heartbeat_timeout()
+        self.logger.debug(
+            '[server_heartbeat][escaped|%f] loop done', time.time() - now
+        )
+        self._server_heartbeat_timer.again(self._server_heartbeat)
+
+    def _peer_heartbeat(self):
+        now = time.time()
+        # event iteration compensation
+        factor = self.size >= 14142 and .64 or .89
+        connections = self._outcome_connections
+        notify_heartbeat = self.monitor_agent.notify_heartbeat
+        for conn_id in self._notify_heartbeat_connections:
+            conn = connections[conn_id]
+            if not conn.need_heartbeat:
+                continue
+            if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
+                conn.last_check_heartbeat = now
+                notify_heartbeat(conn=conn)
+        self.logger.debug(
+            '[peer_heartbeat][escaped|%f] loop done', time.time() - now
+        )
+        self._peer_heartbeat_timer.again(self._peer_heartbeat)
+
+    def _do_accept(self, sock):
+        for _ in range(self.MAX_ACCEPT):
+            if self.is_full:
+                return
+            try:
+                peer_socket, address = sock.accept()
+            except socket.error as ex:
+                if ex.args[0] == socket.EWOULDBLOCK:
+                    return
+                self.logger.exception(ex)
+                raise
+            self.new_connection(peer_socket, server_side=True)
 
     def CallMethod(self, method, controller, request, response_class, callback):
         meta = controller.meta
@@ -70,11 +134,12 @@ class Channel(RpcChannel):
         else:
             meta.packet_type = NOTIFICATION
 
+        packet_buffer = controller.pack_packet()
         if controller.broadcast:
             # broadcast
             assert not require_response
-            for conn in self._income_connections.itervalues():
-                conn.send(controller)
+            for conn in self._income_connections.values():
+                conn.send(packet_buffer)
         elif controller.group:
             # small broadcast
             assert not require_response
@@ -82,9 +147,9 @@ class Channel(RpcChannel):
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
-                    conn.send(controller)
+                    conn.send(packet_buffer)
         else:
-            controller.conn.send(controller)
+            controller.conn.send(packet_buffer)
 
         if not require_response:
             return
@@ -166,14 +231,14 @@ class Channel(RpcChannel):
         else:
             assert conn_id in self._outcome_connections, conn_id
             del self._outcome_connections[conn_id]
-        for async_result in conn.transmissions.itervalues():
-            # we should not reach here with async_result left
-            # that should be an exception
-            async_result.set_exception(reason)
-        conn.transmissions.clear()
-        if conn.need_heartbeat:
-            assert conn_id in self._notify_heartbeat_connections
-            del self._notify_heartbeat_connections[conn_id]
+            for async_result in conn.transmissions.values():
+                # we should not reach here with async_result left
+                # that should be an exception
+                async_result.set_exception(reason)
+            conn.transmissions.clear()
+            if conn.need_heartbeat:
+                assert conn_id in self._notify_heartbeat_connections, conn_id
+                self._notify_heartbeat_connections.remove(conn_id)
 
     def serve_forever(self):
         wait()
@@ -185,67 +250,6 @@ class Channel(RpcChannel):
     @property
     def size(self):
         return len(self._income_connections) + len(self._outcome_connections)
-
-    def _setup_server(self):
-        # only server need monitor service
-        self._had_setup_server = True
-        monitor_service = MonitorServiceImpl()
-        monitor_service.channel = self
-        self.append_service(monitor_service)
-
-    def add_notify_heartbeat_conn(self, conn_id):
-        self._notify_heartbeat_connections.append(conn_id)
-
-    def _setup_heartbeat(self, conn, server_side, ignore_heartbeat):
-        if server_side:
-            if self.need_heartbeat:
-                conn.setup_server_heartbeat(self.max_heartbeat_timeout_count)
-        elif not ignore_heartbeat:
-            conn.setup_client_heartbeat(channel=self)
-
-    def _server_heartbeat(self):
-        # network delay compensation
-        now, server_interval = time.time(), self.heartbeat_interval * 1.1 + .3
-        connections = self._income_connections
-        for conn_id in connections.keys():
-            conn = connections[conn_id]
-            if now - conn.last_check_heartbeat >= server_interval:
-                conn.last_check_heartbeat = now
-                conn.heartbeat_timeout()
-        self.logger.debug(
-            '[server_heartbeat][escaped|%f] loop done', time.time() - now
-        )
-        self._server_heartbeat_timer.again(self._server_heartbeat)
-
-    def _peer_heartbeat(self):
-        now = time.time()
-        # event iteration compensation
-        factor = self.size >= 14142 and .64 or .89
-        connections = self._outcome_connections
-        for conn_id in self._notify_heartbeat_connections:
-            conn = connections[conn_id]
-            if not conn.need_heartbeat:
-                continue
-            if now - conn.last_check_heartbeat >= conn.heartbeat_interval * factor:
-                conn.last_check_heartbeat = now
-                conn.notify_heartbeat()
-        self.logger.debug(
-            '[peer_heartbeat][escaped|%f] loop done', time.time() - now
-        )
-        self._peer_heartbeat_timer.again(self._peer_heartbeat)
-
-    def _do_accept(self, sock):
-        for _ in xrange(self.MAX_ACCEPT):
-            if self.is_full:
-                return
-            try:
-                peer_socket, address = sock.accept()
-            except socket.error as ex:
-                if ex.args[0] == socket.EWOULDBLOCK:
-                    return
-                self.logger.exception(ex)
-                raise
-            self.new_connection(peer_socket, server_side=True)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
@@ -304,7 +308,7 @@ class Channel(RpcChannel):
             service, method = self.get_service_method(meta)
         except (ServiceNotExist, MethodNotExist) as ex:
             controller.SetFailed(ex)
-            conn.send(controller)
+            conn.send(controller.pack_packet())
             return
 
         request_class, response_class = self.get_request_response(meta)
@@ -312,7 +316,7 @@ class Channel(RpcChannel):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
             controller.content = response.SerializeToString()
-            conn.send(controller)
+            conn.send(controller.pack_packet())
 
         request = request_class()
         request.ParseFromString(controller.content)
@@ -320,7 +324,7 @@ class Channel(RpcChannel):
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(controller)
+            conn.send(controller.pack_packet())
 
     def handle_notification(self, conn, controller):
         meta = controller.meta

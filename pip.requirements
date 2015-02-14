@@ -1,2 +1,4 @@
 gevent>=1.0.1
 protobuf>=2.6.2
+inflection
+six
