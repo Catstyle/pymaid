@@ -4,6 +4,7 @@ from gevent.pool import Pool
 from pymaid.channel import Channel
 from pymaid.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
+from pymaid.utils.profiler import profiler
 
 from hello_pb2 import HelloService_Stub
 
@@ -17,13 +18,14 @@ def wrapper(pid, n):
 
 
 channel = Channel()
-service = ServiceAgent(HelloService_Stub(channel), conn=None)
+service = ServiceAgent(HelloService_Stub(channel), profiling=True)
 def main():
     import gc
     from collections import Counter
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
 
+    profiler.enable_all()
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
     for x in range(200):
@@ -42,7 +44,7 @@ def main():
     else:
         assert len(channel._outcome_connections) == 0, channel._outcome_connections
         assert len(channel._income_connections) == 0, channel._income_connections
-    #service.print_summary()
+    service.print_summary()
 
 if __name__ == "__main__":
     main()
