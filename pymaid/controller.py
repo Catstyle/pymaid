@@ -13,8 +13,8 @@ class Controller(RpcController):
         'meta', 'conn', 'broadcast', 'group', 'parser_type', '_content'
     ]
 
-    def __init__(self):
-        self.meta, self.broadcast, self.group = Meta(), False, None
+    def __init__(self, **kwargs):
+        self.meta, self.broadcast, self.group = Meta(**kwargs), False, None
         self._content = b''
 
     def Reset(self):
