@@ -84,7 +84,6 @@ RESPONSE = 2
 NOTIFICATION = 3
 
 DEFAULT_PARSER = PBParser.parser_type
-DEFAULT_PARSER = JSONParser.parser_type
 
 
 HEADER = '!BH'
