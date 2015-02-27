@@ -11,7 +11,7 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
-from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
+from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION, pack_packet
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorServiceImpl, MonitorService_Stub
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
@@ -123,7 +123,7 @@ class Channel(RpcChannel):
         meta.service_name = method.containing_service.full_name
         meta.method_name = method.name
         if not isinstance(request, Void):
-            controller.content = request.SerializeToString()
+            controller.pack_content(request)
 
         require_response = not issubclass(response_class, Void)
         if require_response:
@@ -295,7 +295,7 @@ class Channel(RpcChannel):
         def send_response(response):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            controller.content = response.SerializeToString()
+            controller.pack_content(response)
             conn.send(controller.pack_packet())
 
         request = request_class()

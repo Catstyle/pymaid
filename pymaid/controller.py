@@ -13,9 +13,9 @@ class Controller(RpcController):
         'meta', 'conn', 'broadcast', 'group', 'parser_type', '_content'
     ]
 
-    def __init__(self, **kwargs):
-        self.meta, self.broadcast, self.group = Meta(**kwargs), False, None
-        self._content = b''
+    def __init__(self, meta_buffer=None, **kwargs):
+        self.meta = meta_buffer and Meta.FromString(meta_buffer) or Meta(**kwargs)
+        self.broadcast, self.group, self._content = False, None, b''
 
     def Reset(self):
         self.meta.Clear()
@@ -37,6 +37,9 @@ class Controller(RpcController):
         self._content = value
         self.meta.content_size = len(value)
 
+    def pack_content(self, content):
+        self.content = pack_packet(content, self.parser_type)
+
     def pack_packet(self):
         parser_type = self.parser_type
         packet_buffer = pack_packet(self.meta, parser_type)
@@ -55,7 +58,7 @@ class Controller(RpcController):
             message = ErrorMessage(
                 error_code=reason.code, error_message=reason.message
             )
-            self.content = message.SerializeToString()
+            self.pack_content(message)
         else:
             self.content = repr(reason)
 
