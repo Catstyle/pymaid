@@ -15,7 +15,7 @@ from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorServiceImpl, MonitorService_Stub
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
+from pymaid.utils import pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void
 
 
@@ -208,7 +208,6 @@ class Channel(RpcChannel):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(self, sock, server_side)
         conn.set_close_cb(self.connection_closed)
-        greenlet_pool.spawn(self.handle_cb, conn)
         self._setup_heartbeat(conn, server_side, ignore_heartbeat)
 
         if server_side:
@@ -280,25 +279,6 @@ class Channel(RpcChannel):
 
     def get_stub_response_class(self, meta):
         return self.stub_response[meta.service_name + meta.method_name]
-
-    def handle_cb(self, conn):
-        recv, reason = conn.recv, None
-        handle_request = self.handle_request
-        handle_notification = self.handle_notification
-        try:
-            while 1:
-                controller = recv()
-                if not controller:
-                    break
-                controller.conn = conn
-                if controller.meta.packet_type == REQUEST:
-                    handle_request(conn, controller)
-                else:
-                    handle_notification(conn, controller)
-        except Exception as ex:
-            reason = ex
-        finally:
-            conn.close(reason)
 
     def handle_request(self, conn, controller):
         meta = controller.meta

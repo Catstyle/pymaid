@@ -10,8 +10,10 @@ from gevent.core import READ, WRITE, EVENTS
 
 from google.protobuf.message import DecodeError
 
-from pymaid.parser import unpack_header, unpack_packet, HEADER_LENGTH, RESPONSE
-from pymaid.utils import pymaid_logger_wrapper
+from pymaid.parser import (
+    unpack_header, unpack_packet, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
+)
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.error import (
     BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
 )
@@ -61,6 +63,7 @@ class Connection(object):
 
         self._socket_watcher = self.channel.loop.io(sock.fileno(), READ)
         self._socket_watcher.start(self._io_loop, pass_events=True)
+        greenlet_pool.spawn(self._handle_packet)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -172,13 +175,30 @@ class Connection(object):
             if meta.packet_type == RESPONSE:
                 self._handle_response(controller)
             else:
-                controller.parser_type = parser_type
                 self._recv_queue.put(controller)
             del self.buffers[:]
         except socket.error as ex:
             self.close(ex, reset=True)
         except Exception as ex:
             self.close(ex)
+
+    def _handle_packet(self):
+        recv, reason = self.recv, None
+        callbacks = {
+            REQUEST: self.channel.handle_request,
+            NOTIFICATION: self.channel.handle_notification,
+        }
+        try:
+            while 1:
+                controller = recv()
+                if not controller:
+                    break
+                controller.conn = self
+                callbacks[controller.meta.packet_type](self, controller)
+        except Exception as ex:
+            reason = ex
+        finally:
+            self.close(reason)
 
     def _handle_response(self, controller):
         transmission_id = controller.meta.transmission_id
