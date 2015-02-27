@@ -32,11 +32,13 @@ class Connection(object):
 
     __slots__ = [
         'channel', 'server_side', 'conn_id', 'peername', 'sockname',
-        'is_closed', 'close_cb',
-        'buffers', 'transmissions', 'transmission_id',
+        'is_closed', 'close_cb', 'transmissions', 'transmission_id',
         'need_heartbeat', 'heartbeat_interval', 'last_check_heartbeat',
         '_heartbeat_timeout_counter', '_max_heartbeat_timeout_count',
         '_socket', '_send_queue', '_recv_queue', '_socket_watcher',
+        '_header_buffers', '_header_buffers_size',
+        '_controller_buffers', '_controller_buffers_size',
+        '_content_buffers', '_content_buffers_size'
     ]
 
     def __init__(self, channel, sock, server_side):
@@ -56,7 +58,10 @@ class Connection(object):
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
-        self.buffers = []
+        self._header_buffers = memoryview(bytearray(HEADER_LENGTH))
+        self._header_buffers_size = 0
+        self._controller_buffers, self._controller_buffers_size = None, 0
+        self._content_buffers, self._content_buffers_size = None, 0
         self.transmissions = {}
         self._send_queue = Queue()
         self._recv_queue = Queue()
@@ -100,83 +105,83 @@ class Connection(object):
                 return
             self.close(ex, reset=True)
 
-    def _recv_n(self, nbytes):
-        buffers = []
-        recv, append, length = self._socket.recv, buffers.append, 0
+    def _recv_n(self, buffers, nbytes):
+        recv_into, length = self._socket.recv_into, 0
         try:
             while length < nbytes:
-                t = recv(nbytes - length)
+                t = recv_into(buffers[length:])
                 if not t:
                     raise EOF()
-                append(t)
-                length += len(t)
+                length += t
         except socket.error as ex:
             if ex.args[0] == socket.EWOULDBLOCK:
-                ret = b''.join(buffers)
+                ret = length
             else:
                 raise
         else:
-            ret = b''.join(buffers)
+            ret = length
         return ret
 
     def _handle_recv(self):
         header_length = HEADER_LENGTH
 
         # receive header
-        buffers_size = sum(map(len, self.buffers))
+        header_buf = self._header_buffers
+        header_buf_size = self._header_buffers_size
         try:
-            if buffers_size < header_length:
-                remain = header_length - buffers_size
-                buf = self._recv_n(remain)
-
-                self.buffers.append(buf)
-                if len(buf) < remain:
+            if header_buf_size < header_length:
+                remain = header_length - header_buf_size
+                received = self._recv_n(header_buf[header_buf_size:], remain)
+                self._header_buffers_size += received
+                if received < remain:
                     # received data not enough
                     return
 
-            buffers = b''.join(self.buffers)
-            buffers_size = len(buffers)
-            header = buffers[:header_length]
-            assert len(header) == header_length
-            parser_type, packet_length = unpack_header(header)
+            parser_type, packet_length = unpack_header(header_buf.tobytes())
             if packet_length >= self.MAX_PACKET_LENGTH:
                 self.close(PacketTooLarge(packet_length=packet_length))
                 return
 
-            controller_length = header_length + packet_length
-            if buffers_size < controller_length:
-                remain = controller_length - buffers_size
-                buf = self._recv_n(remain)
-
-                self.buffers.append(buf)
-                if len(buf) < remain:
+            controller_buf_size = self._controller_buffers_size
+            if not controller_buf_size:
+                self._controller_buffers = memoryview(bytearray(packet_length))
+            controller_buf = self._controller_buffers
+            if controller_buf_size < packet_length:
+                remain = packet_length - controller_buf_size
+                received = self._recv_n(
+                    controller_buf[controller_buf_size:], remain
+                )
+                self._controller_buffers_size += received
+                if received < remain:
                     # received data not enough
                     return
-                buffers += buf
 
-            buffers_size = len(buffers)
-            assert buffers_size >= controller_length
-            packet_buffer = buffers[header_length:controller_length]
+            controller = unpack_packet(controller_buf.tobytes(), parser_type)
 
-            controller = unpack_packet(packet_buffer, parser_type)
-            meta = controller.meta
-            if meta.content_size:
-                content_length = controller_length + meta.content_size
-                if buffers_size < content_length:
-                    remain = content_length - buffers_size
-                    buf = self._recv_n(remain)
-
-                    if len(buf) < remain:
+            content_size = controller.meta.content_size
+            if content_size:
+                content_buf_size = self._content_buffers_size
+                if not content_buf_size:
+                    self._content_buffers = memoryview(bytearray(content_size))
+                content_buf = self._content_buffers
+                if content_buf_size < content_size:
+                    remain = content_size - controller_buf_size
+                    received = self._recv_n(
+                        content_buf[content_buf_size:], remain
+                    )
+                    self._content_buffers_size += received
+                    if received < remain:
                         # received data not enough
-                        self.buffers.append(buf)
                         return
-                    controller.content = buffers[controller_length:] + buf
+                    controller.content = content_buf.tobytes()
 
-            if meta.packet_type == RESPONSE:
+            if controller.meta.packet_type == RESPONSE:
                 self._handle_response(controller)
             else:
                 self._recv_queue.put(controller)
-            del self.buffers[:]
+            self._header_buffers_size = self._controller_buffers_size = 0
+            self._content_buffers_size = 0
+            self._controller_buffers = self._content_buffers = None
         except socket.error as ex:
             self.close(ex, reset=True)
         except Exception as ex:
@@ -279,7 +284,8 @@ class Connection(object):
         self._recv_queue.put(None)
         self._socket_watcher.stop()
         self._socket.close()
-        del self.buffers[:]
+        self._header_buffers = self._controller_buffers = None
+        self._content_buffers = None
 
         if self.close_cb:
             self.close_cb(self, reason)

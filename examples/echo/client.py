@@ -9,7 +9,7 @@ from pymaid.utils import greenlet_pool
 
 from echo_pb2 import EchoService_Stub
 
-Connection.MAX_PACKET_LENGTH = 10000000
+Connection.MAX_PACKET_LENGTH = 1001000
 
 
 import string
