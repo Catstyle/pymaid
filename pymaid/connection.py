@@ -10,8 +10,9 @@ from gevent.core import READ, WRITE, EVENTS
 
 from google.protobuf.message import DecodeError
 
+from pymaid.controller import Controller
 from pymaid.parser import (
-    unpack_header, unpack_packet, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
+    unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.error import (
@@ -156,7 +157,9 @@ class Connection(object):
                     # received data not enough
                     return
 
-            controller = unpack_packet(controller_buf.tobytes(), parser_type)
+            controller = Controller.unpack_packet(
+                controller_buf.tobytes(), parser_type
+            )
 
             content_size = controller.meta.content_size
             if content_size:
@@ -211,14 +214,14 @@ class Connection(object):
         async_result = self.transmissions.pop(transmission_id)
 
         if controller.Failed():
-            error_message = ErrorMessage.FromString(controller.content)
+            error_message = controller.unpack_content(ErrorMessage)
             ex = BaseMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
             response_cls = self.channel.get_stub_response_class(controller.meta)
             try:
-                async_result.set(response_cls.FromString(controller.content))
+                async_result.set(controller.unpack_content(response_cls))
             except DecodeError as ex:
                 async_result.set_exception(ex)
 

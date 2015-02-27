@@ -2,7 +2,7 @@ __all__ = ['Controller']
 
 from google.protobuf.service import RpcController
 
-from pymaid.parser import pack_packet, pack_header
+from pymaid.parser import pack_packet, unpack_packet, pack_header
 from pymaid.error import BaseError
 from pymaid.pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
@@ -13,14 +13,14 @@ class Controller(RpcController):
         'meta', 'conn', 'broadcast', 'group', 'parser_type', '_content'
     ]
 
-    def __init__(self, meta_buffer=None, **kwargs):
-        self.meta = meta_buffer and Meta.FromString(meta_buffer) or Meta(**kwargs)
+    def __init__(self, meta=None, parser_type=None, **kwargs):
+        self.meta, self.parser_type = meta or Meta(**kwargs), parser_type
         self.broadcast, self.group, self._content = False, None, b''
 
     def Reset(self):
         self.meta.Clear()
         self.conn, self.broadcast, self.group = None, False, None
-        self._content = b''
+        self._content, self.parser_type = b'', None
 
     def Failed(self):
         return self.meta.is_failed
@@ -40,6 +40,9 @@ class Controller(RpcController):
     def pack_content(self, content):
         self.content = pack_packet(content, self.parser_type)
 
+    def unpack_content(self, cls):
+        return unpack_packet(self.content, cls, self.parser_type)
+
     def pack_packet(self):
         parser_type = self.parser_type
         packet_buffer = pack_packet(self.meta, parser_type)
@@ -48,6 +51,11 @@ class Controller(RpcController):
             packet_buffer,
             self._content
         ])
+
+    @classmethod
+    def unpack_packet(cls, packet_buffer, parser_type):
+        meta = unpack_packet(packet_buffer, Meta, parser_type)
+        return cls(meta=meta, parser_type=parser_type)
 
     def StartCancel(self):
         pass
