@@ -10,8 +10,6 @@ try:
     import ujson as json
 except ImportError:
     import json as json
-
-import pymaid
 from pymaid.error import ParserNotExist
 
 
@@ -50,7 +48,7 @@ class Parser(object):
         raise NotImplementedError
 
     @staticmethod
-    def unpack_packet(packet_buffer):
+    def unpack_packet(packet_buffer, cls):
         raise NotImplementedError
 
 
@@ -60,14 +58,12 @@ class PBParser(Parser):
     parser_type = 1
 
     @staticmethod
-    def pack_packet(meta):
-        return meta.SerializeToString()
+    def pack_packet(packet):
+        return packet.SerializeToString()
 
     @staticmethod
-    def unpack_packet(packet_buffer):
-        controller = pymaid.Controller(meta_buffer=packet_buffer)
-        controller.parser_type = PBParser.parser_type
-        return controller
+    def unpack_packet(packet_buffer, cls):
+        return cls.FromString(packet_buffer)
 
 
 class JSONParser(Parser):
@@ -76,17 +72,15 @@ class JSONParser(Parser):
     parser_type = 2
 
     @staticmethod
-    def pack_packet(meta):
+    def pack_packet(packet):
         return json.dumps(
-            {field.name: value for field, value in meta.ListFields()},
+            {field.name: value for field, value in packet.ListFields()},
             ensure_ascii=False,
         ).encode('utf-8')
 
     @staticmethod
-    def unpack_packet(packet_buffer):
-        controller = pymaid.Controller(**keys_to_string(json.loads(packet_buffer)))
-        controller.parser_type = JSONParser.parser_type
-        return controller
+    def unpack_packet(packet_buffer, cls):
+        return cls(**keys_to_string(json.loads(packet_buffer)))
 
 
 DEFAULT_PARSER = PBParser.parser_type
@@ -104,10 +98,10 @@ def pack_packet(packet, parser_type):
     return parsers[parser_type].pack_packet(packet)
 
 
-def unpack_packet(packet_buffer, parser_type):
+def unpack_packet(packet_buffer, cls, parser_type):
     if parser_type not in parsers:
         raise ParserNotExist(parser_type=parser_type)
-    return parsers[parser_type].unpack_packet(packet_buffer)
+    return parsers[parser_type].unpack_packet(packet_buffer, cls)
 
 
 def keys_to_string(data):

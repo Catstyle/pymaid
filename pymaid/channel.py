@@ -11,7 +11,7 @@ from gevent.hub import get_hub
 from google.protobuf.service import RpcChannel
 
 from pymaid.connection import Connection
-from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION, pack_packet
+from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
 from pymaid.agent import ServiceAgent
 from pymaid.apps.monitor import MonitorServiceImpl, MonitorService_Stub
 from pymaid.error import BaseError, ServiceNotExist, MethodNotExist
@@ -298,8 +298,7 @@ class Channel(RpcChannel):
             controller.pack_content(response)
             conn.send(controller.pack_packet())
 
-        request = request_class()
-        request.ParseFromString(controller.content)
+        request = controller.unpack_content(request_class)
         try:
             service.CallMethod(method, controller, request, send_response)
         except BaseError as ex:
@@ -315,8 +314,7 @@ class Channel(RpcChannel):
             return
 
         request_class, response_class = self.get_request_response(meta)
-        request = request_class()
-        request.ParseFromString(controller.content)
+        request = controller.unpack_content(request_class)
         try:
             service.CallMethod(method, controller, request, None)
         except BaseError:
