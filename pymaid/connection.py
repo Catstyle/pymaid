@@ -156,7 +156,7 @@ class Connection(object):
                     # received data not enough
                     return
 
-            controller = unpack_packet(controller_buf, parser_type)
+            controller = unpack_packet(controller_buf.tobytes(), parser_type)
 
             content_size = controller.meta.content_size
             if content_size:
