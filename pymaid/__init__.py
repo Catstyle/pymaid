@@ -8,7 +8,7 @@ __all__ = [
 import sys
 import six
 
-__version__ = '0.2.1'
+__version__ = '0.2.4'
 VERSION = tuple(map(int, __version__.split('.')))
 
 
