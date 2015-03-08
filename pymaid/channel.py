@@ -1,6 +1,8 @@
 __all__ = ['Channel']
 
 import time
+import six
+range = six.moves.range
 
 from gevent.event import AsyncResult
 from gevent import socket
@@ -30,6 +32,7 @@ class Channel(RpcChannel):
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 256
+    MAX_BACKLOG = 8192
     MAX_CONCURRENCY = 50000
 
     def __init__(self, loop=None):
@@ -192,7 +195,7 @@ class Channel(RpcChannel):
             self._peer_heartbeat_timer.again(self._peer_heartbeat, update=False)
         return conn
 
-    def listen(self, host, port, backlog=MAX_ACCEPT*2):
+    def listen(self, host, port, backlog=MAX_BACKLOG):
         if not self._had_setup_server:
             self._setup_server()
 

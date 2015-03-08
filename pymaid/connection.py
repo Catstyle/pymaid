@@ -2,6 +2,8 @@ __all__ = ['Connection']
 
 import time
 import struct
+import six
+range = six.moves.range
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
