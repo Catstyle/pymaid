@@ -3,7 +3,6 @@ __all__ = ['Connection']
 import time
 import struct
 import six
-range = six.moves.range
 
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
@@ -21,6 +20,9 @@ from pymaid.error import (
     BaseError, BaseMeta, HeartbeatTimeout, PacketTooLarge, EOF
 )
 from pymaid.pb.pymaid_pb2 import ErrorMessage
+
+range = six.moves.range
+error, EWOULDBLOCK = socket.error, socket.EWOULDBLOCK
 
 
 @pymaid_logger_wrapper
@@ -86,13 +88,15 @@ class Connection(object):
             self._handle_send()
 
     def _handle_send(self):
-        qsize = self._send_queue.qsize()
+        send_queue = self._send_queue
+        qsize = send_queue.qsize()
         if not qsize: 
             return
 
+        get_buf, send = send_queue.get, self._socket.send
         try:
             for _ in range(min(qsize, self.MAX_SEND)):
-                buffers = self._send_queue.get()
+                buffers = get_buf()
                 if not buffers:
                     break
 
@@ -100,10 +104,10 @@ class Connection(object):
                 sent, buffers_size = 0, len(buffers)
                 buffers = memoryview(buffers)
                 while sent < buffers_size:
-                    sent += self._socket.send(buffers[sent:])
-        except socket.error as ex:
-            if ex.args[0] == socket.EWOULDBLOCK:
-                self._send_queue.queue.appendleft(buffers[sent:])
+                    sent += send(buffers[sent:])
+        except error as ex:
+            if ex.args[0] == EWOULDBLOCK:
+                send_queue.queue.appendleft(buffers[sent:])
                 self._socket_watcher.feed(WRITE, self._io_loop, EVENTS)
                 return
             self.close(ex, reset=True)
@@ -116,8 +120,8 @@ class Connection(object):
                 if not t:
                     raise EOF()
                 length += t
-        except socket.error as ex:
-            if ex.args[0] == socket.EWOULDBLOCK:
+        except error as ex:
+            if ex.args[0] == EWOULDBLOCK:
                 ret = length
             else:
                 raise
@@ -187,7 +191,7 @@ class Connection(object):
             self._header_buffers_size = self._controller_buffers_size = 0
             self._content_buffers_size = 0
             self._controller_buffers = self._content_buffers = None
-        except socket.error as ex:
+        except error as ex:
             self.close(ex, reset=True)
         except Exception as ex:
             self.close(ex)
