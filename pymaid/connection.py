@@ -46,7 +46,6 @@ class Connection(object):
 
         self.is_closed = False
         self.close_cb = None
-        self.need_heartbeat = 0
 
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
@@ -281,8 +280,10 @@ class Connection(object):
         self._send_queue.queue.clear()
         self.w_io.stop()
         self.r_io.stop()
+        self.r_timer.stop()
         self._socket.close()
         self.setsockopt = None
+        self.buf = None
 
         if self.close_cb:
             self.close_cb(self, reason)

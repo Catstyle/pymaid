@@ -72,8 +72,12 @@ class Channel(object):
     def new_connection(self, sock, server_side, ignore_heartbeat=False):
         conn = Connection(self, sock, server_side)
         conn.set_close_cb(self.connection_closed)
-        assert conn.conn_id not in self.incoming_connections
-        self.incoming_connections[conn.conn_id] = conn
+        if server_side:
+            assert conn.conn_id not in self.outgoing_connections
+            self.outgoing_connections[conn.conn_id] = conn
+        else:
+            assert conn.conn_id not in self.incoming_connections
+            self.incoming_connections[conn.conn_id] = conn
         self.connection_made(conn)
 
         self.logger.debug(
