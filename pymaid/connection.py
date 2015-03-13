@@ -4,16 +4,16 @@ import struct
 import six
 from io import BytesIO
 
-from gevent import getcurrent, get_hub
-from gevent.greenlet import Greenlet
-from gevent.queue import Queue
-from gevent.socket import error as socket_error
 from errno import EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN
 from _socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
-from gevent.core import READ, WRITE, EVENTS
 
+from gevent import getcurrent, get_hub
+from gevent.greenlet import Greenlet
+from gevent.queue import Queue
+from gevent.socket import error as socket_error
+from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.error import BaseError, EOF

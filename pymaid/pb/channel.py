@@ -72,16 +72,8 @@ class PBChannel(Channel):
         assert service.DESCRIPTOR.full_name not in self.services
         self.services[service.DESCRIPTOR.full_name] = service
 
-    def connection_made(self, conn):
-        pass
-
     def connection_closed(self, conn, reason=None):
-        conn_id = conn.conn_id
-        if conn.server_side:
-            pass
-        else:
-            assert conn_id in self.outgoing_connections, conn_id
-            del self.outgoing_connections[conn_id]
+        if not conn.server_side:
             for async_result in conn.transmissions.values():
                 # we should not reach here with async_result left
                 # that should be an exception

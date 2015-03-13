@@ -49,7 +49,23 @@ class Channel(object):
                     return
                 self.logger.exception(ex)
                 raise
-            self.new_connection(peer_socket, server_side=True)
+            self._new_connection(peer_socket, server_side=True)
+
+    def _new_connection(self, sock, server_side, ignore_heartbeat=False):
+        conn = Connection(self, sock, server_side)
+        conn.set_close_cb(self.connection_closed)
+        if server_side:
+            assert conn.conn_id not in self.outgoing_connections
+            self.outgoing_connections[conn.conn_id] = conn
+        else:
+            assert conn.conn_id not in self.incoming_connections
+            self.incoming_connections[conn.conn_id] = conn
+        self.logger.debug(
+            '[conn|%d][host|%s][peer|%s] made',
+            conn.conn_id, conn.sockname, conn.peername
+        )
+        self.connection_made(conn)
+        return conn
 
     @property
     def is_full(self):
@@ -57,7 +73,7 @@ class Channel(object):
 
     def connect(self, host, port, timeout=None, ignore_heartbeat=False):
         sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self.new_connection(sock, False, ignore_heartbeat)
+        conn = self._new_connection(sock, False, ignore_heartbeat)
         return conn
 
     def listen(self, host, port, backlog=MAX_BACKLOG):
@@ -68,23 +84,6 @@ class Channel(object):
         sock.setblocking(0)
         accept_watcher = self.loop.io(sock.fileno(), READ)
         self.listeners.append((sock, accept_watcher))
-
-    def new_connection(self, sock, server_side, ignore_heartbeat=False):
-        conn = Connection(self, sock, server_side)
-        conn.set_close_cb(self.connection_closed)
-        if server_side:
-            assert conn.conn_id not in self.outgoing_connections
-            self.outgoing_connections[conn.conn_id] = conn
-        else:
-            assert conn.conn_id not in self.incoming_connections
-            self.incoming_connections[conn.conn_id] = conn
-        self.connection_made(conn)
-
-        self.logger.debug(
-            '[conn|%d][host|%s][peer|%s] made',
-            conn.conn_id, conn.sockname, conn.peername
-        )
-        return conn
 
     def connection_made(self, conn):
         pass
@@ -99,6 +98,6 @@ class Channel(object):
 
     def start(self):
         [io.start(self._do_accept, s) for s, io in self.listeners if not io.active]
-    
+
     def stop(self):
         [io.stop() for _, io in self.listeners if io.active]
