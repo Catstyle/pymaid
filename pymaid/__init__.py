@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 __all__ = [
     'ServiceAgent', 'Channel', 'Controller', 'Connection',
-    'Error', 'Warning', 'parser', 'logger', 'pool',
+    'Error', 'Warning', 'parser', 'logger', 'pool', 'serve_forever'
 ]
 
 
@@ -44,3 +44,8 @@ from pymaid.connection import Connection
 from pymaid import parser
 from pymaid.error import Error, Warning
 from pymaid.utils import logger, pool
+
+
+from gevent import wait
+def serve_forever():
+    wait()
