@@ -3,12 +3,18 @@ __all__ = ['PBChannel']
 import six
 
 from gevent.event import AsyncResult
+from gevent.socket import error as socket_error
 
 from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
-from pymaid.parser import REQUEST, RESPONSE, NOTIFICATION
-from pymaid.error import BaseError, BaseMeta, ServiceNotExist, MethodNotExist
+from pymaid.controller import Controller
+from pymaid.parser import (
+    unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
+)
+from pymaid.error import (
+    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge
+)
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
@@ -17,6 +23,8 @@ range = six.moves.range
 
 @pymaid_logger_wrapper
 class PBChannel(Channel):
+
+    MAX_PACKET_LENGTH = 8 * 1024
 
     def __init__(self, loop=None):
         super(PBChannel, self).__init__(loop)
@@ -79,6 +87,37 @@ class PBChannel(Channel):
                 # that should be an exception
                 async_result.set_exception(reason)
             conn.transmissions.clear()
+
+    def connection_handler(self, conn):
+        header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
+        read, unpack_packet = conn.read, Controller.unpack_packet
+        callbacks = {
+            REQUEST: self.handle_request,
+            RESPONSE: self.handle_response,
+            NOTIFICATION: self.handle_notification,
+        }
+        try:
+            while 1:
+                header = read(header_length)
+                parser_type, packet_length = unpack_header(header)
+                if packet_length > max_packet_length:
+                    conn.close(PacketTooLarge(packet_length=packet_length))
+                    break
+
+                controller_buf = read(packet_length)
+                controller = unpack_packet(controller_buf, parser_type)
+                meta = controller.meta
+                content_size = meta.content_size
+                if content_size:
+                    content = read(content_size)
+                    controller.content = content
+                callbacks[meta.packet_type](conn, controller)
+        except socket_error as ex:
+            conn.close(ex, reset=True)
+        except Exception as ex:
+            conn.close(ex)
+        else:
+            conn.close()
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
@@ -151,10 +190,10 @@ class PBChannel(Channel):
             # failed silently when handle_notification
             pass
 
-    def handle_response(self, controller):
+    def handle_response(self, conn, controller):
         transmission_id = controller.meta.transmission_id
-        assert transmission_id in self.transmissions
-        async_result = self.transmissions.pop(transmission_id)
+        assert transmission_id in conn.transmissions
+        async_result = conn.transmissions.pop(transmission_id)
 
         if controller.Failed():
             error_message = controller.unpack_content(ErrorMessage)
@@ -162,7 +201,7 @@ class PBChannel(Channel):
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response_cls = self.channel.get_stub_response_class(controller.meta)
+            response_cls = self.get_stub_response_class(controller.meta)
             try:
                 async_result.set(controller.unpack_content(response_cls))
             except DecodeError as ex:
