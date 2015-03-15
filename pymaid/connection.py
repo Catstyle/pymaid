@@ -29,10 +29,8 @@ invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN)
 class Connection(object):
 
     CONN_ID = 1
-    LINGER_PACK = struct.pack('ii', 1, 0)
-
     MAX_SEND = 5
-    MAX_PACKET_LENGTH = 8 * 1024
+    LINGER_PACK = struct.pack('ii', 1, 0)
 
     def __init__(self, channel, sock, server_side):
         self.channel = channel
@@ -56,9 +54,8 @@ class Connection(object):
 
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
         self.r_gr, self.r_timer, self.feed_write = None, timer(0), False
-        if server_side:
-            self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
-            self.s_gr.link(self.close)
+        self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
+        self.s_gr.link(self.close)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -278,6 +275,7 @@ class Connection(object):
             )
 
         self._send_queue.queue.clear()
+        self.s_gr.kill(block=True)
         self.w_io.stop()
         self.r_io.stop()
         self.r_timer.stop()

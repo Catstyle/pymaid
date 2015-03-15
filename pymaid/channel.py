@@ -55,11 +55,11 @@ class Channel(object):
         conn = Connection(self, sock, server_side)
         conn.set_close_cb(self.connection_closed)
         if server_side:
-            assert conn.conn_id not in self.outgoing_connections
-            self.outgoing_connections[conn.conn_id] = conn
-        else:
             assert conn.conn_id not in self.incoming_connections
             self.incoming_connections[conn.conn_id] = conn
+        else:
+            assert conn.conn_id not in self.outgoing_connections
+            self.outgoing_connections[conn.conn_id] = conn
         self.logger.debug(
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
