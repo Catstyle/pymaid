@@ -55,7 +55,7 @@ class Connection(object):
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
         self.r_gr, self.r_timer, self.feed_write = None, timer(0), False
         self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
-        self.s_gr.link(self.close)
+        self.s_gr.link_exception(self.close)
 
     def _setsockopt(self, sock):
         sock.setblocking(0)
@@ -109,25 +109,6 @@ class Connection(object):
         finally:
             self.r_io.stop()
 
-    def _recv(self, buffers, size):
-        recv_into, length = self._socket.recv_into, 0
-        try:
-            while 1:
-                t = recv_into(buffers[length:])
-                if not t:
-                    raise EOF
-                length += t
-                if length >= size:
-                    break
-        except socket_error as ex:
-            if ex.errno == EWOULDBLOCK:
-                ret = length
-            else:
-                raise
-        else:
-            ret = length
-        return ret
-
     def _read(self, size):
         buf = self.buf
         buf.seek(0, 2)
@@ -138,26 +119,29 @@ class Connection(object):
             data = buf.read(size)
             self.buf.write(buf.read())
             return data
-        recv, r_wait, length, remain = self._recv, self._r_wait, 0, size-bufsize
-        membuf = memoryview(bytearray(remain))
+        recv, r_wait = self._socket.recv, self._r_wait
+        length, remain = 0, size - bufsize
         while 1:
             try:
-                received = recv(membuf, remain)
+                data = recv(remain)
             except socket_error as ex:
+                if ex.errno == EWOULDBLOCK:
+                    r_wait()
+                    continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
-                    return ''
+                    return buf.getvalue()
                 raise
-            if received == size and not bufsize:
-                return membuf.tobytes()
-            if received == remain:
+            if not data:
                 break
-            else:
-                # EWOULDBLOCK
-                r_wait()
-            remain -= received
-        buf.write(membuf.tobytes())
-        del membuf
+            n = len(data)
+            if n == size and not bufsize:
+                return data
+            buf.write(data)
+            del data
+            if n == remain:
+                break
+            remain -= n
         return buf.getvalue()
 
     def _readline(self, size):
@@ -173,37 +157,36 @@ class Connection(object):
                 return bline
             del bline
             buf.seek(0, 2)
-        recv, r_wait, remain = self._recv, self._r_wait, size - bufsize
-        received, bytebuf = 0, bytearray(remain)
-        membytebuf = memoryview(bytebuf)
+        recv, r_wait, remain = self._socket.recv, self._r_wait, size - bufsize
         while 1:
             try:
-                rsize = recv(membytebuf, remain)
+                data = recv(remain)
             except socket_error as ex:
+                if ex.errno == EWOULDBLOCK:
+                    r_wait()
+                    continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
-                    return ''
+                    return buf.getvalue()
                 raise
-            nl = bytebuf.find('\n', received, received+rsize)
-            received += rsize
+            nl = data.find('\n', 0, remain)
             if nl >= 0:
                 nl += 1
-                self.buf.write(membytebuf[nl:received].tobytes())
+                self.buf.write(data[nl:])
                 if bufsize:
-                    buf.write(membytebuf[:nl].tobytes())
+                    buf.write(data[:nl])
                     break
                 else:
-                    return membytebuf[:nl].tobytes()
-            if rsize == size and not bufsize:
-                return membytebuf.tobytes()
-            if rsize == remain:
-                buf.write(membytebuf.tobytes())
+                    return data[:nl]
+            n = len(data)
+            if n == size and not bufsize:
+                return data
+            if n >= remain:
+                buf.write(data[:remain])
+                self.buf.write(data[remain:])
                 break
-            else:
-                # EWOULDBLOCK
-                r_wait()
-            remain -= rsize
-        del membytebuf, bytebuf
+            buf.write(data)
+            remain -= n
         return buf.getvalue()
 
     def read(self, size, timeout=None):
@@ -275,7 +258,7 @@ class Connection(object):
             )
 
         self._send_queue.queue.clear()
-        self.s_gr.kill(block=True)
+        self.s_gr.kill(block=False)
         self.w_io.stop()
         self.r_io.stop()
         self.r_timer.stop()

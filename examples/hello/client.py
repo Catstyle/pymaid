@@ -32,6 +32,8 @@ def main():
     try:
         pool.join()
     except:
+        import traceback
+        traceback.print_exc()
         print(len(channel.outgoing_connections))
         print(len(channel.incoming_connections))
         print(pool.size, len(pool.greenlets))
