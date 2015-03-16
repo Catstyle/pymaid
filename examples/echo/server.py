@@ -1,6 +1,7 @@
 from __future__ import print_function
 
-from pymaid.channel import Channel
+import pymaid
+from pymaid.pb.channel import PBChannel
 from pymaid.connection import Connection
 
 from pymaid.utils import greenlet_pool
@@ -26,17 +27,19 @@ def main():
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
 
-    channel = Channel()
+    channel = PBChannel()
     channel.listen("127.0.0.1", 8888)
     impl = EchoServiceImpl()
     channel.append_service(impl)
-    #channel.enable_heartbeat(10, 3)
+    channel.start()
     try:
         profiler.enable_all()
-        channel.serve_forever()
+        pymaid.serve_forever()
     except:
-        print(len(channel._outcome_connections))
-        print(len(channel._income_connections))
+        import traceback
+        traceback.print_exc()
+        print(len(channel.outgoing_connections))
+        print(len(channel.incoming_connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
         objects = gc.get_objects()
