@@ -1,4 +1,5 @@
-from pymaid.channel import Channel
+import pymaid
+from pymaid.pb.channel import PBChannel
 from rpc_pb2 import RemoteError
 from error import PlayerNotExist
 
@@ -10,10 +11,11 @@ class RemoteErrorImpl(RemoteError):
 
 
 def main():
-    channel = Channel()
+    channel = PBChannel()
     channel.listen("127.0.0.1", 8888)
     channel.append_service(RemoteErrorImpl())
-    channel.serve_forever()
+    channel.start()
+    pymaid.serve_forever()
 
 
 if __name__ == "__main__":
