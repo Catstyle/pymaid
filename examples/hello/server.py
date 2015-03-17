@@ -1,18 +1,19 @@
 from __future__ import print_function
 
+import pymaid
 from pymaid.channel import Channel
-from pymaid.utils import greenlet_pool
-
-from hello_pb2 import HelloResponse
-from hello_pb2 import HelloService
 
 
-class HelloServiceImpl(HelloService):
+class Channel(Channel):
 
-    def hello(self, controller, request, callback):
-        response = HelloResponse()
-        response.message = "from pymaid"
-        callback(response)
+    def connection_handler(self, conn):
+        read, write = conn.readline, conn.write
+        while 1:
+            data = read(1024)
+            if not data:
+                break
+            write(data)
+
 
 def main():
     import gc
@@ -22,14 +23,12 @@ def main():
 
     channel = Channel()
     channel.listen("127.0.0.1", 8888)
-    channel.append_service(HelloServiceImpl())
-    channel.enable_heartbeat(10, 3)
+    channel.start()
     try:
-        channel.serve_forever()
+        pymaid.serve_forever()
     except:
-        print(len(channel._outcome_connections))
-        print(len(channel._income_connections))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+        print(len(channel.outgoing_connections))
+        print(len(channel.incoming_connections))
 
         objects = gc.get_objects()
         print(Counter(map(type, objects)))
