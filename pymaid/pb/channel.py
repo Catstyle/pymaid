@@ -13,7 +13,7 @@ from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
 from pymaid.error import (
-    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge
+    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge, EOF
 )
 from pymaid.utils import pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
@@ -54,12 +54,12 @@ class PBChannel(Channel):
         if controller.broadcast:
             # broadcast
             assert not require_response
-            for conn in self._income_connections.values():
+            for conn in self.incoming_connections.values():
                 conn.send(packet_buffer)
         elif controller.group:
             # small broadcast
             assert not require_response
-            get_conn = self.get_income_connection
+            get_conn = self.incoming_connections.get
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
@@ -108,6 +108,7 @@ class PBChannel(Channel):
 
                 controller_buf = read(packet_length)
                 controller = unpack_packet(controller_buf, parser_type)
+                controller.conn = conn
                 meta = controller.meta
                 content_size = meta.content_size
                 if content_size:
@@ -119,7 +120,7 @@ class PBChannel(Channel):
         except Exception as ex:
             conn.close(ex)
         else:
-            conn.close()
+            conn.close(EOF)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
