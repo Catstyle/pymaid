@@ -1,6 +1,6 @@
 from gevent.pool import Pool
 
-from pymaid.channel import Channel
+from pymaid.pb.channel import PBChannel
 from pymaid.agent import ServiceAgent
 
 from rpc_pb2 import RemoteError_Stub
@@ -20,7 +20,7 @@ def wrapper(pid, n):
     conn.close()
 
 cnt = 0
-channel = Channel()
+channel = PBChannel()
 service = ServiceAgent(RemoteError_Stub(channel), conn=None)
 def main():
     pool = Pool()
@@ -29,8 +29,6 @@ def main():
         pool.spawn(wrapper, x, 1)
 
     pool.join()
-    assert len(channel._outcome_connections) == 0, channel._outcome_connections
-    assert len(channel._income_connections) == 0, channel._income_connections
     assert cnt == 3000
 
 if __name__ == "__main__":
