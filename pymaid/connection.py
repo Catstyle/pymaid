@@ -1,15 +1,17 @@
 __all__ = ['Connection']
 
+import sys
 import struct
 import six
 from io import BytesIO
+from traceback import print_exc
 
 from errno import EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN
 from _socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
 
-from gevent import getcurrent, get_hub
+from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
 from gevent.socket import error as socket_error
@@ -53,7 +55,7 @@ class Connection(object):
         self._send_queue = Queue()
 
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
-        self.r_gr, self.r_timer, self.feed_write = None, timer(0), False
+        self.r_gr, self.feed_write = None, False
         self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
         self.s_gr.link_exception(self.close)
 
@@ -110,6 +112,13 @@ class Connection(object):
         finally:
             self.r_io.stop()
 
+    def _r_timeout(self):
+        assert self.r_gr, 'invalid r_gr'
+        try:
+            self.r_gr.throw(Timeout)
+        except:
+            print_exc(file=sys.stderr)
+
     def _read(self, size):
         buf = self.buf
         buf.seek(0, 2)
@@ -127,7 +136,11 @@ class Connection(object):
                 data = recv(remain)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
-                    r_wait()
+                    try:
+                        r_wait()
+                    except Timeout:
+                        self.buf = buf
+                        raise
                     continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
@@ -164,7 +177,11 @@ class Connection(object):
                 data = recv(remain)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
-                    r_wait()
+                    try:
+                        r_wait()
+                    except Timeout:
+                        self.buf = buf
+                        raise
                     continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
@@ -201,7 +218,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.again(self._r_timeout)
+            self.r_timer.start(self._r_timeout)
             try:
                 return self._read(size)
             finally:
@@ -219,7 +236,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.again(self._r_timeout)
+            self.r_timer.start(self._r_timeout)
             try:
                 return self._readline(size)
             finally:
@@ -262,7 +279,6 @@ class Connection(object):
         self.s_gr.kill(block=False)
         self.w_io.stop()
         self.r_io.stop()
-        self.r_timer.stop()
         self._socket.close()
         self.setsockopt = None
         self.buf = None
