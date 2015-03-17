@@ -16,7 +16,7 @@ from gevent.socket import error as socket_error
 from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
-from pymaid.error import BaseError, EOF
+from pymaid.error import BaseError
 
 range = six.moves.range
 hub = get_hub()
@@ -37,7 +37,7 @@ class Connection(object):
         self.server_side = server_side
         self.transmission_id = 1
 
-        self._setsockopt(sock)
+        self._setsockopt(sock, server_side)
         self._socket = sock
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
@@ -57,12 +57,13 @@ class Connection(object):
         self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
         self.s_gr.link_exception(self.close)
 
-    def _setsockopt(self, sock):
+    def _setsockopt(self, sock, server_side):
         sock.setblocking(0)
         self.setsockopt = setsockopt = sock.setsockopt
         setsockopt(SOL_TCP, TCP_NODELAY, 1)
         setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
-        setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
+        if server_side:
+            setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
     def _io_read(self):
         assert self.r_gr, 'nowhere to go'
