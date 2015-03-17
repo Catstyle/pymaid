@@ -99,6 +99,8 @@ class PBChannel(Channel):
         try:
             while 1:
                 header = read(header_length)
+                if not header:
+                    break
                 parser_type, packet_length = unpack_header(header)
                 if packet_length > max_packet_length:
                     conn.close(PacketTooLarge(packet_length=packet_length))
