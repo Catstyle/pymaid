@@ -120,7 +120,7 @@ class PBChannel(Channel):
         except Exception as ex:
             conn.close(ex)
         else:
-            conn.close(EOF)
+            conn.close(EOF, reset=True)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
