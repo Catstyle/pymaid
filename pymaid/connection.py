@@ -187,6 +187,8 @@ class Connection(object):
                 if ex.errno in invalid_conn_error:
                     return buf.getvalue()
                 raise
+            if not data:
+                break
             nl = data.find('\n', 0, remain)
             if nl >= 0:
                 nl += 1
