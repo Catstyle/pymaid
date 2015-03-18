@@ -2,8 +2,9 @@ __all__ = ['PBChannel']
 
 import six
 
-from gevent.event import AsyncResult
 from gevent.socket import error as socket_error
+from gevent.queue import Queue
+from gevent.event import AsyncResult
 
 from google.protobuf.message import DecodeError
 
@@ -15,7 +16,7 @@ from pymaid.parser import (
 from pymaid.error import (
     BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge, EOF
 )
-from pymaid.utils import pymaid_logger_wrapper
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
 range = six.moves.range
@@ -91,15 +92,18 @@ class PBChannel(Channel):
     def connection_handler(self, conn):
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
         read, unpack_packet = conn.read, Controller.unpack_packet
+        tasks_queue, handle_response = Queue(), self.handle_response
+        greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         callbacks = {
             REQUEST: self.handle_request,
-            RESPONSE: self.handle_response,
             NOTIFICATION: self.handle_notification,
         }
+        new_task = tasks_queue.put
         try:
             while 1:
                 header = read(header_length)
                 if not header:
+                    conn.close(EOF, reset=True)
                     break
                 parser_type, packet_length = unpack_header(header)
                 if packet_length > max_packet_length:
@@ -110,17 +114,31 @@ class PBChannel(Channel):
                 controller = unpack_packet(controller_buf, parser_type)
                 controller.conn = conn
                 meta = controller.meta
-                content_size = meta.content_size
+                content_size, packet_type = meta.content_size, meta.packet_type
                 if content_size:
                     content = read(content_size)
                     controller.content = content
-                callbacks[meta.packet_type](conn, controller)
+                if packet_type == RESPONSE:
+                    handle_response(conn, controller)
+                else:
+                    new_task((callbacks[packet_type], conn, controller))
         except socket_error as ex:
             conn.close(ex, reset=True)
         except Exception as ex:
             conn.close(ex)
-        else:
-            conn.close(EOF, reset=True)
+        new_task(None)
+
+    def sequential_worker(self, tasks_queue):
+        get_task = tasks_queue.get
+        try:
+            while 1:
+                task = get_task()
+                if not task:
+                    break
+                callback, conn, controller = task
+                callback(conn, controller)
+        except Exception as ex:
+            conn.close(ex)
 
     def get_service_method(self, meta):
         service_name, method_name = meta.service_name, meta.method_name
