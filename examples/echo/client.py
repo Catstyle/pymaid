@@ -14,7 +14,7 @@ Connection.MAX_PACKET_LENGTH = 1001000
 
 message = 'a' * 1000000
 def wrapper(pid, n, message=message):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect(("127.0.0.1", 8888))
     for x in range(n):
         response = service.echo(request, conn=conn)
         assert response.message == message, len(response.message)
@@ -46,7 +46,6 @@ def main():
     objects = gc.get_objects()
     print(Counter(map(type, objects)))
     print()
-    service.print_summary()
 
 if __name__ == "__main__":
     main()

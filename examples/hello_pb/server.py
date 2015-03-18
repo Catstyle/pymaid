@@ -22,7 +22,7 @@ def main():
     gc.enable()
 
     channel = PBChannel()
-    channel.listen("127.0.0.1", 8888)
+    channel.listen(("127.0.0.1", 8888))
     channel.append_service(HelloServiceImpl())
     channel.start()
     try:

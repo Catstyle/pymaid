@@ -1,6 +1,6 @@
 __all__ = ['Channel']
 
-import socket
+import os
 import _socket
 from _socket import socket as realsocket
 
@@ -12,9 +12,10 @@ from gevent.core import READ
 from gevent.hub import get_hub
 
 from pymaid.connection import Connection
-from pymaid.utils import pymaid_logger_wrapper
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 
 range = six.moves.range
+string_types = six.string_types
 del six
 
 
@@ -49,46 +50,63 @@ class Channel(object):
                     return
                 self.logger.exception(ex)
                 raise
-            self._new_connection(peer_socket, server_side=True)
+            conn = Connection(sock=peer_socket, server_side=True)
+            self._connection_attached(conn)
 
-    def _new_connection(self, sock, server_side, ignore_heartbeat=False):
-        conn = Connection(self, sock, server_side)
-        conn.set_close_cb(self.connection_closed)
-        if server_side:
+    def _connection_attached(self, conn):
+        conn.set_close_cb(self._connection_detached)
+        if conn.server_side:
             assert conn.conn_id not in self.incoming_connections
             self.incoming_connections[conn.conn_id] = conn
         else:
             assert conn.conn_id not in self.outgoing_connections
             self.outgoing_connections[conn.conn_id] = conn
-        self.logger.debug(
+        self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
         )
-        self.connection_made(conn)
-        return conn
+        conn.s_gr = greenlet_pool.spawn(self.connection_handler, conn)
+        conn.s_gr.link_exception(conn.close)
+        self.connection_attached(conn)
+
+    def _connection_detached(self, conn, reason=None):
+        conn.s_gr.kill(block=False)
+        self.connection_detached(conn, reason)
 
     @property
     def is_full(self):
         return len(self.incoming_connections) >= self.MAX_CONCURRENCY
 
-    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
-        sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self._new_connection(sock, False, ignore_heartbeat)
+    def connect(self, address, family=2, type_=1, timeout=None):
+        if isinstance(address, string_types):
+            family = 1
+        conn = Connection(family=family, type_=type_, server_side=False)
+        conn.connect(address, timeout)
+        self._connection_attached(conn)
         return conn
 
-    def listen(self, host, port, backlog=MAX_BACKLOG):
-        sock = realsocket(_socket.AF_INET, _socket.SOCK_STREAM, 0)
+    def listen(self, address, type_=1, backlog=MAX_BACKLOG):
+        if isinstance(address, string_types):
+            try:
+                os.unlink(address)
+            except OSError:
+                if os.path.exists(address):
+                    raise
+            family = 1
+        else:
+            family = 2
+        sock = realsocket(family, type_)
         sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
-        sock.bind((host, port))
+        sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
         accept_watcher = self.loop.io(sock.fileno(), READ)
         self.listeners.append((sock, accept_watcher))
 
-    def connection_made(self, conn):
+    def connection_attached(self, conn):
         pass
 
-    def connection_closed(self, conn, reason=None):
+    def connection_detached(self, conn, reason=None):
         pass
 
     def connection_handler(self, conn):

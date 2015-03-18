@@ -8,7 +8,7 @@ from error import PlayerNotExist
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect(("127.0.0.1", 8888))
     global cnt
     for x in range(n):
         try:

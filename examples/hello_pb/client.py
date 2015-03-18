@@ -4,13 +4,12 @@ from gevent.pool import Pool
 from pymaid.pb.channel import PBChannel
 from pymaid.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
-#from pymaid.utils.profiler import profiler
 
 from hello_pb2 import HelloService_Stub
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect(("127.0.0.1", 8888))
     for x in range(n):
         response = service.hello(conn=conn)
         assert response.message == 'from pymaid', response.message
@@ -25,7 +24,6 @@ def main():
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
 
-    #profiler.enable_all()
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
     for x in range(200):
@@ -43,7 +41,6 @@ def main():
 
         objects = gc.get_objects()
         print(Counter(map(type, objects)))
-    #service.print_summary()
 
 if __name__ == "__main__":
     main()

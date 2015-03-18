@@ -22,7 +22,7 @@ def main():
     gc.enable()
 
     channel = Channel()
-    channel.listen("127.0.0.1", 8888)
+    channel.listen('/tmp/hello.sock')
     channel.start()
     try:
         pymaid.serve_forever()
