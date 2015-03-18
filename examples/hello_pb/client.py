@@ -43,9 +43,6 @@ def main():
 
         objects = gc.get_objects()
         print(Counter(map(type, objects)))
-    else:
-        assert len(channel.outgoing_connections) == 0, channel.outgoing_connections.keys()
-        assert len(channel.incoming_connections) == 0, channel.incoming_connections.keys()
     #service.print_summary()
 
 if __name__ == "__main__":
