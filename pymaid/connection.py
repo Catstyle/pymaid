@@ -1,12 +1,17 @@
 __all__ = ['Connection']
 
 import sys
+from os import strerror
+
 import struct
 import six
 from io import BytesIO
 from traceback import print_exc
 
-from errno import EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN
+from errno import (
+    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS
+)
+from _socket import socket as realsocket, error as socket_error
 from _socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
@@ -14,10 +19,9 @@ from _socket import (
 from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
 from gevent.queue import Queue
-from gevent.socket import error as socket_error
 from gevent.core import READ, WRITE, EVENTS
 
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
+from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseError
 
 range = six.moves.range
@@ -25,6 +29,7 @@ hub = get_hub()
 io, timer = hub.loop.io, hub.loop.timer
 del hub
 invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN)
+conn_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 
 
 @pymaid_logger_wrapper
@@ -34,36 +39,29 @@ class Connection(object):
     MAX_SEND = 5
     LINGER_PACK = struct.pack('ii', 1, 0)
 
-    def __init__(self, channel, sock, server_side):
-        self.channel = channel
-        self.server_side = server_side
-        self.transmission_id = 1
-
+    def __init__(self, sock=None, family=2, type_=1, proto=0, server_side=False):
+        self._socket = sock = sock or realsocket(family, type_, proto)
+        sock.setblocking(0)
         self._setsockopt(sock, server_side)
         self._socket = sock
-        self.peername = sock.getpeername()
-        self.sockname = sock.getsockname()
 
-        self.is_closed = False
-        self.close_cb = None
+        self.server_side, self.buf = server_side, BytesIO()
+        self.transmission_id, self.transmissions = 1, {}
+        self.is_closed, self.close_cb = False, None
 
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
-        self.buf = BytesIO()
-        self.transmissions = {}
         self._send_queue = Queue()
 
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
         self.r_gr, self.feed_write = None, False
-        self.s_gr = greenlet_pool.spawn(channel.connection_handler, self)
-        self.s_gr.link_exception(self.close)
 
     def _setsockopt(self, sock, server_side):
-        sock.setblocking(0)
         self.setsockopt = setsockopt = sock.setsockopt
-        setsockopt(SOL_TCP, TCP_NODELAY, 1)
-        setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
+        if sock.family == 2:
+            setsockopt(SOL_TCP, TCP_NODELAY, 1)
+            setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
         if server_side:
             setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
@@ -252,6 +250,36 @@ class Connection(object):
             self._io_write()
     send = write
 
+    @property
+    def fd(self):
+        return self._socket.fileno()
+
+    def connect(self, address, timeout=None):
+        sock = self._socket
+        errno = sock.connect_ex(address)
+        if errno in conn_error:
+            rw_io = io(self.fd, READ | WRITE)
+            rw_gr = getcurrent()
+            rw_io.start(rw_gr.switch)
+            if timeout:
+                rw_timer = timer(timeout)
+                rw_timer.start(self._gr_timeout, rw_gr)
+            try:
+                rw_gr.parent.switch()
+            finally:
+                if timeout:
+                    rw_timer.stop()
+                rw_io.stop()
+                rw_timer = rw_io = None
+            errno = sock.connect_ex(address)
+        if errno != 0 and errno != EISCONN:
+            raise socket_error(errno, strerror(errno))
+
+    def set_close_cb(self, close_cb):
+        assert not self.close_cb
+        assert callable(close_cb)
+        self.close_cb = close_cb
+
     def close(self, reason=None, reset=False):
         if self.is_closed:
             return
@@ -278,7 +306,6 @@ class Connection(object):
             )
 
         self._send_queue.queue.clear()
-        self.s_gr.kill(block=False)
         self.w_io.stop()
         self.r_io.stop()
         self._socket.close()
@@ -289,7 +316,10 @@ class Connection(object):
             self.close_cb(self, reason)
         self.close_cb = None
 
-    def set_close_cb(self, close_cb):
-        assert not self.close_cb
-        assert callable(close_cb)
-        self.close_cb = close_cb
+    @property
+    def peername(self):
+        return self._socket.getpeername()
+
+    @property
+    def sockname(self):
+        return self._socket.getsockname()

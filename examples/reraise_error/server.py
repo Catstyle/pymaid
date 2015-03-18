@@ -12,7 +12,7 @@ class RemoteErrorImpl(RemoteError):
 
 def main():
     channel = PBChannel()
-    channel.listen("127.0.0.1", 8888)
+    channel.listen(("127.0.0.1", 8888))
     channel.append_service(RemoteErrorImpl())
     channel.start()
     pymaid.serve_forever()

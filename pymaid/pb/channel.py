@@ -14,7 +14,7 @@ from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
 from pymaid.error import (
-    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge, EOF
+    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge
 )
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
@@ -81,7 +81,7 @@ class PBChannel(Channel):
         assert service.DESCRIPTOR.full_name not in self.services
         self.services[service.DESCRIPTOR.full_name] = service
 
-    def connection_closed(self, conn, reason=None):
+    def connection_detached(self, conn, reason=None):
         if not conn.server_side:
             for async_result in conn.transmissions.values():
                 # we should not reach here with async_result left
@@ -103,7 +103,7 @@ class PBChannel(Channel):
             while 1:
                 header = read(header_length)
                 if not header:
-                    conn.close(EOF, reset=True)
+                    conn.close(reset=True)
                     break
                 parser_type, packet_length = unpack_header(header)
                 if packet_length > max_packet_length:

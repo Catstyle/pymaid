@@ -6,7 +6,7 @@ from pymaid.utils import greenlet_pool
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect('/tmp/hello.sock')
     req = '1234567890' * 100 + '\n'
     req_size = len(req)
     read, write = conn.readline, conn.write
