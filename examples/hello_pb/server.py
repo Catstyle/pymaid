@@ -16,13 +16,9 @@ class HelloServiceImpl(HelloService):
         callback(response)
 
 def main():
-    import gc
-    from collections import Counter
-    gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
-    gc.enable()
-
     channel = PBChannel()
-    channel.listen(("127.0.0.1", 8888))
+    channel.listen('/tmp/hello_pb.sock')
+    #channel.listen(('localhost', 8888))
     channel.append_service(HelloServiceImpl())
     channel.start()
     try:
@@ -32,8 +28,6 @@ def main():
         print(len(channel.incoming_connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
-        objects = gc.get_objects()
-        print(Counter(map(type, objects)))
 
 if __name__ == "__main__":
     main()

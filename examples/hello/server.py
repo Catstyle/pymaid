@@ -17,11 +17,6 @@ class Channel(Channel):
 
 
 def main():
-    import gc
-    from collections import Counter
-    gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
-    gc.enable()
-
     channel = Channel()
     channel.listen('/tmp/hello.sock')
     channel.start()
@@ -31,8 +26,6 @@ def main():
         print(len(channel.outgoing_connections))
         print(len(channel.incoming_connections))
 
-        objects = gc.get_objects()
-        print(Counter(map(type, objects)))
 
 if __name__ == "__main__":
     main()
