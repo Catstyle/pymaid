@@ -4,11 +4,10 @@ from pymaid.parser import DEFAULT_PARSER
 
 class ServiceAgent(object):
 
-    __slots__ = ['stub', 'conn', 'controller', 'profiling', 'methods']
-
     def __init__(self, stub, conn=None, profiling=False):
         self.stub, self.conn, self.controller = stub, conn, Controller()
         self.profiling, self.methods = profiling, {}
+        self.CallMethod = stub.rpc_channel.CallMethod
         if profiling:
             from pymaid.utils.profiler import profiler
             profiler.enable_all()
@@ -22,15 +21,15 @@ class ServiceAgent(object):
             return self.methods[name]
 
         method_descriptor = self.stub.DESCRIPTOR.FindMethodByName(name)
-        method, request_class = None, None
+        request_class, response_class = None, None
         if method_descriptor:
             request_class = self.stub.GetRequestClass(method_descriptor)
-            method = getattr(self.stub, name)
+            response_class = self.stub.GetResponseClass(method_descriptor)
             if self.profiling:
                 from pymaid.utils.profiler import profiler
-                method = profiler.profile(method)
-            self.methods[name] = method, request_class
-        return method, request_class
+                method_descriptor = profiler.profile(method_descriptor)
+            self.methods[name] = method_descriptor, request_class, response_class
+        return method_descriptor, request_class, response_class
 
     def print_summary(slef):
         from pymaid.utils.profiler import profiler
@@ -40,8 +39,8 @@ class ServiceAgent(object):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        method, request_class = self.get_method(name)
-        if not method:
+        method_descriptor, request_class, response_class = self.get_method(name)
+        if not method_descriptor:
             return object.__getattr__(self, name)
 
         def rpc(request=None, controller=None, callback=None, conn=None,
@@ -61,5 +60,7 @@ class ServiceAgent(object):
                 assert request_class
                 request = request_class(**kwargs)
 
-            return method(controller, request, callback)
+            return self.CallMethod(
+                method_descriptor, controller, request, response_class, callback
+            )
         return rpc
