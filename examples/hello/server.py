@@ -13,6 +13,7 @@ class Channel(Channel):
             if not data:
                 break
             write(data)
+        conn.close()
 
 
 def main():
