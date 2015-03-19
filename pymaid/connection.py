@@ -1,15 +1,13 @@
 __all__ = ['Connection']
 
-import sys
-from os import strerror
-
 import struct
 import six
+from os import strerror
 from io import BytesIO
-from traceback import print_exc
 
 from errno import (
-    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS
+    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS,
+    EBADF,
 )
 from _socket import socket as realsocket, error as socket_error
 from _socket import (
@@ -28,7 +26,7 @@ range = six.moves.range
 hub = get_hub()
 io, timer = hub.loop.io, hub.loop.timer
 del hub
-invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN)
+invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 conn_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 
 
@@ -65,13 +63,6 @@ class Connection(object):
         if server_side:
             setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
-    def _io_read(self):
-        assert self.r_gr, 'nowhere to go'
-        try:
-            self.r_gr.switch()
-        except Exception as ex:
-            self.close(ex)
-
     def _io_write(self):
         send_queue = self._send_queue
         qsize = send_queue.qsize()
@@ -103,20 +94,6 @@ class Connection(object):
             else:
                 self.feed_write = False
 
-    def _r_wait(self):
-        self.r_io.start(self._io_read)
-        try:
-            self.r_gr.parent.switch()
-        finally:
-            self.r_io.stop()
-
-    def _r_timeout(self):
-        assert self.r_gr, 'invalid r_gr'
-        try:
-            self.r_gr.throw(Timeout)
-        except:
-            print_exc(file=sys.stderr)
-
     def _read(self, size):
         buf = self.buf
         buf.seek(0, 2)
@@ -127,18 +104,21 @@ class Connection(object):
             data = buf.read(size)
             self.buf.write(buf.read())
             return data
-        recv, r_wait = self._socket.recv, self._r_wait
+        recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
         length, remain = 0, size - bufsize
         while 1:
             try:
                 data = recv(remain)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
+                    r_io.start(r_gr.switch)
                     try:
-                        r_wait()
+                        r_gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
+                    finally:
+                        r_io.stop()
                     continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
@@ -169,17 +149,21 @@ class Connection(object):
                 return bline
             del bline
             buf.seek(0, 2)
-        recv, r_wait, remain = self._socket.recv, self._r_wait, size - bufsize
+        recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
+        remain = size - bufsize
         while 1:
             try:
                 data = recv(remain)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
+                    r_io.start(r_gr.switch)
                     try:
-                        r_wait()
+                        r_gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
+                    finally:
+                        r_io.stop()
                     continue
                 self.close(ex, reset=True)
                 if ex.errno in invalid_conn_error:
@@ -218,7 +202,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(self._r_timeout)
+            self.r_timer.start(self.r_gr.throw, Timeout)
             try:
                 return self._read(size)
             finally:
@@ -236,7 +220,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(self._r_timeout)
+            self.r_timer.start(self.r_gr.throw, Timeout)
             try:
                 return self._readline(size)
             finally:
@@ -250,10 +234,6 @@ class Connection(object):
             self._io_write()
     send = write
 
-    @property
-    def fd(self):
-        return self._socket.fileno()
-
     def connect(self, address, timeout=None):
         sock = self._socket
         errno = sock.connect_ex(address)
@@ -263,7 +243,7 @@ class Connection(object):
             rw_io.start(rw_gr.switch)
             if timeout:
                 rw_timer = timer(timeout)
-                rw_timer.start(self._gr_timeout, rw_gr)
+                rw_timer.start(rw_gr.throw, Timeout)
             try:
                 rw_gr.parent.switch()
             finally:
@@ -291,12 +271,12 @@ class Connection(object):
         if reason:
             if reset or isinstance(reason, BaseError):
                 self.logger.error(
-                    '[conn|%d][host|%s][peer|%s] closed with reason: %s',
+                    '[conn|%d][host|%s][peer|%s] closed with reason: %r',
                     self.conn_id, self.sockname, self.peername, reason
                 )
             else:
                 self.logger.exception(
-                    '[conn|%d][host|%s][peer|%s] closed with reason: %s',
+                    '[conn|%d][host|%s][peer|%s] closed with reason: %r',
                     self.conn_id, self.sockname, self.peername, reason
                 )
         else:
@@ -310,11 +290,13 @@ class Connection(object):
         self.r_io.stop()
         self._socket.close()
         self.setsockopt = None
-        self.buf = None
+        self.buf = BytesIO()
 
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
+        self.read = self.readline = lambda: ''
+        self.write = self.send = lambda: ''
 
     @property
     def peername(self):
@@ -323,3 +305,7 @@ class Connection(object):
     @property
     def sockname(self):
         return self._socket.getsockname()
+
+    @property
+    def fd(self):
+        return self._socket.fileno()
