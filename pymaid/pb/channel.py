@@ -126,7 +126,9 @@ class PBChannel(Channel):
             conn.close(ex, reset=True)
         except Exception as ex:
             conn.close(ex)
-        new_task(None)
+        finally:
+            tasks_queue.quque.clear()
+            new_task(None)
 
     def sequential_worker(self, tasks_queue):
         get_task = tasks_queue.get
