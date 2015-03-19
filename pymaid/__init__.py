@@ -6,7 +6,6 @@ __all__ = [
 
 
 import sys
-import six
 
 __version__ = '0.2.9'
 VERSION = tuple(map(int, __version__.split('.')))
@@ -18,7 +17,8 @@ if 'linux' in platform or 'darwin' in platform:
     if 'GEVENT_RESOLVER' not in os.environ:
         os.environ['GEVENT_RESOLVER'] = 'ares'
         import gevent
-        six.moves.reload_module(gevent)
+        # del cached module to force new import
+        del sys.modules['gevent']
     else:
         gevent_resolver = os.environ['GEVENT_RESOLVER']
         if 'ares' not in gevent_resolver:
