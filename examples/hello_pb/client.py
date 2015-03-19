@@ -10,7 +10,6 @@ from hello_pb2 import HelloService_Stub
 
 def wrapper(pid, n):
     conn = channel.connect('/tmp/hello_pb.sock')
-    #conn = channel.connect(('localhost', 8888))
     for x in range(n):
         response = service.hello(conn=conn)
         assert response.message == 'from pymaid', response.message
@@ -21,8 +20,7 @@ channel = PBChannel()
 service = ServiceAgent(HelloService_Stub(channel))
 def main():
     pool = Pool()
-    #pool.spawn(wrapper, 111111, 10000)
-    for x in range(500):
+    for x in range(200):
         pool.spawn(wrapper, x, 500)
 
     try:

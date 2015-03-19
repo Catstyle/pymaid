@@ -295,8 +295,8 @@ class Connection(object):
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
-        self.read = self.readline = lambda: ''
-        self.write = self.send = lambda: ''
+        self.read = self.readline = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: ''
 
     @property
     def peername(self):
