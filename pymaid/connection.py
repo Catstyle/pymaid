@@ -24,8 +24,10 @@ from pymaid.error import BaseError
 
 range = six.moves.range
 hub = get_hub()
+main_gr = hub.parent
 io, timer = hub.loop.io, hub.loop.timer
 del hub
+
 invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 conn_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 
@@ -193,6 +195,7 @@ class Connection(object):
 
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
+        assert getcurrent() != main_gr, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -211,6 +214,7 @@ class Connection(object):
 
     def readline(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
+        assert getcurrent() != main_gr, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -235,6 +239,7 @@ class Connection(object):
     send = write
 
     def connect(self, address, timeout=None):
+        assert getcurrent() != main_gr, 'could not call block func in main loop'
         sock = self._socket
         errno = sock.connect_ex(address)
         if errno in conn_error:
