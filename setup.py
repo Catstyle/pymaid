@@ -23,6 +23,7 @@ assert __version__
 
 
 protoc = find_executable("protoc")
+protoc_lua = find_executable("protoc-gen-lua")
 if not protoc:
     sys.stderr.write(
         "protoc is not installed, Please compile it "
@@ -67,6 +68,8 @@ def generate_proto(source):
       sys.exit(-1)
 
     protoc_command = [protoc, "-I.", "--python_out=.", source]
+    if gen_lua_pb and protoc_lua:
+        protoc_command.insert(-1, "--lua_out=.")
     if subprocess.call(protoc_command) != 0:
       sys.exit(-1)
 
@@ -100,21 +103,26 @@ class build_py(_build_py):
         _build_py.run(self)
 
 
-setup(
-    name="pymaid",
-    version=__version__,
-    author="Catstyle",
-    author_email="Catstyle.Lee@gmail.com",
-    license="do what the f**k you want",
-    packages=get_packages(),
-    zip_safe=True,
-    data_files = [
-        (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
-         ['pymaid/pb/pymaid.proto']),
-    ],
-    install_requires=[
-        'gevent>=1.0.1',
-        'protobuf>=2.6.1',
-    ],
-    cmdclass = {'clean': clean, 'build_py': build_py},
-)
+gen_lua_pb = False
+if __name__ == '__main__':
+    if '--gen_lua_pb' in sys.argv:
+        gen_lua_pb = True
+        sys.argv.remove('--gen_lua_pb')
+    setup(
+        name="pymaid",
+        version=__version__,
+        author="Catstyle",
+        author_email="Catstyle.Lee@gmail.com",
+        license="do what the f**k you want",
+        packages=get_packages(),
+        zip_safe=True,
+        data_files = [
+            (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
+             ['pymaid/pb/pymaid.proto']),
+        ],
+        install_requires=[
+            'gevent>=1.0.1',
+            'protobuf>=3.0.0a3.dev0',
+        ],
+        cmdclass = {'clean': clean, 'build_py': build_py},
+    )
