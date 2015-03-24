@@ -18,7 +18,7 @@ REQUEST = 1
 RESPONSE = 2
 NOTIFICATION = 3
 
-HEADER = '!BH'
+HEADER = '!BHH'
 HEADER_LENGTH = struct.calcsize(HEADER)
 HEADER_STRUCT = struct.Struct(HEADER)
 pack_header = HEADER_STRUCT.pack
