@@ -101,19 +101,17 @@ class PBChannel(Channel):
                 if not header:
                     conn.close(reset=True)
                     break
-                parser_type, packet_length = unpack_header(header)
+                parser_type, packet_length, content_length = unpack_header(header)
                 if packet_length > max_packet_length:
                     conn.close(PacketTooLarge(packet_length=packet_length))
                     break
 
-                controller_buf = read(packet_length)
-                controller = unpack_packet(controller_buf, parser_type)
+                buf = read(packet_length+content_length)
+                assert len(buf) == packet_length+content_length
+                controller = unpack_packet(buf[:packet_length], parser_type)
+                controller.content = buf[packet_length:]
                 controller.conn = conn
-                meta = controller.meta
-                content_size, packet_type = meta.content_size, meta.packet_type
-                if content_size:
-                    content = read(content_size)
-                    controller.content = content
+                packet_type = controller.meta.packet_type
                 if packet_type == RESPONSE:
                     handle_response(conn, controller)
                 else:

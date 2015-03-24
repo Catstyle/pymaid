@@ -52,26 +52,22 @@ def get_protos():
 
 
 def generate_proto(source):
-  """Invokes the Protocol Compiler to generate a _pb2.py from the given
-  .proto file.  Does nothing if the output already exists and is newer than
-  the input."""
+    """Invokes the Protocol Compiler to generate a _pb2.py from the given
+    .proto file.  Does nothing if the output already exists and is newer than
+    the input."""
 
-  output = source.replace(".proto", "_pb2.py")
+    output = source.replace(".proto", "_pb2.py")
 
-  if (not os.path.exists(output) or
-      (os.path.exists(source) and
-       os.path.getmtime(source) > os.path.getmtime(output))):
     print("Generating %s..." % output)
-
     if not os.path.exists(source):
-      sys.stderr.write("Can't find required file: %s\n" % source)
-      sys.exit(-1)
+        sys.stderr.write("Can't find required file: %s\n" % source)
+        sys.exit(-1)
 
     protoc_command = [protoc, "-I.", "--python_out=.", source]
     if gen_lua_pb and protoc_lua:
         protoc_command.insert(-1, "--lua_out=.")
     if subprocess.call(protoc_command) != 0:
-      sys.exit(-1)
+        sys.exit(-1)
 
 
 class clean(_clean):

@@ -10,32 +10,23 @@ from pymaid.pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 class Controller(RpcController):
 
     __slots__  = [
-        'meta', 'conn', 'broadcast', 'group', 'parser_type', '_content'
+        'meta', 'conn', 'broadcast', 'group', 'parser_type', 'content'
     ]
 
     def __init__(self, meta=None, parser_type=None, **kwargs):
         self.meta, self.parser_type = meta or Meta(**kwargs), parser_type
-        self.broadcast, self.group, self._content = False, None, b''
+        self.broadcast, self.group, self.content = False, None, b''
 
     def Reset(self):
         self.meta.Clear()
         self.conn, self.broadcast, self.group = None, False, None
-        self._content, self.parser_type = b'', None
+        self.content, self.parser_type = b'', None
 
     def Failed(self):
         return self.meta.is_failed
 
     def ErrorText(self):
-        return self._content
-
-    @property
-    def content(self):
-        return self._content
-
-    @content.setter
-    def content(self, value):
-        self._content = value
-        self.meta.content_size = len(value)
+        return self.content
 
     def pack_content(self, content):
         self.content = pack_packet(content, self.parser_type)
@@ -47,9 +38,9 @@ class Controller(RpcController):
         parser_type = self.parser_type
         packet_buffer = pack_packet(self.meta, parser_type)
         return b''.join([
-            pack_header(parser_type, len(packet_buffer)),
+            pack_header(parser_type, len(packet_buffer), len(self.content)),
             packet_buffer,
-            self._content
+            self.content
         ])
 
     @classmethod
