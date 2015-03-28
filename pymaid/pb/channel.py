@@ -13,9 +13,7 @@ from pymaid.controller import Controller
 from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
-from pymaid.error import (
-    BaseError, BaseMeta, ServiceNotExist, MethodNotExist, PacketTooLarge
-)
+from pymaid.error import BaseError, BaseMeta, RPCNotExist, PacketTooLarge
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
@@ -29,13 +27,11 @@ class PBChannel(Channel):
 
     def __init__(self, loop=None):
         super(PBChannel, self).__init__(loop)
-
-        self.services, self.methods, self.stub_response = {}, {}, {}
+        self.service_methods, self.stub_response = {}, {}
 
     def CallMethod(self, method, controller, request, response_class, callback):
         meta = controller.meta
-        meta.service_name = method.containing_service.full_name
-        meta.method_name = method.name
+        meta.service_method = method.full_name
         if not isinstance(request, Void):
             controller.pack_content(request)
 
@@ -68,14 +64,20 @@ class PBChannel(Channel):
         if not require_response:
             return
 
-        self.stub_response[meta.service_name+meta.method_name] = response_class
+        self.stub_response[meta.service_method] = response_class
         async_result = AsyncResult()
         controller.conn.transmissions[transmission_id] = async_result
         return async_result.get()
 
     def append_service(self, service):
-        assert service.DESCRIPTOR.full_name not in self.services
-        self.services[service.DESCRIPTOR.full_name] = service
+        service_methods = self.service_methods
+        for method in service.DESCRIPTOR.methods:
+            full_name = method.full_name
+            assert full_name not in self.service_methods
+            request_class = service.GetRequestClass(method)
+            response_class = service.GetResponseClass(method)
+            method = getattr(service, method.name)
+            service_methods[full_name] = method, request_class, response_class
 
     def connection_detached(self, conn, reason=None):
         if not conn.server_side:
@@ -136,37 +138,21 @@ class PBChannel(Channel):
         except Exception as ex:
             conn.close(ex)
 
-    def get_method(self, meta):
-        service_name, method_name = meta.service_name, meta.method_name
-        service_method = service_name + method_name
-        if service_method in self.methods:
-            return self.methods[service_method]
+    def get_rpc(self, service_method):
+        if service_method not in self.service_methods:
+            raise RPCNotExist(service_method=service_method)
+        return self.service_methods[service_method]
 
-        if service_name not in self.services:
-            raise ServiceNotExist(service_name=service_name)
-
-        service = self.services[service_name]
-        method = service.DESCRIPTOR.FindMethodByName(method_name)
-        if not method:
-            raise MethodNotExist(service_name=service_name, method_name=method_name)
-
-        request_class = service.GetRequestClass(method)
-        response_class = service.GetResponseClass(method)
-        # donot dynamically change service.method since we cached it for speed
-        method = getattr(service, method_name)
-        self.methods[service_method] = method, request_class, response_class
-        return method, request_class, response_class
-
-    def get_stub_response_class(self, meta):
-        return self.stub_response[meta.service_name + meta.method_name]
+    def get_stub_response_class(self, service_method):
+        return self.stub_response[service_method]
 
     def handle_request(self, conn, controller):
-        meta = controller.meta
-        meta.packet_type = RESPONSE
+        controller.meta.packet_type = RESPONSE
+        service_method = controller.meta.service_method
 
         try:
-            method, request_class, response_class = self.get_method(meta)
-        except (ServiceNotExist, MethodNotExist) as ex:
+            method, request_class, response_class = self.get_rpc(service_method)
+        except RPCNotExist as ex:
             controller.SetFailed(ex)
             conn.send(controller.pack_packet())
             return
@@ -185,10 +171,10 @@ class PBChannel(Channel):
             conn.send(controller.pack_packet())
 
     def handle_notification(self, conn, controller):
-        meta = controller.meta
+        service_method = controller.meta.service_method
         try:
-            method, request_class, response_class = self.get_method(meta)
-        except (ServiceNotExist, MethodNotExist):
+            method, request_class, response_class = self.get_rpc(service_method)
+        except RPCNotExist:
             # failed silently when handle_notification
             return
 
@@ -210,7 +196,9 @@ class PBChannel(Channel):
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response_cls = self.get_stub_response_class(controller.meta)
+            response_cls = self.get_stub_response_class(
+                controller.meta.service_method
+            )
             try:
                 async_result.set(controller.unpack_content(response_cls))
             except DecodeError as ex:

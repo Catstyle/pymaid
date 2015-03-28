@@ -5,31 +5,32 @@ from pymaid.parser import DEFAULT_PARSER
 class ServiceAgent(object):
 
     def __init__(self, stub, conn=None, profiling=False):
-        self.stub, self.conn, self.controller = stub, conn, Controller()
-        self.profiling, self.methods = profiling, {}
+        self.conn, self.controller = conn, Controller()
+        self.profiling, self.service_methods = profiling, {}
         self.CallMethod = stub.rpc_channel.CallMethod
+        self._bind_stub(stub)
         if profiling:
             from pymaid.utils.profiler import profiler
             profiler.enable_all()
 
-    def close(self):
-        self.stub, self.conn, self.controller = None, None, None
-        self.methods.clear()
-
-    def get_method(self, name):
-        if name in self.methods:
-            return self.methods[name]
-
-        method_descriptor = self.stub.DESCRIPTOR.FindMethodByName(name)
-        request_class, response_class = None, None
-        if method_descriptor:
-            request_class = self.stub.GetRequestClass(method_descriptor)
-            response_class = self.stub.GetResponseClass(method_descriptor)
+    def _bind_stub(self, stub):
+        self.stub, service_methods = stub, self.service_methods
+        for method in stub.DESCRIPTOR.methods:
+            request_class = stub.GetRequestClass(method)
+            response_class = stub.GetResponseClass(method)
             if self.profiling:
                 from pymaid.utils.profiler import profiler
-                method_descriptor = profiler.profile(method_descriptor)
-            self.methods[name] = method_descriptor, request_class, response_class
-        return method_descriptor, request_class, response_class
+                method = profiler.profile(method)
+            service_methods[method.name] = method, request_class, response_class
+
+    def close(self):
+        self.stub, self.conn, self.controller = None, None, None
+        self.service_methods.clear()
+
+    def get_rpc(self, name):
+        if name in self.service_methods:
+            return self.service_methods[name]
+        return None, None, None
 
     def print_summary(slef):
         from pymaid.utils.profiler import profiler
@@ -39,7 +40,7 @@ class ServiceAgent(object):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        method_descriptor, request_class, response_class = self.get_method(name)
+        method_descriptor, request_class, response_class = self.get_rpc(name)
         if not method_descriptor:
             return object.__getattr__(self, name)
 
