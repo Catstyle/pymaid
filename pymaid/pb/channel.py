@@ -85,7 +85,7 @@ class PBChannel(Channel):
         service_methods = self.service_methods
         for method in service.DESCRIPTOR.methods:
             full_name = method.full_name
-            assert full_name not in self.service_methods
+            assert full_name not in service_methods
             request_class = service.GetRequestClass(method)
             response_class = service.GetResponseClass(method)
             method = getattr(service, method.name)
