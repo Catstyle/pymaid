@@ -27,7 +27,17 @@ class PBChannel(Channel):
 
     def __init__(self, loop=None):
         super(PBChannel, self).__init__(loop)
-        self.service_methods, self.stub_response = {}, {}
+        self.services, self.service_methods, self.stub_response = {}, {}, {}
+
+    def _connection_detached(self, conn, reason):
+        conn.s_gr.kill(block=False)
+        if not conn.server_side:
+            for async_result in conn.transmissions.values():
+                # we should not reach here with async_result left
+                # that should be an exception
+                async_result.set_exception(reason)
+            conn.transmissions.clear()
+        self.connection_detached(conn, reason)
 
     def CallMethod(self, method, controller, request, response_class, callback):
         meta = controller.meta
@@ -48,7 +58,7 @@ class PBChannel(Channel):
         if controller.broadcast:
             # broadcast
             assert not require_response
-            for conn in self.incoming_connections.values():
+            for conn in six.itervalues(self.incoming_connections):
                 conn.send(packet_buffer)
         elif controller.group:
             # small broadcast
@@ -70,6 +80,8 @@ class PBChannel(Channel):
         return async_result.get()
 
     def append_service(self, service):
+        assert service.DESCRIPTOR.full_name not in self.services
+        self.services[service.DESCRIPTOR.full_name] = service
         service_methods = self.service_methods
         for method in service.DESCRIPTOR.methods:
             full_name = method.full_name
@@ -78,14 +90,6 @@ class PBChannel(Channel):
             response_class = service.GetResponseClass(method)
             method = getattr(service, method.name)
             service_methods[full_name] = method, request_class, response_class
-
-    def connection_detached(self, conn, reason=None):
-        if not conn.server_side:
-            for async_result in conn.transmissions.values():
-                # we should not reach here with async_result left
-                # that should be an exception
-                async_result.set_exception(reason)
-            conn.transmissions.clear()
 
     def connection_handler(self, conn):
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
@@ -138,25 +142,16 @@ class PBChannel(Channel):
         except Exception as ex:
             conn.close(ex)
 
-    def get_rpc(self, service_method):
-        if service_method not in self.service_methods:
-            raise RPCNotExist(service_method=service_method)
-        return self.service_methods[service_method]
-
-    def get_stub_response_class(self, service_method):
-        return self.stub_response[service_method]
-
     def handle_request(self, conn, controller):
         controller.meta.packet_type = RESPONSE
         service_method = controller.meta.service_method
 
-        try:
-            method, request_class, response_class = self.get_rpc(service_method)
-        except RPCNotExist as ex:
-            controller.SetFailed(ex)
+        if service_method not in self.service_methods:
+            controller.SetFailed(RPCNotExist(service_method=service_method))
             conn.send(controller.pack_packet())
             return
 
+        method, request_class, response_class = self.service_methods[service_method]
         def send_response(response):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
@@ -172,12 +167,11 @@ class PBChannel(Channel):
 
     def handle_notification(self, conn, controller):
         service_method = controller.meta.service_method
-        try:
-            method, request_class, response_class = self.get_rpc(service_method)
-        except RPCNotExist:
+        if service_method not in self.service_methods:
             # failed silently when handle_notification
             return
 
+        method, request_class, response_class = self.service_methods[service_method]
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, lambda *args, **kwargs: '')
@@ -196,9 +190,7 @@ class PBChannel(Channel):
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response_cls = self.get_stub_response_class(
-                controller.meta.service_method
-            )
+            response_cls = self.stub_response[controller.meta.service_method]
             try:
                 async_result.set(controller.unpack_content(response_cls))
             except DecodeError as ex:

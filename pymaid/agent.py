@@ -27,11 +27,6 @@ class ServiceAgent(object):
         self.stub, self.conn, self.controller = None, None, None
         self.service_methods.clear()
 
-    def get_rpc(self, name):
-        if name in self.service_methods:
-            return self.service_methods[name]
-        return None, None, None
-
     def print_summary(slef):
         from pymaid.utils.profiler import profiler
         profiler.print_stats()
@@ -40,9 +35,9 @@ class ServiceAgent(object):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        method_descriptor, request_class, response_class = self.get_rpc(name)
-        if not method_descriptor:
+        if name not in self.service_methods:
             return object.__getattr__(self, name)
+        method, request_class, response_class = self.service_methods[name]
 
         def rpc(request=None, controller=None, callback=None, conn=None,
                 broadcast=False, group=None, parser_type=DEFAULT_PARSER,
@@ -62,6 +57,6 @@ class ServiceAgent(object):
                 request = request_class(**kwargs)
 
             return self.CallMethod(
-                method_descriptor, controller, request, response_class, callback
+                method, controller, request, response_class, callback
             )
         return rpc

@@ -40,18 +40,19 @@ class Channel(object):
         self.outgoing_connections = weakref.WeakValueDictionary()
 
     def _do_accept(self, sock):
+        accept, attach = sock.accept, self._connection_attached
         for _ in range(self.MAX_ACCEPT):
             if self.is_full:
                 return
             try:
-                peer_socket, address = sock.accept()
+                peer_socket, address = accept()
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
                     return
                 self.logger.exception(ex)
                 raise
             conn = Connection(sock=peer_socket, server_side=True)
-            self._connection_attached(conn)
+            attach(conn)
 
     def _connection_attached(self, conn):
         conn.set_close_cb(self._connection_detached)
