@@ -4,7 +4,7 @@ __all__ = [
 ]
 
 import struct
-import collections
+from collections import Mapping
 import six
 try:
     import ujson as json
@@ -105,6 +105,6 @@ def unpack_packet(packet_buffer, cls, parser_type):
 
 
 def keys_to_string(data):
-    if not isinstance(data, collections.Mapping):
+    if not isinstance(data, Mapping):
         return data
     return {str(k): keys_to_string(v) for k, v in data.items()}
