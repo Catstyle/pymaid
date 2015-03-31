@@ -11,7 +11,6 @@ class Profiler(LineProfiler):
 
     def profile(self, func):
         self.add_function(func)
-        return func
 
 
 profiler = Profiler()

@@ -9,36 +9,22 @@ class ServiceAgent(object):
         self.profiling, self.service_methods = profiling, {}
         self.CallMethod = stub.rpc_channel.CallMethod
         self._bind_stub(stub)
-        if profiling:
-            from pymaid.utils.profiler import profiler
-            profiler.enable_all()
+        self._get_rpc = self.service_methods.get
 
     def _bind_stub(self, stub):
         self.stub, service_methods = stub, self.service_methods
+        rpc_stub = self._build_rpc_stub
         for method in stub.DESCRIPTOR.methods:
             request_class = stub.GetRequestClass(method)
             response_class = stub.GetResponseClass(method)
             if self.profiling:
                 from pymaid.utils.profiler import profiler
-                method = profiler.profile(method)
-            service_methods[method.name] = method, request_class, response_class
+                profiler.profile(getattr(stub, method.name))
+            service_methods[method.name] = rpc_stub(
+                method, request_class, response_class
+            )
 
-    def close(self):
-        self.stub, self.conn, self.controller = None, None, None
-        self.service_methods.clear()
-
-    def print_summary(slef):
-        from pymaid.utils.profiler import profiler
-        profiler.print_stats()
-
-    def __dir__(self):
-        return dir(self.stub)
-
-    def __getattr__(self, name):
-        if name not in self.service_methods:
-            return object.__getattr__(self, name)
-        method, request_class, response_class = self.service_methods[name]
-
+    def _build_rpc_stub(self, method, request_class, response_class):
         def rpc(request=None, controller=None, callback=None, conn=None,
                 broadcast=False, group=None, parser_type=DEFAULT_PARSER,
                 **kwargs):
@@ -52,11 +38,18 @@ class ServiceAgent(object):
                 assert conn or self.conn
                 controller.conn = conn or self.conn
 
-            if not request:
-                assert request_class
-                request = request_class(**kwargs)
-
             return self.CallMethod(
-                method, controller, request, response_class, callback
+                method, controller, request or request_class(**kwargs),
+                response_class, callback
             )
         return rpc
+
+    def close(self):
+        self.stub, self.conn, self.controller = None, None, None
+        self.service_methods.clear()
+
+    def __dir__(self):
+        return dir(self.stub)
+
+    def __getattr__(self, name):
+        return self._get_rpc(name) or object.__getattr__(self, name)
