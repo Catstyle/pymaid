@@ -1,22 +1,22 @@
 import six
 
 
-class BaseMeta(type):
+class ErrorMeta(type):
 
     errors = {}
     warnings = {}
 
     def __init__(cls, name, bases, attrs):
-        super(BaseMeta, cls).__init__(name, bases, attrs)
+        super(ErrorMeta, cls).__init__(name, bases, attrs)
         if name in ['BaseError', 'Error', 'Warning']:
             return
 
         if issubclass(cls, Error):
-            assert cls.code not in BaseMeta.errors
-            BaseMeta.errors[cls.code] = cls
+            assert cls.code not in ErrorMeta.errors
+            ErrorMeta.errors[cls.code] = cls
         if issubclass(cls, Warning):
-            assert cls.code not in BaseMeta.warnings
-            BaseMeta.warnings[cls.code] = cls
+            assert cls.code not in ErrorMeta.warnings
+            ErrorMeta.warnings[cls.code] = cls
         assert hasattr(cls, 'message_format')
 
     @classmethod
@@ -30,7 +30,7 @@ class BaseMeta(type):
         return ret
 
 
-@six.add_metaclass(BaseMeta)
+@six.add_metaclass(ErrorMeta)
 class BaseError(Exception):
 
     def __init__(self, **kwargs):

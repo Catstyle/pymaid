@@ -13,7 +13,7 @@ from pymaid.controller import Controller
 from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
-from pymaid.error import BaseError, BaseMeta, RPCNotExist, PacketTooLarge
+from pymaid.error import BaseError, ErrorMeta, RPCNotExist, PacketTooLarge
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
@@ -186,7 +186,7 @@ class PBChannel(Channel):
 
         if controller.Failed():
             error_message = controller.unpack_content(ErrorMessage)
-            ex = BaseMeta.get_by_code(error_message.error_code)()
+            ex = ErrorMeta.get_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
