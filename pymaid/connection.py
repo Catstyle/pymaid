@@ -36,7 +36,6 @@ conn_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 class Connection(object):
 
     CONN_ID = 1
-    MAX_SEND = 5
     LINGER_PACK = struct.pack('ii', 1, 0)
 
     def __init__(self, sock=None, family=2, type_=1, proto=0, server_side=False):
@@ -65,7 +64,7 @@ class Connection(object):
         if server_side:
             setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
-    def _io_write(self):
+    def _io_write(self, max_send=5):
         send_queue = self._send_queue
         qsize = send_queue.qsize()
         if not qsize: 
@@ -73,7 +72,7 @@ class Connection(object):
 
         send, queue = self._socket.send, send_queue.queue
         try:
-            for _ in range(min(qsize, self.MAX_SEND)):
+            for _ in range(min(qsize, max_send)):
                 buf = queue[0]
                 # see pydoc of socket.send
                 sent, bufsize = 0, len(buf)
@@ -90,7 +89,7 @@ class Connection(object):
                 return
             self.close(ex, reset=True)
         else:
-            if qsize > self.MAX_SEND:
+            if qsize > max_send:
                 self.w_io.feed(WRITE, self._io_loop, EVENTS)
                 self.feed_write = True
             else:
