@@ -39,9 +39,9 @@ class Channel(object):
         self.incoming_connections = weakref.WeakValueDictionary()
         self.outgoing_connections = weakref.WeakValueDictionary()
 
-    def _do_accept(self, sock):
+    def _do_accept(self, sock, max_accept=MAX_ACCEPT):
         accept, attach = sock.accept, self._connection_attached
-        for _ in range(self.MAX_ACCEPT):
+        for _ in range(max_accept):
             if self.is_full:
                 return
             try:
@@ -116,7 +116,11 @@ class Channel(object):
         pass
 
     def start(self):
-        [io.start(self._do_accept, s) for s, io in self.listeners if not io.active]
+        for s, io in self.listeners:
+            if not io.active:
+                io.start(self._do_accept, s, self.MAX_ACCEPT)
 
     def stop(self):
-        [io.stop() for _, io in self.listeners if io.active]
+        for _, io in self.listeners:
+            if io.active:
+                io.stop()
