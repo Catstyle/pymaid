@@ -1,4 +1,4 @@
-from pymaid.controller import Controller
+from pymaid.pb.controller import Controller
 from pymaid.parser import DEFAULT_PARSER
 
 

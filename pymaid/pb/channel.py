@@ -1,15 +1,15 @@
 __all__ = ['PBChannel']
 
 import six
+from _socket import error as socket_error
 
-from gevent.socket import error as socket_error
 from gevent.queue import Queue
 from gevent.event import AsyncResult
 
 from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
-from pymaid.controller import Controller
+from pymaid.pb.controller import Controller
 from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
 )
