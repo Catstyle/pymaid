@@ -28,7 +28,7 @@ class PBChannel(Channel):
     def __init__(self, loop=None):
         super(PBChannel, self).__init__(loop)
         self.services, self.service_methods, self.stub_response = {}, {}, {}
-        self.get_rpc = self.service_methods.get
+        self._get_rpc = self.service_methods.get
 
     def _connection_detached(self, conn, reason):
         conn.s_gr.kill(block=False)
@@ -147,7 +147,7 @@ class PBChannel(Channel):
         controller.meta.packet_type = RESPONSE
         service_method = controller.meta.service_method
 
-        rpc = self.get_rpc(service_method)
+        rpc = self._get_rpc(service_method)
         if not rpc:
             controller.SetFailed(RPCNotExist(service_method=service_method))
             conn.send(controller.pack_packet())
@@ -169,7 +169,7 @@ class PBChannel(Channel):
 
     def handle_notification(self, conn, controller):
         service_method = controller.meta.service_method
-        rpc = self.get_rpc(service_method)
+        rpc = self._get_rpc(service_method)
         if not rpc:
             # failed silently when handle_notification
             return
