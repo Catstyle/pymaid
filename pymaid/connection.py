@@ -28,8 +28,8 @@ main_gr = hub.parent
 io, timer = hub.loop.io, hub.loop.timer
 del hub
 
-invalid_conn_error = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
-conn_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
+invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
+connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 
 
 @pymaid_logger_wrapper
@@ -106,7 +106,7 @@ class Connection(object):
             self.buf.write(buf.read())
             return data
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        length, remain = 0, size - bufsize
+        remain = size - bufsize
         while 1:
             try:
                 data = recv(remain)
@@ -122,7 +122,7 @@ class Connection(object):
                         r_io.stop()
                     continue
                 self.close(ex, reset=True)
-                if ex.errno in invalid_conn_error:
+                if ex.errno in invalid_conn:
                     return buf.getvalue()
                 raise
             if not data:
@@ -167,7 +167,7 @@ class Connection(object):
                         r_io.stop()
                     continue
                 self.close(ex, reset=True)
-                if ex.errno in invalid_conn_error:
+                if ex.errno in invalid_conn:
                     return buf.getvalue()
                 raise
             if not data:
@@ -241,7 +241,7 @@ class Connection(object):
         assert getcurrent() != main_gr, 'could not call block func in main loop'
         sock = self._socket
         errno = sock.connect_ex(address)
-        if errno in conn_error:
+        if errno in connecting_error:
             rw_io = io(self.fd, READ | WRITE)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
