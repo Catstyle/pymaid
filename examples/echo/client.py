@@ -2,9 +2,9 @@ from __future__ import print_function
 
 from gevent.pool import Pool
 
-from pymaid.pb.channel import PBChannel
 from pymaid.connection import Connection
-from pymaid.agent import ServiceAgent
+from pymaid.pb.channel import PBChannel
+from pymaid.pb.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import EchoService_Stub

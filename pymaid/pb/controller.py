@@ -35,12 +35,12 @@ class Controller(RpcController):
         return unpack_packet(self.content, cls, self.parser_type)
 
     def pack_packet(self):
-        parser_type = self.parser_type
+        parser_type, content = self.parser_type, self.content
         packet_buffer = pack_packet(self.meta, parser_type)
         return b''.join([
-            pack_header(parser_type, len(packet_buffer), len(self.content)),
+            pack_header(parser_type, len(packet_buffer), len(content)),
             packet_buffer,
-            self.content
+            content
         ])
 
     @classmethod
@@ -54,10 +54,9 @@ class Controller(RpcController):
     def SetFailed(self, reason):
         self.meta.is_failed = True
         if isinstance(reason, BaseError):
-            message = ErrorMessage(
+            self.pack_content(ErrorMessage(
                 error_code=reason.code, error_message=reason.message
-            )
-            self.pack_content(message)
+            ))
         else:
             self.content = repr(reason)
 
