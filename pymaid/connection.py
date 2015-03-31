@@ -4,6 +4,7 @@ import struct
 import six
 from os import strerror
 from io import BytesIO
+from collections import deque
 
 from errno import (
     EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS,
@@ -16,7 +17,6 @@ from _socket import (
 
 from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
-from gevent.queue import Queue
 from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.utils import pymaid_logger_wrapper
@@ -51,7 +51,7 @@ class Connection(object):
         self.conn_id = self.CONN_ID
         Connection.CONN_ID += 1
 
-        self._send_queue = Queue()
+        self._send_queue = deque()
 
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
         self.r_gr, self.fed_write = None, False
@@ -65,12 +65,12 @@ class Connection(object):
             setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
     def _io_write(self, max_send=5):
-        send_queue = self._send_queue
-        qsize = send_queue.qsize()
+        queue = self._send_queue
+        qsize = len(queue)
         if not qsize: 
             return
 
-        send, queue = self._socket.send, send_queue.queue
+        send = self._socket.send
         try:
             for _ in range(min(qsize, max_send)):
                 buf = queue[0]
@@ -232,7 +232,7 @@ class Connection(object):
 
     def write(self, packet_buffer):
         assert packet_buffer
-        self._send_queue.put(packet_buffer)
+        self._send_queue.append(packet_buffer)
         if not self.fed_write:
             self._io_write()
     send = write
@@ -289,7 +289,7 @@ class Connection(object):
                 self.conn_id, self.sockname, self.peername
             )
 
-        self._send_queue.queue.clear()
+        self._send_queue.clear()
         self.w_io.stop()
         self.r_io.stop()
         self._socket.close()
