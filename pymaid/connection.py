@@ -66,11 +66,9 @@ class Connection(object):
 
     def _io_write(self, max_send=5):
         queue = self._send_queue
-        qsize = len(queue)
-        if not qsize: 
-            return
+        send, qsize = self._socket.send, len(queue)
+        assert qsize, qsize
 
-        send = self._socket.send
         try:
             for _ in range(min(qsize, max_send)):
                 buf = queue[0]
@@ -99,10 +97,10 @@ class Connection(object):
         buf = self.buf
         buf.seek(0, 2)
         bufsize = buf.tell()
-        self.buf = BytesIO()  # reset self.buf.  we consume it via buf.
         if bufsize >= size:
             buf.seek(0)
             data = buf.read(size)
+            self.buf = BytesIO()
             self.buf.write(buf.read())
             return data
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
@@ -128,13 +126,14 @@ class Connection(object):
             if not data:
                 break
             n = len(data)
-            if n == size and not bufsize:
+            if n == size:
                 return data
             buf.write(data)
             del data
             if n == remain:
                 break
             remain -= n
+        self.buf = BytesIO()
         return buf.getvalue()
 
     def _readline(self, size):
@@ -182,13 +181,11 @@ class Connection(object):
                 else:
                     return data[:nl]
             n = len(data)
-            if n == size and not bufsize:
+            if n == size:
                 return data
-            if n >= remain:
-                buf.write(data[:remain])
-                self.buf.write(data[remain:])
-                break
             buf.write(data)
+            if n == remain:
+                break
             remain -= n
         return buf.getvalue()
 
@@ -274,20 +271,13 @@ class Connection(object):
 
         if reason:
             if reset or isinstance(reason, BaseError):
-                self.logger.error(
-                    '[conn|%d][host|%s][peer|%s] closed with reason: %r',
-                    self.conn_id, self.sockname, self.peername, reason
-                )
+                log = self.logger.error
             else:
-                self.logger.exception(
-                    '[conn|%d][host|%s][peer|%s] closed with reason: %r',
-                    self.conn_id, self.sockname, self.peername, reason
-                )
+                log = self.logger.exception
         else:
-            self.logger.info(
-                '[conn|%d][host|%s][peer|%s] closed cleanly',
-                self.conn_id, self.sockname, self.peername
-            )
+            log = self.logger.info
+        log('[conn|%d][host|%s][peer|%s] closed with reason: %r',
+            self.conn_id, self.sockname, self.peername, reason)
 
         self._send_queue.clear()
         self.w_io.stop()
