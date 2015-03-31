@@ -28,6 +28,7 @@ class PBChannel(Channel):
     def __init__(self, loop=None):
         super(PBChannel, self).__init__(loop)
         self.services, self.service_methods, self.stub_response = {}, {}, {}
+        self.get_rpc = self.service_methods.get
 
     def _connection_detached(self, conn, reason):
         conn.s_gr.kill(block=False)
@@ -146,12 +147,13 @@ class PBChannel(Channel):
         controller.meta.packet_type = RESPONSE
         service_method = controller.meta.service_method
 
-        if service_method not in self.service_methods:
+        rpc = self.get_rpc(service_method)
+        if not rpc:
             controller.SetFailed(RPCNotExist(service_method=service_method))
             conn.send(controller.pack_packet())
             return
 
-        method, request_class, response_class = self.service_methods[service_method]
+        method, request_class, response_class = rpc
         def send_response(response):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
@@ -167,11 +169,12 @@ class PBChannel(Channel):
 
     def handle_notification(self, conn, controller):
         service_method = controller.meta.service_method
-        if service_method not in self.service_methods:
+        rpc = self.get_rpc(service_method)
+        if not rpc:
             # failed silently when handle_notification
             return
 
-        method, request_class, response_class = self.service_methods[service_method]
+        method, request_class, response_class = rpc
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, lambda *args, **kwargs: '')
