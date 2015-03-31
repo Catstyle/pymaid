@@ -17,7 +17,8 @@ class HelloServiceImpl(HelloService):
 
 def main():
     channel = PBChannel()
-    channel.listen(('localhost', 8888))
+    #channel.listen(('localhost', 8888))
+    channel.listen('/tmp/hello_pb.sock')
     channel.append_service(HelloServiceImpl())
     channel.start()
     try:

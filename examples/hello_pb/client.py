@@ -9,7 +9,8 @@ from hello_pb2 import HelloService_Stub
 
 
 def wrapper(pid, n):
-    conn = channel.connect(('localhost', 8888))
+    #conn = channel.connect(('localhost', 8888))
+    conn = channel.connect('/tmp/hello_pb.sock')
     for x in range(n):
         response = service.hello(conn=conn)
         assert response.message == 'from pymaid', response.message
