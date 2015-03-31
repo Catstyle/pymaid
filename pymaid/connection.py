@@ -54,7 +54,7 @@ class Connection(object):
         self._send_queue = Queue()
 
         self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
-        self.r_gr, self.feed_write = None, False
+        self.r_gr, self.fed_write = None, False
 
     def _setsockopt(self, sock, server_side):
         self.setsockopt = setsockopt = sock.setsockopt
@@ -85,15 +85,15 @@ class Connection(object):
             if ex.errno == EWOULDBLOCK:
                 queue[0] = membuf[sent:]
                 self.w_io.feed(WRITE, self._io_loop, EVENTS)
-                self.feed_write = True
+                self.fed_write = True
                 return
             self.close(ex, reset=True)
         else:
             if qsize > max_send:
                 self.w_io.feed(WRITE, self._io_loop, EVENTS)
-                self.feed_write = True
+                self.fed_write = True
             else:
-                self.feed_write = False
+                self.fed_write = False
 
     def _read(self, size):
         buf = self.buf
@@ -233,7 +233,7 @@ class Connection(object):
     def write(self, packet_buffer):
         assert packet_buffer
         self._send_queue.put(packet_buffer)
-        if not self.feed_write:
+        if not self.fed_write:
             self._io_write()
     send = write
 
