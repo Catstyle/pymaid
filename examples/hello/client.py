@@ -21,8 +21,8 @@ channel = Channel()
 def main():
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
-    for x in range(500):
-        pool.spawn(wrapper, x, 500)
+    for x in range(1000):
+        pool.spawn(wrapper, x, 1000)
 
     try:
         pool.join()
