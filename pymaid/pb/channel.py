@@ -61,7 +61,7 @@ class PBChannel(Channel):
             assert not require_response
             for conn in six.itervalues(self.incoming_connections):
                 conn.send(packet_buffer)
-        elif controller.group:
+        elif controller.group is not None:
             # small broadcast
             assert not require_response
             get_conn = self.incoming_connections.get
