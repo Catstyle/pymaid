@@ -34,7 +34,7 @@ class ServiceAgent(object):
 
             controller.broadcast, controller.group = broadcast, group
             controller.parser_type = parser_type
-            if not (broadcast or group):
+            if not (broadcast or group is not None):
                 assert conn or self.conn
                 controller.conn = conn or self.conn
 
