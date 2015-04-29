@@ -8,7 +8,7 @@ from collections import deque
 
 from errno import (
     EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS,
-    EBADF,
+    EBADF, EINVAL
 )
 from _socket import socket as realsocket, error as socket_error
 from _socket import (
@@ -294,7 +294,12 @@ class Connection(object):
 
     @property
     def peername(self):
-        return self._socket.getpeername()
+        try:
+            return self._socket.getpeername()
+        except socket_error as err:
+            if err.errno == EINVAL:
+                return 'not valid in shutdown socket on osx'
+            raise
 
     @property
     def sockname(self):
