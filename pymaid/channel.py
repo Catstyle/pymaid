@@ -33,6 +33,8 @@ class Channel(object):
     MAX_BACKLOG = 8192
     MAX_CONCURRENCY = 50000
 
+    CONNECTION_CLASS = Connection
+
     def __init__(self, loop=None):
         self.loop = loop or get_hub().loop
         self.listeners = []
@@ -41,6 +43,7 @@ class Channel(object):
 
     def _do_accept(self, sock, max_accept=MAX_ACCEPT):
         accept, attach = sock.accept, self._connection_attached
+        ConnectionClass = self.CONNECTION_CLASS
         for _ in range(max_accept):
             if self.is_full:
                 return
@@ -51,7 +54,7 @@ class Channel(object):
                     return
                 self.logger.exception(ex)
                 raise
-            conn = Connection(sock=peer_socket, server_side=True)
+            conn = ConnectionClass(sock=peer_socket, server_side=True)
             attach(conn)
 
     def _connection_attached(self, conn):
@@ -81,7 +84,7 @@ class Channel(object):
     def connect(self, address, family=2, type_=1, timeout=None):
         if isinstance(address, string_types):
             family = 1
-        conn = Connection(family=family, type_=type_, server_side=False)
+        conn = self.CONNECTION_CLASS(family=family, type_=type_, server_side=False)
         conn.connect(address, timeout)
         self._connection_attached(conn)
         return conn

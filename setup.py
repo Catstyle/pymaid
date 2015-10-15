@@ -52,9 +52,11 @@ def get_protos():
 
 
 def generate_proto(source):
-    """Invokes the Protocol Compiler to generate a _pb2.py from the given
-    .proto file.  Does nothing if the output already exists and is newer than
-    the input."""
+    """
+    Invokes the Protocol Compiler to generate a _pb2.py from the given
+    .proto file.
+    Does nothing if the output already exists and is newer than the input.
+    """
 
     output = source.replace(".proto", "_pb2.py")
 
