@@ -7,9 +7,9 @@ from pymaid.channel import Channel
 class Channel(Channel):
 
     def connection_handler(self, conn):
-        read, write = conn.readline, conn.write
+        readline, write = conn.readline, conn.write
         while 1:
-            data = read(1024)
+            data = readline(1024)
             if not data:
                 break
             write(data)
@@ -23,8 +23,7 @@ def main():
     try:
         pymaid.serve_forever()
     except:
-        print(len(channel.outgoing_connections))
-        print(len(channel.incoming_connections))
+        print(len(channel.clients))
 
 
 if __name__ == "__main__":

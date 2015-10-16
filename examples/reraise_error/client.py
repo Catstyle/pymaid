@@ -1,5 +1,6 @@
 from gevent.pool import Pool
 
+from pymaid.connection import Connection
 from pymaid.pb.channel import PBChannel
 from pymaid.pb.agent import ServiceAgent
 
@@ -8,7 +9,7 @@ from error import PlayerNotExist
 
 
 def wrapper(pid, n):
-    conn = channel.connect(("127.0.0.1", 8888))
+    conn = Connection.create(("127.0.0.1", 8888))
     global cnt
     for x in range(n):
         try:

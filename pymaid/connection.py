@@ -14,6 +14,7 @@ from _socket import socket as realsocket, error as socket_error
 from _socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
+from _socket import AF_UNIX, AF_INET, SOCK_STREAM
 
 from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
@@ -23,6 +24,9 @@ from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseError
 
 range = six.moves.range
+string_types = six.string_types
+del six
+
 hub = get_hub()
 main_gr = hub.parent
 io, timer = hub.loop.io, hub.loop.timer
@@ -38,7 +42,8 @@ class Connection(object):
     CONN_ID = 1
     LINGER_PACK = struct.pack('ii', 1, 0)
 
-    def __init__(self, sock=None, family=2, type_=1, proto=0, server_side=False):
+    def __init__(self, sock=None, family=AF_INET, type_=SOCK_STREAM,
+                 proto=0, server_side=False):
         self._socket = sock = sock or realsocket(family, type_, proto)
         sock.setblocking(0)
         self._setsockopt(sock, server_side)
@@ -58,7 +63,7 @@ class Connection(object):
 
     def _setsockopt(self, sock, server_side):
         self.setsockopt = setsockopt = sock.setsockopt
-        if sock.family == 2:
+        if sock.family == AF_INET:
             setsockopt(SOL_TCP, TCP_NODELAY, 1)
             setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
         if server_side:
@@ -189,6 +194,23 @@ class Connection(object):
             remain -= n
         return buf.getvalue()
 
+    @property
+    def peername(self):
+        try:
+            return self._socket.getpeername()
+        except socket_error as err:
+            if err.errno == EINVAL:
+                return 'not valid in shutdown socket on osx'
+            raise
+
+    @property
+    def sockname(self):
+        return self._socket.getsockname()
+
+    @property
+    def fd(self):
+        return self._socket.fileno()
+
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
         assert getcurrent() != main_gr, 'could not call block func in main loop'
@@ -292,19 +314,10 @@ class Connection(object):
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
 
-    @property
-    def peername(self):
-        try:
-            return self._socket.getpeername()
-        except socket_error as err:
-            if err.errno == EINVAL:
-                return 'not valid in shutdown socket on osx'
-            raise
-
-    @property
-    def sockname(self):
-        return self._socket.getsockname()
-
-    @property
-    def fd(self):
-        return self._socket.fileno()
+    @staticmethod
+    def create(address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
+        if isinstance(address, string_types):
+            family = AF_UNIX
+        conn = Connection(family=family, type_=type_, server_side=False)
+        conn.connect(address, timeout)
+        return conn
