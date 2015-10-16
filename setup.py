@@ -111,15 +111,15 @@ if __name__ == '__main__':
         version=__version__,
         author="Catstyle",
         author_email="Catstyle.Lee@gmail.com",
-        license="do what the f**k you want",
+        license="MIT",
         packages=get_packages(),
-        zip_safe=True,
+        zip_safe=False,
         data_files = [
             (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
              ['pymaid/pb/pymaid.proto']),
         ],
         install_requires=[
-            'gevent>=1.0.1',
+            'gevent>=1.0.2',
             'protobuf>=3.0.0a3.dev0',
         ],
         cmdclass = {'clean': clean, 'build_py': build_py},
