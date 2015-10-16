@@ -38,7 +38,7 @@ class PBChannel(Channel):
                 # that should be an exception
                 async_result.set_exception(reason)
             conn.transmissions.clear()
-        self.connection_detached(conn, reason)
+        super(PBChannel, self)._connection_detached(conn, reason)
 
     def CallMethod(self, method, controller, request, response_class, callback):
         meta = controller.meta

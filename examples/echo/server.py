@@ -2,14 +2,11 @@ from __future__ import print_function
 
 import pymaid
 from pymaid.pb.channel import PBChannel
-from pymaid.connection import Connection
 
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import Message
 from echo_pb2 import EchoService
-
-Connection.MAX_PACKET_LENGTH = 1001000
 
 
 class EchoServiceImpl(EchoService):
@@ -35,8 +32,7 @@ def main():
     except:
         import traceback
         traceback.print_exc()
-        print(len(channel.outgoing_connections))
-        print(len(channel.incoming_connections))
+        print(len(channel.clients))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
         objects = gc.get_objects()
