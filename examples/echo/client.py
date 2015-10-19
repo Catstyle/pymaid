@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from gevent.pool import Pool
 
-from pymaid.connection import Connection
 from pymaid.pb.channel import PBChannel
 from pymaid.pb.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
@@ -12,7 +11,7 @@ from echo_pb2 import EchoService_Stub
 
 message = 'a' * 10000
 def wrapper(pid, n, message=message):
-    conn = Connection.create(("127.0.0.1", 8888))
+    conn = channel.connect(("127.0.0.1", 8888))
     for x in range(n):
         response = service.echo(request, conn=conn)
         assert response.message == message, len(response.message)
@@ -38,6 +37,8 @@ def main():
     try:
         pool.join()
     except:
+        import traceback
+        traceback.print_exc()
         print(len(channel.clients))
         print(pool.size, len(pool.greenlets))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))

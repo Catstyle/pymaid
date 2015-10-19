@@ -14,7 +14,7 @@ from _socket import socket as realsocket, error as socket_error
 from _socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
-from _socket import AF_UNIX, AF_INET, SOCK_STREAM
+from _socket import AF_INET, SOCK_STREAM
 
 from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
@@ -200,7 +200,7 @@ class Connection(object):
             return self._socket.getpeername()
         except socket_error as err:
             if err.errno == EINVAL:
-                return 'not valid in shutdown socket on osx'
+                return 'invalid in shutdown socket on osx'
             raise
 
     @property
@@ -313,11 +313,3 @@ class Connection(object):
         self.close_cb = None
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
-
-    @staticmethod
-    def create(address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
-        if isinstance(address, string_types):
-            family = AF_UNIX
-        conn = Connection(family=family, type_=type_, server_side=False)
-        conn.connect(address, timeout)
-        return conn

@@ -1,5 +1,6 @@
 __all__ = ['Channel']
 
+import os
 from _socket import socket as realsocket
 from _socket import AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 
@@ -41,6 +42,7 @@ class Channel(object):
 
     def _do_accept(self, sock, max_accept=MAX_ACCEPT):
         accept, attach = sock.accept, self._connection_attached
+        bind = self._bind_connection_handler
         ConnectionClass = self.CONNECTION_CLASS
         for _ in range(max_accept):
             if self.is_full:
@@ -53,18 +55,21 @@ class Channel(object):
                 self.logger.exception(ex)
                 raise
             conn = ConnectionClass(sock=peer_socket, server_side=True)
+            bind(conn)
             attach(conn)
 
-    def _connection_attached(self, conn):
-        conn.set_close_cb(self._connection_detached)
-        assert conn.conn_id not in self.clients
-        self.clients[conn.conn_id] = conn
+    def _bind_connection_handler(self, conn):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
         )
         conn.s_gr = greenlet_pool.spawn(self.connection_handler, conn)
         conn.s_gr.link_exception(conn.close)
+
+    def _connection_attached(self, conn):
+        conn.set_close_cb(self._connection_detached)
+        assert conn.conn_id not in self.clients
+        self.clients[conn.conn_id] = conn
         self.connection_attached(conn)
 
     def _connection_detached(self, conn, reason=None):
@@ -89,6 +94,7 @@ class Channel(object):
         # not support ipv6 yet
         if isinstance(address, string_types):
             family = AF_UNIX
+            os.unlink(address)
         else:
             family = AF_INET
         sock = realsocket(family, type_)
@@ -99,6 +105,14 @@ class Channel(object):
         self.listener = sock
         self.accept_watcher = self.loop.io(sock.fileno(), READ)
 
+    def connect(self, address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
+        if isinstance(address, string_types):
+            family = AF_UNIX
+        conn = self.CONNECTION_CLASS(family=family, type_=type_, server_side=False)
+        conn.connect(address, timeout)
+        self._bind_connection_handler(conn)
+        return conn
+
     def connection_attached(self, conn):
         pass
 
@@ -107,7 +121,7 @@ class Channel(object):
 
     def connection_handler(self, conn):
         '''
-        automatically called by connection once made
+        Automatically called by connection once made
         it will run in an independent greenlet
         '''
         pass
