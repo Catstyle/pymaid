@@ -2,12 +2,11 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.channel import Channel
-from pymaid.connection import Connection
 from pymaid.utils import greenlet_pool
 
 
 def wrapper(pid, n):
-    conn = Connection.create('/tmp/hello.sock')
+    conn = channel.connect('/tmp/hello.sock')
     req = '1234567890' * 100 + '\n'
     req_size = len(req)
     read, write = conn.readline, conn.write
