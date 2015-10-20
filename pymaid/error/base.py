@@ -44,11 +44,11 @@ class Error(BaseError):
 
     def __unicode__(self):
         return u'[ERROR][code|{0}][message|{1}]'.format(self.code, self.message)
-    __str__ = __unicode__
+    __repr__ = __str__ = __unicode__
 
 
 class Warning(BaseError):
 
     def __unicode__(self):
         return u'[WARNING][code|{0}][message|{1}]'.format(self.code, self.message)
-    __str__ = __unicode__
+    __repr__ = __str__ = __unicode__

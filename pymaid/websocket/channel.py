@@ -1,14 +1,18 @@
-__all__ = ['PBChannel']
+from __future__ import absolute_import
+__all__ = ['WSChannel']
 
 import six
 from _socket import error as socket_error
 
+from gevent import getcurrent, get_hub
 from gevent.queue import Queue
 from gevent.event import AsyncResult
 
+from geventwebsocket.server import WebSocketServer
+import websocket
+
 from google.protobuf.message import DecodeError
 
-from pymaid.channel import Channel
 from pymaid.pb.controller import Controller
 from pymaid.parser import (
     unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
@@ -17,27 +21,56 @@ from pymaid.error import BaseError, ErrorMeta, RPCNotExist, PacketTooLarge
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
 
-range = six.moves.range
+from .proxy import WebSocketProxy
+
+hub = get_hub()
 
 
 @pymaid_logger_wrapper
-class PBChannel(Channel):
+class WSChannel(WebSocketServer):
 
     MAX_PACKET_LENGTH = 8 * 1024
 
-    def __init__(self, loop=None):
-        super(PBChannel, self).__init__(loop)
+    def __init__(self, listener, *args, **kwargs):
+        if args:
+            args = list(args)
+            args[0] = self.connection_handler
+        else:
+            kwargs['application'] = self.connection_handler
+        super(WSChannel, self).__init__(listener, *args, **kwargs)
+
         self.services, self.service_methods, self.stub_response = {}, {}, {}
         self._get_rpc = self.service_methods.get
+        self.connections = {}
 
-    def _connection_detached(self, conn, reason):
+    def _bind_connection_handler(self, conn):
+        self.logger.info(
+            '[conn|%d][host|%s][peer|%s] made',
+            conn.conn_id, conn.sockname, conn.peername
+        )
+
+        current_gr = getcurrent()
+        if current_gr != hub:
+            conn.s_gr = current_gr
+            conn.s_gr.link_exception(conn.close)
+
+    def _connection_attached(self, conn):
+        conn.set_close_cb(self._connection_detached)
+        assert conn.conn_id not in self.connections
+        self.connections[conn.conn_id] = conn
+        self.connection_attached(conn)
+
+    def _connection_detached(self, conn, reason=None):
         if not conn.server_side:
             for async_result in conn.transmissions.values():
                 # we should not reach here with async_result left
                 # that should be an exception
                 async_result.set_exception(reason)
             conn.transmissions.clear()
-        super(PBChannel, self)._connection_detached(conn, reason)
+        conn.s_gr.kill(block=False)
+        assert conn.conn_id in self.connections
+        del self.connections[conn.conn_id]
+        self.connection_detached(conn, reason)
 
     def CallMethod(self, method, controller, request, response_class, callback):
         meta = controller.meta
@@ -58,12 +91,12 @@ class PBChannel(Channel):
         if controller.broadcast:
             # broadcast
             assert not require_response
-            for conn in six.itervalues(self.clients):
+            for conn in six.itervalues(self.connections):
                 conn.send(packet_buffer)
         elif controller.group is not None:
             # small broadcast
             assert not require_response
-            get_conn = self.clients.get
+            get_conn = self.connections.get
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
@@ -79,6 +112,12 @@ class PBChannel(Channel):
         controller.conn.transmissions[transmission_id] = async_result
         return async_result.get()
 
+    def connect(self, address, timeout=None):
+        ws = websocket.create_connection(address, timeout)
+        conn = WebSocketProxy(ws)
+        self._bind_connection_handler(conn)
+        return conn
+
     def append_service(self, service):
         assert service.DESCRIPTOR.full_name not in self.services
         self.services[service.DESCRIPTOR.full_name] = service
@@ -91,9 +130,23 @@ class PBChannel(Channel):
             method = getattr(service, method.name)
             service_methods[full_name] = method, request_class, response_class
 
-    def connection_handler(self, conn):
+    def connection_attached(self, conn):
+        pass
+
+    def connection_detached(self, conn, reason):
+        pass
+
+    def connection_handler(self, environ, start_response):
+        ws = environ.get('wsgi.websocket')
+        if not ws:
+            start_response("400 Bad Request", [])
+            return
+        conn = WebSocketProxy(ws)
+        self._bind_connection_handler(conn)
+        self._connection_attached(conn)
+
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
-        read, unpack_packet = conn.read, Controller.unpack_packet
+        receive, unpack_packet = conn.receive, Controller.unpack_packet
         tasks_queue, handle_response = Queue(), self.handle_response
         greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         callbacks = {
@@ -103,16 +156,17 @@ class PBChannel(Channel):
         new_task = tasks_queue.put
         try:
             while 1:
-                header = read(header_length)
-                if not header:
+                message = receive()
+                if not message:
                     conn.close(reset=True)
                     break
+                header = message[:header_length]
                 parser_type, packet_length, content_length = unpack_header(header)
                 if packet_length > max_packet_length:
                     conn.close(PacketTooLarge(packet_length=packet_length))
                     break
 
-                buf = read(packet_length+content_length)
+                buf = message[header_length:header_length+packet_length+content_length]
                 assert len(buf) == packet_length+content_length
                 controller = unpack_packet(buf[:packet_length], parser_type)
                 controller.content = buf[packet_length:]
