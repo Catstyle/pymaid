@@ -73,7 +73,7 @@ def generate_proto(source):
     if args['gen_js_pb'] and 'examples/' not in source:
         pbjs_output = source.replace('.proto', '.pb.js')
         pbjs_output = pbjs_output.lstrip('./')
-        pbjs_output = 'protos/' + pbjs_output
+        pbjs_output = 'protos/js/' + pbjs_output
         pbjs_dir = '/'.join(pbjs_output.split('/')[:-1])
         if not os.path.isdir(pbjs_dir):
             os.makedirs(pbjs_dir)
@@ -97,7 +97,7 @@ class clean(_clean):
                         filepath.endswith(".o")):
                     os.remove(filepath)
             for dirname in dirnames:
-                if dirname in ('build', 'dist', 'pymaid.egg-info'):
+                if dirname in ('build', 'dist', 'pymaid.egg-info', 'protos'):
                     shutil.rmtree(os.path.join(dirpath, dirname))
         # _clean is an old-style class, so super() doesn't work.
         _clean.run(self)
