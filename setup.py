@@ -71,13 +71,13 @@ def generate_proto(source):
         sys.exit(-1)
 
     if args['gen_js_pb'] and 'examples/' not in source:
-        pbjs_output = source.replace('.proto', '.pb.js')
+        pbjs_output = source.replace('.proto', '.json')
         pbjs_output = pbjs_output.lstrip('./')
         pbjs_output = 'protos/js/' + pbjs_output
         pbjs_dir = '/'.join(pbjs_output.split('/')[:-1])
         if not os.path.isdir(pbjs_dir):
             os.makedirs(pbjs_dir)
-        command = [args['pbjs'], source, '-t', 'js', '-p', '.']
+        command = [args['pbjs'], source, '-t', 'json', '-p', '.']
         js_output = subprocess.check_output(command)
         with open(pbjs_output, 'w') as fp:
             fp.write(js_output)
