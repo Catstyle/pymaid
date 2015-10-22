@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from gevent.pool import Pool
 
-from pymaid.pb.channel import PBChannel
+from pymaid.websocket.channel import WSChannel
 from pymaid.pb.agent import ServiceAgent
 from pymaid.utils import greenlet_pool
 
@@ -11,14 +11,14 @@ from echo_pb2 import EchoService_Stub
 
 message = 'a' * 10000
 def wrapper(pid, n, message=message):
-    conn = channel.connect(("127.0.0.1", 8888))
+    conn = channel.connect("ws://127.0.0.1:8888/")
     for x in range(n):
         response = service.echo(request, conn=conn)
         assert response.message == message, len(response.message)
     conn.close()
 
 
-channel = PBChannel()
+channel = WSChannel(("127.0.0.1", 8888))
 service = ServiceAgent(EchoService_Stub(channel))
 method = service.stub.DESCRIPTOR.FindMethodByName('echo')
 request_class = service.stub.GetRequestClass(method)
@@ -31,8 +31,8 @@ def main():
 
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
-    for x in range(100):
-        pool.spawn(wrapper, x, 1000)
+    for x in range(10):
+        pool.spawn(wrapper, x, 10)
 
     try:
         pool.join()

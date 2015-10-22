@@ -1,7 +1,6 @@
 from __future__ import print_function
 
-import pymaid
-from pymaid.pb.channel import PBChannel
+from pymaid.websocket.channel import WSChannel
 
 from pymaid.utils import greenlet_pool
 
@@ -22,13 +21,11 @@ def main():
     gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
     gc.enable()
 
-    channel = PBChannel()
-    channel.listen(("127.0.0.1", 8888))
+    channel = WSChannel(("", 8888))
     impl = EchoServiceImpl()
     channel.append_service(impl)
-    channel.start()
     try:
-        pymaid.serve_forever()
+        channel.serve_forever()
     except:
         import traceback
         traceback.print_exc()

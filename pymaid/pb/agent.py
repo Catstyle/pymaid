@@ -52,4 +52,7 @@ class ServiceAgent(object):
         return dir(self.stub)
 
     def __getattr__(self, name):
-        return self._get_rpc(name) or object.__getattr__(self, name)
+        ret = self._get_rpc(name)
+        if not ret:
+            raise AttributeError(name)
+        return ret
