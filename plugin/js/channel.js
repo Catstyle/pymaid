@@ -45,7 +45,7 @@ var Channel = cc.Class.extend({
             contentBuf = bb.slice(5+controllerLength, 5+controllerLength+contentLength);
         }
 
-        return {controller: controller, contentBuf: contentBuf};
+        return {controller: controller, content: contentBuf};
     },
 
     registerConnection: function(connectionClass) {
@@ -76,28 +76,31 @@ var Channel = cc.Class.extend({
     },
 
     onopen: function(evt) {
-        cc.log('channel opened')
+        cc.log('channel opened');
         cc.isConnected = true;
-        this.openCB(this);
+        if(this.openCB) {
+            this.openCB(this, evt);
+        }
     },
 
     onclose: function(evt) {
-        cc.log('channel closed')
+        cc.log('channel closed');
     },
 
     onmessage: function(evt) {
         var packet = this._unpackPacket(evt.data);
         var transmissionId = packet.controller.transmission_id;
         var cb = this.transmissions[transmissionId];
+        delete this.transmissions[transmissionId];
         if (!cb) {
             cc.error('transmissionId: ' + transmissionId + 'has no cb');
             // what to do?
             return;
         }
-        cb(packet.contentBuf);
+        cb(packet);
     },
 
     onerror: function(evt) {
-        cc.log('channel error', evt)
+        cc.log('channel error', evt);
     },
 });
