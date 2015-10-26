@@ -1,7 +1,6 @@
 __all__ = ['WebSocketProxy']
 
 import struct
-from collections import deque
 
 from errno import EINVAL, ENOTCONN
 from _socket import error as socket_error
@@ -28,8 +27,6 @@ class WebSocketProxy(object):
 
         self.conn_id = self.CONN_ID
         WebSocketProxy.CONN_ID += 1
-
-        self._send_queue = deque()
 
     def __getattr__(self, name):
         return getattr(self.ws, name)
@@ -77,7 +74,6 @@ class WebSocketProxy(object):
             self.conn_id, self.sockname, self.peername, reason)
 
         self.ws.close()
-        self._send_queue.clear()
 
         if self.close_cb:
             self.close_cb(self, reason)
