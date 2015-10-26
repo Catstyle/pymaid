@@ -92,7 +92,7 @@ class WSChannel(WebSocketServer):
             # broadcast
             assert not require_response
             for conn in six.itervalues(self.connections):
-                conn.send(packet_buffer)
+                conn.send(packet_buffer, binary=1)
         elif controller.group is not None:
             # small broadcast
             assert not require_response
@@ -100,9 +100,9 @@ class WSChannel(WebSocketServer):
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
-                    conn.send(packet_buffer)
+                    conn.send(packet_buffer, binary=1)
         else:
-            controller.conn.send(packet_buffer)
+            controller.conn.send(packet_buffer, binary=1)
 
         if not require_response:
             return
@@ -129,6 +129,8 @@ class WSChannel(WebSocketServer):
             response_class = service.GetResponseClass(method)
             method = getattr(service, method.name)
             service_methods[full_name] = method, request_class, response_class
+            # js/lua pb lib will format as '.service.method'
+            service_methods['.'+full_name] = method, request_class, response_class
 
     def connection_attached(self, conn):
         pass
@@ -203,7 +205,7 @@ class WSChannel(WebSocketServer):
         rpc = self._get_rpc(service_method)
         if not rpc:
             controller.SetFailed(RPCNotExist(service_method=service_method))
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
             return
 
         method, request_class, response_class = rpc
@@ -211,14 +213,14 @@ class WSChannel(WebSocketServer):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
             controller.pack_content(response)
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
 
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
 
     def handle_notification(self, conn, controller):
         service_method = controller.meta.service_method
