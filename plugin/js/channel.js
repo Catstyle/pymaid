@@ -28,8 +28,8 @@ var Channel = cc.Class.extend({
         return {transmissionId: controller.transmission_id, buf: bb.toBuffer()};
     },
 
-    _unpackPacket: function(binary) {
-        var bb = dcodeIO.ByteBuffer.fromBinary(binary);
+    _unpackPacket: function(ab) {
+        var bb = dcodeIO.ByteBuffer.wrap(ab);
         var type = bb.readUint8();
         cc.assert(type == 1, 'should be pb parser');
 
