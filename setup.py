@@ -14,21 +14,11 @@ if sys.version_info[0] >= 3:
 else:
     # Python 2
     from distutils.command.build_py import build_py as _build_py
-from distutils.spawn import find_executable
 
 __version__ = re.search(
     "__version__\s*=\s*'(.*)'", open('pymaid/__init__.py').read(), re.M
 ).group(1)
 assert __version__
-
-
-protoc = find_executable("protoc")
-if not protoc:
-    sys.stderr.write(
-        "protoc is not installed, Please compile it "
-        "or install the binary package.\n"
-    )
-    sys.exit(1)
 
 
 def get_packages():
@@ -38,49 +28,6 @@ def get_packages():
         if '__init__.py' in filenames:
             packages.append(".".join(os.path.split(root)).strip("."))
     return packages
-
-
-def get_protos():
-    # setuptools can't do the job :(
-    protos = []
-    for root, dirnames, filenames in os.walk('.'):
-        for filename in filenames:
-            if filename.endswith('.proto'):
-                protos.append(os.path.join(root, filename))
-    return protos 
-
-
-def generate_proto(source):
-    """
-    Invokes the Protocol Compiler to generate a _pb2.py from the given
-    .proto file.
-    Does nothing if the output already exists and is newer than the input.
-    """
-
-    output = source.replace(".proto", "_pb2.py")
-
-    print("Generating %s..." % output)
-    if not os.path.exists(source):
-        sys.stderr.write("Can't find required file: %s\n" % source)
-        sys.exit(-1)
-
-    protoc_command = [protoc, "-I.", "--python_out=.", source]
-    if args['gen_lua_pb']:
-        protoc_command.insert(-1, "--lua_out=.")
-    if subprocess.call(protoc_command) != 0:
-        sys.exit(-1)
-
-    if args['gen_js_pb'] and 'examples/' not in source:
-        pbjs_output = source.replace('.proto', '.json')
-        pbjs_output = pbjs_output.lstrip('./')
-        pbjs_output = 'protos/js/' + pbjs_output
-        pbjs_dir = '/'.join(pbjs_output.split('/')[:-1])
-        if not os.path.isdir(pbjs_dir):
-            os.makedirs(pbjs_dir)
-        command = [args['pbjs'], source, '-t', 'json', '-p', '.']
-        js_output = subprocess.check_output(command)
-        with open(pbjs_output, 'w') as fp:
-            fp.write(js_output)
 
 
 class clean(_clean):
@@ -106,33 +53,16 @@ class clean(_clean):
 class build_py(_build_py):
 
     def run(self):
-        for proto in get_protos():
-            generate_proto(proto)
+        errno = subprocess.call(['python', 'compile.py'])
+        if errno != 0:
+            print ('call `python compile.py` failed with errno: %d' % errno)
+            exit(1)
         open('pymaid/pb/__init__.py', 'a').close()
         # _build_py is an old-style class, so super() doesn't work.
         _build_py.run(self)
 
 
-args = {'gen_lua_pb': False, 'gen_js_pb': False, 'pbjs': ''}
-def parse_args():
-    if '--gen_lua_pb' in sys.argv:
-        if not find_executable("protoc-gen-lua"):
-            sys.stderr.write('wants to generate lua format but cannot find lua plugin')
-            sys.exit(1)
-        args['gen_lua_pb'] = True
-        sys.argv.remove('--gen_lua_pb')
-
-    if '--gen_js_pb' in sys.argv:
-        args['pbjs'] = find_executable("pbjs")
-        if not args['pbjs']:
-            sys.stderr.write('wants to generate js format but cannot find js plugin')
-            sys.exit(1)
-        args['gen_js_pb'] = True
-        sys.argv.remove('--gen_js_pb')
-
-
 if __name__ == '__main__':
-    parse_args()
     setup(
         name="pymaid",
         version=__version__,
