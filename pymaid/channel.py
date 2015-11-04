@@ -85,16 +85,16 @@ class Channel(object):
     def listen(self, address, type_=SOCK_STREAM, backlog=MAX_BACKLOG):
         if self.is_bound:
             self.logger.warn(
-                '%s wants to listen on %s while already bound %s' % (
-                    self.__class__.__name__, address, self.listener.getsockname()
-                )
+                '%s wants to listen on %s while already bound %s',
+                self.__class__.__name__, address, self.listener.getsockname()
             )
             return
         self.is_bound = True
         # not support ipv6 yet
         if isinstance(address, string_types):
             family = AF_UNIX
-            os.unlink(address)
+            if os.path.exists(address):
+                os.unlink(address)
         else:
             family = AF_INET
         sock = realsocket(family, type_)

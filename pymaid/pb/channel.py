@@ -10,14 +10,13 @@ from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
 from pymaid.pb.controller import Controller
-from pymaid.parser import (
-    unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
-)
+from pymaid.parser import unpack_header, HEADER_LENGTH
 from pymaid.error import BaseError, ErrorMeta, RPCNotExist, PacketTooLarge
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
-from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
+from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
 range = six.moves.range
+REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 
 
 @pymaid_logger_wrapper
