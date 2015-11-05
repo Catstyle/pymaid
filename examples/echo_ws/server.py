@@ -1,11 +1,9 @@
 from __future__ import print_function
 
 from pymaid.websocket.channel import WSChannel
-
 from pymaid.utils import greenlet_pool
 
-from echo_pb2 import Message
-from echo_pb2 import EchoService
+from echo_pb2 import Message, EchoService
 
 
 class EchoServiceImpl(EchoService):
@@ -14,6 +12,7 @@ class EchoServiceImpl(EchoService):
         response = Message()
         response.CopyFrom(request)
         callback(response)
+
 
 def main():
     import gc
