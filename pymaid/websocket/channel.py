@@ -9,8 +9,6 @@ from gevent.queue import Queue
 from gevent.event import AsyncResult
 
 from geventwebsocket.server import WebSocketServer
-import websocket
-
 from google.protobuf.message import DecodeError
 
 from pymaid.pb.controller import Controller
@@ -112,6 +110,8 @@ class WSChannel(WebSocketServer):
         return async_result.get()
 
     def connect(self, address, timeout=None):
+        # import here to avoid requirement even not using as client side
+        import websocket
         ws = websocket.create_connection(address, timeout)
         conn = WebSocketProxy(ws)
         self._bind_connection_handler(conn)
