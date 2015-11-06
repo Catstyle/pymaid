@@ -25,9 +25,7 @@ def parse_args():
     parser.add_argument(
         '--pbjs', default=find_executable('pbjs'), help='protoc compiler'
     )
-    parser.add_argument(
-        '--path', type=str, default='.', help='protos path'
-    )
+    parser.add_argument('--path', type=str, default='.', help='protos path')
     parser.add_argument(
         '--python-out', type=str, default='.', help='python output path'
     )
@@ -68,7 +66,6 @@ def get_protos(path):
 
 
 def compile_proto(protoc, source, path, python_out, lua_out=None):
-    ensure_folder(python_out)
     command = [
         protoc, '-I', path, '-I', extra_include,
         '--python_out', python_out, source
@@ -108,8 +105,8 @@ def xor(content, key):
     assert key, 'invalid key'
     length = len(key)
     print ('xor with key: %s, length: %d' % (key, length))
-    return ''.join([chr(ord(char) ^ ord(key[idx%length]))
-                    for idx, char in enumerate(content)])
+    return ''.join(chr(ord(char) ^ ord(key[idx%length]))
+                   for idx, char in enumerate(content))
 
 
 def ensure_folder(path):
@@ -131,6 +128,7 @@ def generate(protoc, path, python_out='.',
     if lua_out:
         assert pblua, 'generate lua require `protoc-gen-lua`'
 
+    ensure_folder(python_out)
     protos = get_protos(path)
     for source in protos:
         if not os.path.exists(source):
@@ -143,6 +141,12 @@ def generate(protoc, path, python_out='.',
         if json_out:
             pb2json(pbjs, source, path, json_out, xor_key)
         print ()
+
+    for root, dirs, files in os.walk(python_out):
+        init_file = os.path.join(root, '__init__.py')
+        if not os.path.exists(init_file):
+            with open(init_file, 'a'):
+                pass
 
 
 def main():
