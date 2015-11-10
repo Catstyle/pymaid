@@ -16,8 +16,8 @@ for name, attr in descriptor.FieldDescriptor.__dict__.items():
     if name.startswith('LABEL_'):
         LABELS[attr] = name.lower().split('_')[-1]
 
-SERVICE_TEMPLATE = Template("""(function (global) {
-    (global['impl'] = global['impl'] || {})['${service_name}'] = {
+SERVICE_TEMPLATE = Template("""(function(global) {
+    (global['${package}'] = global['${package}'] || {})['${service_name}'] = {
 ${methods}
     };
 })(this);
@@ -40,7 +40,10 @@ def parse_args():
     parser.add_argument('module', type=str, help='module file')
     parser.add_argument('service', type=str, help='service name')
     parser.add_argument('-p', nargs='*', type=str, help='extra python path')
-    parser.add_argument('--output', default='', type=str, help='output path')
+    parser.add_argument('--output', default='.', type=str, help='output path')
+    parser.add_argument(
+        '--package', type=str, default='impl', help='js package name'
+    )
 
     args = parser.parse_args()
     print (args)
@@ -77,7 +80,7 @@ def extra_message(message, indent='    '):
     return fields
 
 
-def generate_jsimpl(service_descriptor):
+def generate_jsimpl(service_descriptor, package):
     methods = ['']
     for method in service_descriptor.methods:
         req = star_ident + 'req: ' + method.input_type.name + star_ident
@@ -92,7 +95,8 @@ def generate_jsimpl(service_descriptor):
         )
         methods.append(indent.join(mstr.split('\n')))
     return SERVICE_TEMPLATE.safe_substitute(
-        service_name=service_descriptor.name, methods=indent.join(methods)
+        service_name=service_descriptor.name, methods=indent.join(methods),
+        package=package
     )
 
 
@@ -102,7 +106,7 @@ if __name__ == '__main__':
         sys.path.extend(args.p)
     service_descriptor = parse_module(args.module, args.service)
     assert service_descriptor
-    impl = generate_jsimpl(service_descriptor)
+    impl = generate_jsimpl(service_descriptor, args.package)
 
     output = args.output
     if not os.path.exists(output):

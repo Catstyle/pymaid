@@ -7,9 +7,16 @@ import argparse
 import json
 
 from distutils.spawn import find_executable
+from string import Template
 
 prefix = sys.prefix
 extra_include = os.path.join(prefix, 'include/')
+
+JS_TEMPLATE = Template("""(function(global) {
+    var next = global['${package}'] = global['${package}'] || {};
+    ${nexts};
+})(this);
+""")
 
 
 def parse_args():
@@ -36,6 +43,10 @@ def parse_args():
     )
     parser.add_argument(
         '--js-out', type=str, help='create js runtime structrues using pbjs'
+    )
+    parser.add_argument(
+        '--js-package', type=str, default='pbs',
+        help='js descriptor package name'
     )
     parser.add_argument(
         '--json-out', type=str, help='create json descriptor using pbjs'
@@ -65,7 +76,7 @@ def get_protos(path):
 
 def pb2py(protoc, source, path, python_out, lua_out=None):
     command = [
-        protoc, '-I', path, '-I', extra_include,
+        protoc, '-I', '.', '-I', path, '-I', extra_include,
         '--python_out', python_out, source
     ]
     if lua_out:
@@ -77,14 +88,26 @@ def pb2py(protoc, source, path, python_out, lua_out=None):
 
 
 def _pbjs(pbjs, source, path, extra_command):
-    command = [pbjs, source, '-p', path, '-p', extra_include]
+    command = [pbjs, source, '-p', '.', '-p', path, '-p', extra_include]
     command.extend(extra_command)
     print ('pbjs %s' % command)
     return subprocess.check_output(command)
 
 
-def pb2js(pbjs, source, path, output_path):
-    content = _pbjs(pbjs, source, path, ['-t', 'js'])
+def pb2js(pbjs, source, path, output_path, js_package):
+    content = _pbjs(pbjs, source, path, ['-t', 'json'])
+
+    nexts = []
+    relpath = os.path.relpath(source, path)
+    dirnames = os.path.splitext(relpath)[0].split('/')
+    for dirname in dirnames[:-1]:
+        nexts.append(
+            'var next = global["%s"] = global["%s"] || {};' % (dirname, dirname)
+        )
+    nexts.append('next["%s"] = %s' % (dirnames[-1], content.replace('\n', '\n    ')))
+    content = JS_TEMPLATE.safe_substitute(
+        package=js_package, nexts='\n    '.join(nexts)
+    )
     output = source.replace('.proto', '.js')
     save_to_file(os.path.join(output_path, output), content)
 
@@ -119,7 +142,8 @@ def save_to_file(output, content):
 
 
 def generate(path, protoc=None, python_out='', py_init=False,
-             pbjs=None, js_out='', json_out='', xor_key='',
+             pbjs=None, js_out='', js_package='pbs',
+             json_out='', xor_key='',
              pblua=None, lua_out=''):
     if python_out:
         assert protoc, 'generate python require `protoc`'
@@ -138,7 +162,7 @@ def generate(path, protoc=None, python_out='', py_init=False,
         if python_out:
             pb2py(protoc, source, path, python_out, lua_out)
         if js_out:
-            pb2js(pbjs, source, path, js_out)
+            pb2js(pbjs, source, path, js_out, js_package)
         if json_out:
             pb2json(pbjs, source, path, json_out, xor_key)
         print ()
