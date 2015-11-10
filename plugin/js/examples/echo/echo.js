@@ -1,35 +1,51 @@
-var EchoServiceImpl = {
-    echo: function(controller, request, cb) {
-        cc.log('echo.EchoService received msg: ' + request.message);
-        cb(null, request);
-    }
-};
-EchoServiceImpl.name = 'echo.EchoService';
-
 var echoTest = function() {
-    var channel = new Channel();
-    channel.registerConnection(WSConnection);
+    var channel = new pymaid.Channel(pymaid.WSConnection);
 
-    var builder = dcodeIO.ProtoBuf.loadJsonFile('src/pymaid/echo.json');
+    var pbJson = {
+        "package": "echo",
+        "options": {
+            "py_generic_services": true
+        },
+        "messages": [
+            {
+                "name": "Message",
+                "fields": [
+                    {
+                        "rule": "optional",
+                        "type": "string",
+                        "name": "message",
+                        "id": 1
+                    }
+                ]
+            }
+        ],
+        "services": [
+            {
+                "name": "EchoService",
+                "options": {},
+                "rpc": {
+                    "echo": {
+                        "request": "Message",
+                        "response": "Message",
+                        "options": {}
+                    }
+                }
+            }
+        ]
+    };
+    var builder = dcodeIO.ProtoBuf.loadJson(pbJson);
     var root = builder.build(); // resolved all protos
 
-    var stubs = new Stub();
+    var stubs = new pymaid.Stub(channel);
     stubs.registerStub(root.echo.EchoService);
-    stubs.bindChannel(channel);
-
-    var listener = new Listener();
-    listener.registerImpl(EchoServiceImpl);
-    listener.registerBuilder(builder);
-
-    channel.bindListener(listener);
 
     var echo = function(channel) {
-        var cb = function(err, res) {
-            cc.log('echo test response: ' + err + ':' + res);
+        var cb = function(err, resp) {
+            cc.log('err: ' + err + ', resp: ' + resp);
             if (!err) {
-                cc.log('echo receive msg: ' + res.message);
+                cc.log('receive resp: ' + resp.message);
             } else {
-                cc.log('echo receive error: ' + err.error_code, err.error_message);
+                cc.log('receive error: ' + err.error_code, err.error_message);
             }
         };
         stubs.echoService.echo({message: 'haha'}, cb);

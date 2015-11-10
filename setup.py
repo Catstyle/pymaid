@@ -53,7 +53,7 @@ class clean(_clean):
 class build_py(_build_py):
 
     def run(self):
-        errno = subprocess.call(['python', 'compile.py'])
+        errno = subprocess.call(['python', 'compile.py', '.', '--python-out', '.'])
         if errno != 0:
             print ('call `python compile.py` failed with errno: %d' % errno)
             exit(1)

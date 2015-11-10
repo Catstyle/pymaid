@@ -15,6 +15,7 @@ extra_include = os.path.join(prefix, 'include/')
 def parse_args():
     parser = argparse.ArgumentParser()
 
+    parser.add_argument('path', type=str, help='protos path')
     parser.add_argument(
         '--protoc', default=find_executable('protoc'), help='protoc compiler'
     )
@@ -25,25 +26,22 @@ def parse_args():
     parser.add_argument(
         '--pbjs', default=find_executable('pbjs'), help='protoc compiler'
     )
-    parser.add_argument('--path', type=str, default='.', help='protos path')
+    parser.add_argument('--python-out', type=str, help='python output path')
     parser.add_argument(
-        '--python-out', type=str, default='.', help='python output path'
+        '--py-init', action='store_true', help='create python module init file'
     )
     parser.add_argument(
-        '--lua-out', type=str, default='',
-        help='create lua runtime structrues using protoc-gen-lua plugin'
+        '--lua-out', type=str,
+        help='create lua runtime structrues using protoc-gen-lua'
     )
     parser.add_argument(
-        '--js-out', type=str, default='',
-        help='create js runtime structrues using pbjs'
+        '--js-out', type=str, help='create js runtime structrues using pbjs'
     )
     parser.add_argument(
-        '--json-out', type=str, default='',
-        help='create json descriptor using pbjs'
+        '--json-out', type=str, help='create json descriptor using pbjs'
     )
     parser.add_argument(
-        '--xor-key', type=str, default='',
-        help='encode json descriptor by key'
+        '--xor-key', type=str, help='encode json descriptor by key'
     )
 
     args = parser.parse_args()
@@ -65,7 +63,7 @@ def get_protos(path):
     return protos 
 
 
-def compile_proto(protoc, source, path, python_out, lua_out=None):
+def pb2py(protoc, source, path, python_out, lua_out=None):
     command = [
         protoc, '-I', path, '-I', extra_include,
         '--python_out', python_out, source
@@ -120,33 +118,37 @@ def save_to_file(output, content):
         fp.write(content)
 
 
-def generate(protoc, path, python_out='.',
+def generate(path, protoc=None, python_out='', py_init=False,
              pbjs=None, js_out='', json_out='', xor_key='',
              pblua=None, lua_out=''):
+    if python_out:
+        assert protoc, 'generate python require `protoc`'
+        ensure_folder(python_out)
     if js_out or json_out:
         assert pbjs, 'generate js/json require `pbjs`'
     if lua_out:
         assert pblua, 'generate lua require `protoc-gen-lua`'
 
-    ensure_folder(python_out)
     protos = get_protos(path)
     for source in protos:
         if not os.path.exists(source):
             print ('cannot find required file: %s\n' % source)
             exit(1)
         print ('compiling %s' % source)
-        compile_proto(protoc, source, path, python_out, lua_out)
+        if python_out:
+            pb2py(protoc, source, path, python_out, lua_out)
         if js_out:
             pb2js(pbjs, source, path, js_out)
         if json_out:
             pb2json(pbjs, source, path, json_out, xor_key)
         print ()
 
-    for root, dirs, files in os.walk(python_out):
-        init_file = os.path.join(root, '__init__.py')
-        if not os.path.exists(init_file):
-            with open(init_file, 'a'):
-                pass
+    if python_out and py_init:
+        for root, dirs, files in os.walk(python_out):
+            init_file = os.path.join(root, '__init__.py')
+            if not os.path.exists(init_file):
+                with open(init_file, 'a'):
+                    pass
 
 
 def main():
