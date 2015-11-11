@@ -1,1 +1,0 @@
-{"services": [{"rpc": {"echo": {"request": "Message", "response": "Message", "options": {}}}, "name": "EchoService", "options": {}}], "messages": [{"fields": [{"type": "string", "name": "message", "rule": "required", "id": 1}], "name": "Message"}], "options": {"py_generic_services": true}, "package": "echo"}
