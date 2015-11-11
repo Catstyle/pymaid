@@ -20,17 +20,12 @@ from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
 from gevent.core import READ, WRITE, EVENTS
 
-from pymaid.utils import pymaid_logger_wrapper
+from pymaid.utils import pymaid_logger_wrapper, timer, io
 from pymaid.error import BaseError
 
 range = six.moves.range
 string_types = six.string_types
 del six
-
-hub = get_hub()
-main_gr = hub.parent
-io, timer = hub.loop.io, hub.loop.timer
-del hub
 
 invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
@@ -42,7 +37,7 @@ class Connection(object):
     CONN_ID = 1
     LINGER_PACK = struct.pack('ii', 1, 0)
 
-    def __init__(self, sock=None, family=AF_INET, type_=SOCK_STREAM,
+    def __init__(self, channel, sock=None, family=AF_INET, type_=SOCK_STREAM,
                  proto=0, server_side=False):
         self._socket = sock = sock or realsocket(family, type_, proto)
         sock.setblocking(0)
@@ -58,7 +53,9 @@ class Connection(object):
 
         self._send_queue = deque()
 
-        self.r_io, self.w_io = io(sock.fileno(), READ), io(sock.fileno(), WRITE)
+        self.channel = channel
+        self.r_io = io(sock.fileno(), READ)
+        self.w_io = io(sock.fileno(), WRITE)
         self.r_gr, self.fed_write = None, False
 
     def _setsockopt(self, sock, server_side):
@@ -213,7 +210,7 @@ class Connection(object):
 
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
-        assert getcurrent() != main_gr, 'could not call block func in main loop'
+        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -232,7 +229,7 @@ class Connection(object):
 
     def readline(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
-        assert getcurrent() != main_gr, 'could not call block func in main loop'
+        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -257,11 +254,11 @@ class Connection(object):
     send = write
 
     def connect(self, address, timeout=None):
-        assert getcurrent() != main_gr, 'could not call block func in main loop'
+        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
         sock = self._socket
         errno = sock.connect_ex(address)
         if errno in connecting_error:
-            rw_io = io(self.fd, READ | WRITE)
+            rw_io = self.io(self.fd, READ | WRITE)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
             if timeout:

@@ -113,7 +113,7 @@ class WSChannel(WebSocketServer):
         # import here to avoid requirement even not using as client side
         import websocket
         ws = websocket.create_connection(address, timeout)
-        conn = WebSocketProxy(ws)
+        conn = WebSocketProxy(self, ws)
         self._bind_connection_handler(conn)
         return conn
 
@@ -142,7 +142,7 @@ class WSChannel(WebSocketServer):
         if not ws:
             start_response("400 Bad Request", [])
             return
-        conn = WebSocketProxy(ws)
+        conn = WebSocketProxy(self, ws)
         self._bind_connection_handler(conn)
         self._connection_attached(conn)
 

@@ -11,14 +11,14 @@ from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseError
 
 
-
 @pymaid_logger_wrapper
 class WebSocketProxy(object):
 
     CONN_ID = 1
     LINGER_PACK = struct.pack('ii', 1, 0)
 
-    def __init__(self, ws):
+    def __init__(self, channel, ws):
+        self.channel = channel
         self.ws = ws
         self._socket = ws.handler.socket
         self.transmission_id, self.transmissions = 1, {}
