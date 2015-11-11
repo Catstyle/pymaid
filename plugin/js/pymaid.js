@@ -294,6 +294,17 @@
         }
     };
 
+    ListenerPrototype._iterBuilderResult = function(result) {
+        for (var name in result) {
+            var attr = result[name];
+            if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Service) {
+                this._registerService(attr.$type);
+            } else if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Namespace) {
+                this._iterBuilderResult(attr);
+            }
+        }
+    };
+
     ListenerPrototype.registerImpl = function(impl) {
         this.implementations[impl.name] = this.implementations['.'+impl.name] = impl;
     };
@@ -302,11 +313,7 @@
         if (!builder.resolved) {
             builder.build();
         }
-        var ns = builder.ns.children[0];
-        var _services = ns.getChildren(dcodeIO.ProtoBuf.Reflect.Service);
-        for (var idx = 0; idx < _services.length; ++idx) {
-            this._registerService(_services[idx]);
-        }
+        this._iterBuilderResult(builder.result);
     };
 
     ListenerPrototype.onmessage = function(channel, controller, content) {

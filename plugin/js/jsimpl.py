@@ -17,9 +17,11 @@ for name, attr in descriptor.FieldDescriptor.__dict__.items():
         LABELS[attr] = name.lower().split('_')[-1]
 
 SERVICE_TEMPLATE = Template("""(function(global) {
-    (global['${package}'] = global['${package}'] || {})['${service_name}'] = {
+    var service = {
 ${methods}
     };
+    service.name = '${full_name}';
+    (global['${package}'] = global['${package}'] || {})['${service_name}'] = service;
 })(this);
 """)
 
@@ -95,8 +97,8 @@ def generate_jsimpl(service_descriptor, package):
         )
         methods.append(indent.join(mstr.split('\n')))
     return SERVICE_TEMPLATE.safe_substitute(
+        package=package, full_name=service_descriptor.full_name,
         service_name=service_descriptor.name, methods=indent.join(methods),
-        package=package
     )
 
 
