@@ -54,7 +54,7 @@ class Channel(object):
                     return
                 self.logger.exception(ex)
                 raise
-            conn = ConnectionClass(sock=peer_socket, server_side=True)
+            conn = ConnectionClass(self, sock=peer_socket, server_side=True)
             bind(conn)
             attach(conn)
 
@@ -108,7 +108,9 @@ class Channel(object):
     def connect(self, address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
         if isinstance(address, string_types):
             family = AF_UNIX
-        conn = self.CONNECTION_CLASS(family=family, type_=type_, server_side=False)
+        conn = self.CONNECTION_CLASS(
+            self, family=family, type_=type_, server_side=False
+        )
         conn.connect(address, timeout)
         self._bind_connection_handler(conn)
         return conn
