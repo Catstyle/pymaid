@@ -9,21 +9,18 @@ from gevent.queue import Queue
 from gevent.event import AsyncResult
 
 from geventwebsocket.server import WebSocketServer
-import websocket
-
 from google.protobuf.message import DecodeError
 
 from pymaid.pb.controller import Controller
-from pymaid.parser import (
-    unpack_header, HEADER_LENGTH, REQUEST, RESPONSE, NOTIFICATION
-)
+from pymaid.parser import unpack_header, HEADER_LENGTH
 from pymaid.error import BaseError, ErrorMeta, RPCNotExist, PacketTooLarge
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
-from pymaid.pb.pymaid_pb2 import Void, ErrorMessage
+from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
 from .proxy import WebSocketProxy
 
 hub = get_hub()
+REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 
 
 @pymaid_logger_wrapper
@@ -92,7 +89,7 @@ class WSChannel(WebSocketServer):
             # broadcast
             assert not require_response
             for conn in six.itervalues(self.connections):
-                conn.send(packet_buffer)
+                conn.send(packet_buffer, binary=1)
         elif controller.group is not None:
             # small broadcast
             assert not require_response
@@ -100,9 +97,9 @@ class WSChannel(WebSocketServer):
             for conn_id in controller.group:
                 conn = get_conn(conn_id)
                 if conn:
-                    conn.send(packet_buffer)
+                    conn.send(packet_buffer, binary=1)
         else:
-            controller.conn.send(packet_buffer)
+            controller.conn.send(packet_buffer, binary=1)
 
         if not require_response:
             return
@@ -113,8 +110,10 @@ class WSChannel(WebSocketServer):
         return async_result.get()
 
     def connect(self, address, timeout=None):
+        # import here to avoid requirement even not using as client side
+        import websocket
         ws = websocket.create_connection(address, timeout)
-        conn = WebSocketProxy(ws)
+        conn = WebSocketProxy(self, ws)
         self._bind_connection_handler(conn)
         return conn
 
@@ -129,6 +128,8 @@ class WSChannel(WebSocketServer):
             response_class = service.GetResponseClass(method)
             method = getattr(service, method.name)
             service_methods[full_name] = method, request_class, response_class
+            # js/lua pb lib will format as '.service.method'
+            service_methods['.'+full_name] = method, request_class, response_class
 
     def connection_attached(self, conn):
         pass
@@ -141,7 +142,7 @@ class WSChannel(WebSocketServer):
         if not ws:
             start_response("400 Bad Request", [])
             return
-        conn = WebSocketProxy(ws)
+        conn = WebSocketProxy(self, ws)
         self._bind_connection_handler(conn)
         self._connection_attached(conn)
 
@@ -203,7 +204,7 @@ class WSChannel(WebSocketServer):
         rpc = self._get_rpc(service_method)
         if not rpc:
             controller.SetFailed(RPCNotExist(service_method=service_method))
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
             return
 
         method, request_class, response_class = rpc
@@ -211,14 +212,14 @@ class WSChannel(WebSocketServer):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
             controller.pack_content(response)
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
 
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, send_response)
         except BaseError as ex:
             controller.SetFailed(ex)
-            conn.send(controller.pack_packet())
+            conn.send(controller.pack_packet(), binary=1)
 
     def handle_notification(self, conn, controller):
         service_method = controller.meta.service_method

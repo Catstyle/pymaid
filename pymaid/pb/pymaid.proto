@@ -1,22 +1,27 @@
-syntax = "proto2";
+syntax = "proto3";
 
 package pymaid.pb;
 
-
 message Controller {
-    optional string service_method = 1;
-    optional uint32 packet_type = 2;
-    optional uint32 transmission_id = 3;
-    optional bool is_canceled = 4;
-    optional bool is_failed = 5;
-}
+    string service_method = 1;
 
+    enum PacketType {
+        UNKNOWN = 0;
+        REQUEST = 1;
+        RESPONSE = 2;
+        NOTIFICATION = 3;
+    }
+    PacketType packet_type = 2;
+
+    uint32 transmission_id = 3;
+    bool is_canceled = 4;
+    bool is_failed = 5;
+}
 
 message Void {
 }
 
-
 message ErrorMessage {
-    required uint32 error_code = 1;
-    required string error_message = 2;
+    uint32 error_code = 1;
+    string error_message = 2;
 }

@@ -12,12 +12,6 @@ except ImportError:
     import json as json
 from pymaid.error import ParserNotExist
 
-
-# packet type
-REQUEST = 1
-RESPONSE = 2
-NOTIFICATION = 3
-
 HEADER = '!BHH'
 HEADER_LENGTH = struct.calcsize(HEADER)
 HEADER_STRUCT = struct.Struct(HEADER)
