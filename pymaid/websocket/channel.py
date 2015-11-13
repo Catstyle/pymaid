@@ -13,7 +13,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.pb.controller import Controller
 from pymaid.parser import unpack_header, HEADER_LENGTH
-from pymaid.error import BaseEx, RPCNotExist, PacketTooLarge, get_ex_by_code
+from pymaid.error import BaseEx, RpcError, get_ex_by_code
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
@@ -21,6 +21,7 @@ from .proxy import WebSocketProxy
 
 hub = get_hub()
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
+RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
 
 
 @pymaid_logger_wrapper
