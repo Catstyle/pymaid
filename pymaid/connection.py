@@ -21,7 +21,7 @@ from gevent.greenlet import Greenlet
 from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.utils import pymaid_logger_wrapper, timer, io
-from pymaid.error import BaseError
+from pymaid.error import BaseEx
 
 range = six.moves.range
 string_types = six.string_types
@@ -258,7 +258,7 @@ class Connection(object):
         sock = self._socket
         errno = sock.connect_ex(address)
         if errno in connecting_error:
-            rw_io = self.io(self.fd, READ | WRITE)
+            rw_io = io(self.fd, READ | WRITE)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
             if timeout:
@@ -289,7 +289,7 @@ class Connection(object):
             reason = reason.exception
 
         if reason:
-            if reset or isinstance(reason, BaseError):
+            if reset or isinstance(reason, BaseEx):
                 log = self.logger.error
             else:
                 log = self.logger.exception

@@ -3,7 +3,7 @@ __all__ = ['Controller']
 from google.protobuf.service import RpcController
 
 from pymaid.parser import pack_packet, unpack_packet, pack_header
-from pymaid.error import BaseError
+from pymaid.error import BaseEx
 from pymaid.pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
 
@@ -53,7 +53,7 @@ class Controller(RpcController):
 
     def SetFailed(self, reason):
         self.meta.is_failed = True
-        if isinstance(reason, BaseError):
+        if isinstance(reason, BaseEx):
             self.pack_content(ErrorMessage(
                 error_code=reason.code, error_message=reason.message
             ))

@@ -8,7 +8,7 @@ class ErrorMeta(type):
 
     def __init__(cls, name, bases, attrs):
         super(ErrorMeta, cls).__init__(name, bases, attrs)
-        if name in ['BaseError', 'Error', 'Warning']:
+        if name in ['BaseEx', 'Error', 'Warning']:
             return
 
         if issubclass(cls, Error):
@@ -19,19 +19,9 @@ class ErrorMeta(type):
             ErrorMeta.warnings[cls.code] = cls
         assert hasattr(cls, 'message_format')
 
-    @classmethod
-    def get_by_code(cls, error_code):
-        if error_code in cls.errors:
-            ret = cls.errors[error_code]
-        elif error_code in cls.warnings:
-            ret = cls.warnings[error_code]
-        else:
-            assert False, 'not definded error_code'
-        return ret
-
 
 @six.add_metaclass(ErrorMeta)
-class BaseError(Exception):
+class BaseEx(Exception):
 
     def __init__(self, **kwargs):
         if kwargs:
@@ -40,15 +30,32 @@ class BaseError(Exception):
             self.message = self.message_format
 
 
-class Error(BaseError):
+class Error(BaseEx):
 
     def __unicode__(self):
         return u'[ERROR][code|{0}][message|{1}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
 
 
-class Warning(BaseError):
+class Warning(BaseEx):
 
     def __unicode__(self):
         return u'[WARNING][code|{0}][message|{1}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
+
+
+def error_factory(name, code, message_format):
+    return type(name, (Error,), {'code': code, 'message_format': message_format})
+
+
+def warning_factory(name, code, message_format):
+    return type(name, (Warning,), {'code': code, 'message_format': message_format})
+
+
+def get_ex_by_code(code):
+    if code in ErrorMeta.errors:
+        return ErrorMeta.errors[code]
+    elif code in ErrorMeta.warnings:
+        return ErrorMeta.warnings[code]
+    else:
+        assert False, 'undefinded code'
