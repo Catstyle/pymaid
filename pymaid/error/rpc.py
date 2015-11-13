@@ -1,14 +1,13 @@
-from .base import error_factory
-
-module_index = 13570
+from .base import Builder
 
 
-RPCNotExist = error_factory(module_index+1, '[rpc|{service_method}] not found')
-ParserNotExist = error_factory(module_index+2, '[parser|{parser_type}] not found')
-HeartbeatTimeout = error_factory(
-    module_index+3, '[host|{host}][peer|{peer}] peer heartbeat timeout'
+RpcError = Builder(13570)
+RpcError.build_error('RPCNotExist', 1, '[rpc|{service_method}] not found')
+RpcError.build_error('ParserNotExist', 2, '[parser|{parser_type}] not found')
+RpcError.build_error(
+    'HeartbeatTimeout', 3, '[host|{host}][peer|{peer}] peer heartbeat timeout'
 )
-PacketTooLarge = error_factory(
-    module_index+4, '[packet_length|{packet_length}] out of limitation'
+RpcError.build_error(
+    'PacketTooLarge', 4, '[packet_length|{packet_length}] out of limitation'
 )
-EOF = error_factory(module_index+5, 'socket received eof')
+RpcError.build_error('EOF', 5, 'socket received eof')
