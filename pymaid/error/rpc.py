@@ -1,33 +1,28 @@
-from .base import Error, Warning
+from .base import error_factory
 
-module_index = 10000
-
-
-class RPCNotExist(Error):
-
-    code = module_index + 1
-    message_format = '[rpc|{service_method}] not found'
+module_index = 13570
 
 
-class ParserNotExist(Error):
-
-    code = module_index + 2
-    message_format = '[parser|{parser_type}] not found'
-
-
-class HeartbeatTimeout(Error):
-
-    code = module_index + 3
-    message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'
+RPCNotExist = error_factory(
+    'RPCNotExist', module_index+1, '[rpc|{service_method}] not found'
+)
 
 
-class PacketTooLarge(Error):
+ParserNotExist = error_factory(
+    'ParserNotExist', module_index+2, '[parser|{parser_type}] not found'
+)
 
-    code = module_index + 4
-    message_format = '[packet_length|{packet_length}] out of limitation'
+
+HeartbeatTimeout = error_factory(
+    'HeartbeatTimeout', module_index+3,
+    '[host|{host}][peer|{peer}] peer heartbeat timeout'
+)
 
 
-class EOF(Warning):
+PacketTooLarge = error_factory(
+    'PacketTooLarge', module_index+4,
+    '[packet_length|{packet_length}] out of limitation'
+)
 
-    code = module_index + 5
-    message_format = 'socket received eof'
+
+EOF = error_factory('EOF', module_index+5, 'socket received eof')

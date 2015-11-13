@@ -8,7 +8,7 @@ from _socket import error as socket_error
 from gevent.greenlet import Greenlet
 
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseError
+from pymaid.error import BaseEx
 
 
 @pymaid_logger_wrapper
@@ -64,7 +64,7 @@ class WebSocketProxy(object):
             reason = reason.exception
 
         if reason:
-            if reset or isinstance(reason, BaseError):
+            if reset or isinstance(reason, BaseEx):
                 log = self.logger.error
             else:
                 log = self.logger.exception
