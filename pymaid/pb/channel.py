@@ -11,7 +11,7 @@ from google.protobuf.message import DecodeError
 from pymaid.channel import Channel
 from pymaid.pb.controller import Controller
 from pymaid.parser import unpack_header, HEADER_LENGTH
-from pymaid.error import BaseError, ErrorMeta, RPCNotExist, PacketTooLarge
+from pymaid.error import BaseEx, RPCNotExist, PacketTooLarge, get_ex_by_code
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
@@ -161,7 +161,7 @@ class PBChannel(Channel):
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, send_response)
-        except BaseError as ex:
+        except BaseEx as ex:
             controller.SetFailed(ex)
             conn.send(controller.pack_packet())
 
@@ -176,7 +176,7 @@ class PBChannel(Channel):
         request = controller.unpack_content(request_class)
         try:
             method(controller, request, lambda *args, **kwargs: '')
-        except BaseError:
+        except BaseEx:
             # failed silently when handle_notification
             pass
 
@@ -187,7 +187,7 @@ class PBChannel(Channel):
 
         if controller.Failed():
             error_message = controller.unpack_content(ErrorMessage)
-            ex = ErrorMeta.get_by_code(error_message.error_code)()
+            ex = get_ex_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
