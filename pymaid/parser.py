@@ -10,7 +10,7 @@ try:
     import ujson as json
 except ImportError:
     import json as json
-from pymaid.error import ParserNotExist
+from pymaid.error import RpcError
 
 HEADER = '!BHH'
 HEADER_LENGTH = struct.calcsize(HEADER)
@@ -19,6 +19,7 @@ pack_header = HEADER_STRUCT.pack
 unpack_header = HEADER_STRUCT.unpack
 
 parsers = {}
+ParserNotExist = RpcError.ParserNotExist
 
 
 class ParserMeta(type):
