@@ -1,7 +1,6 @@
 __all__ = ['WebSocketProxy']
 
 import struct
-from collections import deque
 
 from errno import EINVAL, ENOTCONN
 from _socket import error as socket_error
@@ -12,14 +11,14 @@ from pymaid.utils import pymaid_logger_wrapper
 from pymaid.error import BaseError
 
 
-
 @pymaid_logger_wrapper
 class WebSocketProxy(object):
 
     CONN_ID = 1
     LINGER_PACK = struct.pack('ii', 1, 0)
 
-    def __init__(self, ws):
+    def __init__(self, channel, ws):
+        self.channel = channel
         self.ws = ws
         self._socket = ws.handler.socket
         self.transmission_id, self.transmissions = 1, {}
@@ -28,8 +27,6 @@ class WebSocketProxy(object):
 
         self.conn_id = self.CONN_ID
         WebSocketProxy.CONN_ID += 1
-
-        self._send_queue = deque()
 
     def __getattr__(self, name):
         return getattr(self.ws, name)
@@ -77,7 +74,6 @@ class WebSocketProxy(object):
             self.conn_id, self.sockname, self.peername, reason)
 
         self.ws.close()
-        self._send_queue.clear()
 
         if self.close_cb:
             self.close_cb(self, reason)
