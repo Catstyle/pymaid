@@ -44,12 +44,12 @@ class Warning(BaseEx):
     __repr__ = __str__ = __unicode__
 
 
-def error_factory(name, code, message_format):
-    return type(name, (Error,), {'code': code, 'message_format': message_format})
+def error_factory(code, message_format):
+    return type('Error', (Error,), {'code': code, 'message_format': message_format})
 
 
-def warning_factory(name, code, message_format):
-    return type(name, (Warning,), {'code': code, 'message_format': message_format})
+def warning_factory(code, message_format):
+    return type('Warning', (Warning,), {'code': code, 'message_format': message_format})
 
 
 def get_ex_by_code(code):
