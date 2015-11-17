@@ -23,9 +23,9 @@ class ErrorMeta(type):
 @six.add_metaclass(ErrorMeta)
 class BaseEx(Exception):
 
-    def __init__(self, **kwargs):
-        if kwargs:
-            self.message = self.message_format.format(**kwargs)
+    def __init__(self, *args, **kwargs):
+        if args or kwargs:
+            self.message = self.message_format.format(*args, **kwargs)
         else:
             self.message = self.message_format
 
