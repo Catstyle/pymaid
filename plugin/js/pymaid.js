@@ -387,5 +387,107 @@
         this[name] = new stub(this.rpc.bind(this));
     };
 
+
+    /**
+     * HttpManager, used to handle cookies/redirect things
+     *
+    **/
+    var HttpManager = function() {
+        this._rootUrl = '';
+        this._cookies = '';
+    };
+
+    var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
+    pymaid.HttpManager = HttpManager;
+
+    HMPrototype._realUrl = function(url) {
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            return url;
+        }
+        return this._rootUrl + url;
+    };
+
+    HMPrototype.setRootUrl = function(url) {
+        if (!(url.startsWith('http://')) && !(url.startsWith('https://'))) {
+            url = 'http://' + url;
+        }
+        this._rootUrl = url;
+    };
+
+    HMPrototype.setCookies = function(cookies) {
+        if (cookies) {
+            this._cookies = cookies;
+        }
+    };
+
+    HMPrototype.onNotAuthenticated = function() {
+        cc.log('HttpManager became not authenticated');
+    };
+
+    HMPrototype.newRequest = function(type, url, data, cb, async) {
+        var async = async || true;
+        var _data = data;
+
+        var req = cc.loader.getXMLHttpRequest();
+        if (type.toLowerCase() == 'post') {
+            req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+            _data = JSON.stringify(_data);
+        }
+
+        req.open(type.toUpperCase(), this._realUrl(url), async);
+        req.setRequestHeader('Cookie', this._cookies);
+        if (_data) {
+            req.send(_data);
+        } else {
+            req.send();
+        }
+
+        var self = this;
+        req.onreadystatechange = function() {
+            if (req.readyState != 4) {
+                return;
+            }
+            self.setCookies(req.getResponseHeader('Set-Cookie'));
+
+            var status = req.status;
+            var response = req.responseText;
+
+            if (status >= 200 && status <= 207) {
+                try {
+                    var obj = JSON.parse(response);
+                } catch (e) {
+                    if (e instanceof SyntaxError) {
+                        cb({code: 1, message: 'invalide json response', status: status}, response);
+                    } else {
+                        throw e;
+                    }
+                }
+                cb(null, obj);
+            } else if (status == 301 || status == 302) {
+                var location = req.getResponseHeader('Location');
+                // location endswith '\r'
+                self.newRequest('GET', location.substr(0, location.length-1), null, cb);
+            } else if (status == 401 || status == 403) {
+                self.onNotAuthenticated();
+            } else {
+                cb({code: 2, message: req.statusText, status: status}, response);
+            }
+        };
+
+        req.onerror = function() {
+            cb({code: 3, message: 'http request onerror', status: req.status});
+        };
+
+        return req;
+    };
+
+    HMPrototype.get = function(url, data, cb) {
+        return this.newRequest('GET', url, data, cb);
+    };
+
+    HMPrototype.post = function(url, data, cb) {
+        return this.newRequest('POST', url, data, cb);
+    };
+
     return pymaid;
 });
