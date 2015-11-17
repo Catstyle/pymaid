@@ -52,8 +52,13 @@ def pymaid_logger_wrapper(cls):
 
 
 def logger_wrapper(cls):
-    if project_logger:
-        cls.logger = project_logger.getChild(cls.__name__)
-    else:
-        cls.logger = root_logger.getChild(cls.__name__)
+    cls.logger = get_logger(cls.__name__)
     return cls
+
+
+def get_logger(name):
+    if project_logger:
+        logger = project_logger.getChild(__name__)
+    else:
+        logger = root_logger.getChild(__name__)
+    return logger
