@@ -411,6 +411,9 @@
         if (!(url.startsWith('http://')) && !(url.startsWith('https://'))) {
             url = 'http://' + url;
         }
+        if (url.endsWith('/')) {
+            url = url.substr(0, url.length-1);
+        }
         this._rootUrl = url;
     };
 
@@ -424,25 +427,14 @@
         cc.log('HttpManager became not authenticated');
     };
 
-    HMPrototype.newRequest = function(type, url, data, cb, async) {
+    HMPrototype.newRequest = function(type, url, cb, async) {
         var async = async || true;
-        var _data = data;
+        var self = this;
 
         var req = cc.loader.getXMLHttpRequest();
-        if (type.toLowerCase() == 'post') {
-            req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
-            _data = JSON.stringify(_data);
-        }
-
         req.open(type.toUpperCase(), this._realUrl(url), async);
         req.setRequestHeader('Cookie', this._cookies);
-        if (_data) {
-            req.send(_data);
-        } else {
-            req.send();
-        }
 
-        var self = this;
         req.onreadystatechange = function() {
             if (req.readyState != 4) {
                 return;
@@ -466,7 +458,7 @@
             } else if (status == 301 || status == 302) {
                 var location = req.getResponseHeader('Location');
                 // location endswith '\r'
-                self.newRequest('GET', location.substr(0, location.length-1), null, cb);
+                self.get(location.substr(0, location.length-1), '', cb);
             } else if (status == 401 || status == 403) {
                 self.onNotAuthenticated();
             } else {
@@ -482,11 +474,18 @@
     };
 
     HMPrototype.get = function(url, data, cb) {
-        return this.newRequest('GET', url, data, cb);
+        var data = data || '';
+        var req = this.newRequest('GET', url, cb);
+        req.send(data);
+        return req;
     };
 
     HMPrototype.post = function(url, data, cb) {
-        return this.newRequest('POST', url, data, cb);
+        var data = JSON.stringify(data) || '';
+        var req = this.newRequest('POST', url, cb);
+        req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+        req.send(data);
+        return req;
     };
 
     return pymaid;
