@@ -13,7 +13,8 @@ from google.protobuf.message import DecodeError
 
 from pymaid.pb.controller import Controller
 from pymaid.parser import unpack_header, HEADER_LENGTH
-from pymaid.error import BaseEx, RpcError, get_ex_by_code
+from pymaid.error import RpcError, get_ex_by_code
+from pymaid.error.base import BaseEx
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
@@ -111,7 +112,7 @@ class WSChannel(WebSocketServer):
         return async_result.get()
 
     def connect(self, address, timeout=None):
-        # import here to avoid requirement even not using as client side
+        # import here to avoid requirement when not using as client side
         import websocket
         ws = websocket.create_connection(address, timeout)
         conn = WebSocketProxy(self, ws)
