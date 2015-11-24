@@ -21,11 +21,10 @@ from gevent.greenlet import Greenlet
 from gevent.core import READ, WRITE, EVENTS
 
 from pymaid.utils import pymaid_logger_wrapper, timer, io
-from pymaid.error import BaseEx
+from pymaid.error.base import BaseEx
 
 range = six.moves.range
 string_types = six.string_types
-del six
 
 invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
