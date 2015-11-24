@@ -419,7 +419,15 @@
 
     HMPrototype.setCookies = function(cookies) {
         if (cookies) {
-            this._cookies = cookies;
+            var cookies = cookies.split(',');
+            for (var idx in cookies) {
+                var cookie = cookies[idx].trim().split(';')[0];
+                if (cookie.startsWith('sessionid')) {
+                    cc.log('HttpManager setCookies: ' + cookie);
+                    this._cookies = cookie;
+                    break;
+                }
+            }
         }
     };
 
@@ -456,9 +464,11 @@
                 }
                 cb(null, obj);
             } else if (status == 301 || status == 302) {
-                var location = req.getResponseHeader('Location');
-                // location endswith '\r'
-                self.get(location.substr(0, location.length-1), '', cb);
+                var location = req.getResponseHeader('Location').trim();
+                if (!location.endsWith('/')) {
+                    location += '/';
+                }
+                self.get(location, '', cb);
             } else if (status == 401 || status == 403) {
                 self.onNotAuthenticated();
             } else {
