@@ -39,7 +39,7 @@ def main():
     except:
         import traceback
         traceback.print_exc()
-        print(len(channel.clients))
+        print(len(channel.connections))
         print(pool.size, len(pool.greenlets))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
     objects = gc.get_objects()

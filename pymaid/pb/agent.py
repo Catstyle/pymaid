@@ -1,5 +1,12 @@
-from pymaid.pb.controller import Controller
+from gevent.event import AsyncResult
+from six import itervalues
+
 from pymaid.parser import DEFAULT_PARSER
+from pymaid.pb.channel import pack
+from pymaid.pb.controller import Controller
+from pymaid.pb.pymaid_pb2 import Void, Controller as PBC
+
+REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 
 
 class ServiceAgent(object):
@@ -7,7 +14,6 @@ class ServiceAgent(object):
     def __init__(self, stub, conn=None, profiling=False):
         self.conn, self.controller = conn, Controller()
         self.profiling, self.service_methods = profiling, {}
-        self.CallMethod = stub.rpc_channel.CallMethod
         self._bind_stub(stub)
         self._get_rpc = self.service_methods.get
 
@@ -25,23 +31,49 @@ class ServiceAgent(object):
             )
 
     def _build_rpc_stub(self, method, request_class, response_class):
-        def rpc(request=None, controller=None, callback=None, conn=None,
+        if not issubclass(response_class, Void):
+            packet_type, require_response = REQUEST, True
+        else:
+            packet_type, require_response = NOTIFICATION, False
+        def rpc(request=None, controller=None, channel=None, conn=None,
                 broadcast=False, group=None, parser_type=DEFAULT_PARSER,
                 **kwargs):
             if not controller:
                 controller = self.controller
                 controller.Reset()
+            request = request or request_class(**kwargs)
 
-            controller.broadcast, controller.group = broadcast, group
-            controller.parser_type = parser_type
-            if not (broadcast or group is not None):
+            meta = controller.meta
+            meta.service_method = method.full_name
+            meta.packet_type = packet_type
+            if broadcast or group:
+                assert channel, 'group/broadcast without channel'
+                packet_buffer = pack(meta, request, parser_type)
+                connections = channel.connections
+                if broadcast:
+                    connections = itervalues(connections)
+                else:
+                    connections = (
+                        connections[cid] for cid in group if cid in connections
+                    )
+                for conn in connections:
+                    conn.send(packet_buffer)
+            else:
                 assert conn or self.conn
-                controller.conn = conn or self.conn
+                conn = conn or self.conn
+                if require_response:
+                    meta.transmission_id = conn.transmission_id
+                    conn.transmission_id += 1
+                packet_buffer = pack(meta, request, parser_type)
+                conn.send(packet_buffer)
+                
+                if not require_response:
+                    return
 
-            return self.CallMethod(
-                method, controller, request or request_class(**kwargs),
-                response_class, callback
-            )
+                conn.channel.stub_response[meta.service_method] = response_class
+                async_result = AsyncResult()
+                conn.transmissions[meta.transmission_id] = async_result
+                return async_result.get()
         return rpc
 
     def close(self):

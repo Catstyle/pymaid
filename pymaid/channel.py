@@ -37,7 +37,7 @@ class Channel(object):
 
     def __init__(self, loop=None):
         self.loop = loop or get_hub().loop
-        self.clients = weakref.WeakValueDictionary()
+        self.connections = weakref.WeakValueDictionary()
         self.is_bound = False
 
     def _do_accept(self, sock, max_accept=MAX_ACCEPT):
@@ -68,19 +68,19 @@ class Channel(object):
 
     def _connection_attached(self, conn):
         conn.set_close_cb(self._connection_detached)
-        assert conn.conn_id not in self.clients
-        self.clients[conn.conn_id] = conn
+        assert conn.conn_id not in self.connections
+        self.connections[conn.conn_id] = conn
         self.connection_attached(conn)
 
     def _connection_detached(self, conn, reason=None):
         conn.s_gr.kill(block=False)
-        assert conn.conn_id in self.clients
-        del self.clients[conn.conn_id]
+        assert conn.conn_id in self.connections
+        del self.connections[conn.conn_id]
         self.connection_detached(conn, reason)
 
     @property
     def is_full(self):
-        return len(self.clients) >= self.MAX_CONCURRENCY
+        return len(self.connections) >= self.MAX_CONCURRENCY
 
     def listen(self, address, type_=SOCK_STREAM, backlog=MAX_BACKLOG):
         if self.is_bound:

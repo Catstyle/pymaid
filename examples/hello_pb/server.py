@@ -24,7 +24,7 @@ def main():
     try:
         pymaid.serve_forever()
     except:
-        print(len(channel.clients))
+        print(len(channel.connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
 
