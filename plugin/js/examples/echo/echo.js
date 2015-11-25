@@ -34,10 +34,8 @@ var echoTest = function() {
         ]
     };
     var builder = dcodeIO.ProtoBuf.loadJson(pbJson);
-    var root = builder.build(); // resolved all protos
-
     var stubs = new pymaid.Stub(channel);
-    stubs.registerStub(root.echo.EchoService);
+    stubs.registerBuilder(builder);
 
     var echo = function(channel) {
         var cb = function(err, resp) {

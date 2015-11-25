@@ -278,8 +278,25 @@
     Listener.prototype = ListenerPrototype;
     pymaid.Listener = Listener;
 
+    var getBuilderServices = function(result, filter) {
+        var services = []
+        for (var name in result) {
+            var attr = result[name];
+            if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Service) {
+                if (filter && !(filter(name))) {
+                    continue;
+                }
+                services.push(attr.$type);
+            } else if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Namespace) {
+                services = services.concat(getBuilderServices(attr, filter));
+            }
+        }
+        return services;
+    };
+
     ListenerPrototype._registerService = function(service) {
         var serviceName = service.fqn();
+        cc.log('pymaid.Listener registering service: ' + serviceName);
         var rpc = service.getChildren(dcodeIO.ProtoBuf.Reflect.Service.RPCMethod);
         for (var idx = 0; idx < rpc.length; ++idx) {
             var method = rpc[idx], serviceMethod = method.fqn();
@@ -294,26 +311,18 @@
         }
     };
 
-    ListenerPrototype._iterBuilderResult = function(result) {
-        for (var name in result) {
-            var attr = result[name];
-            if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Service) {
-                this._registerService(attr.$type);
-            } else if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Namespace) {
-                this._iterBuilderResult(attr);
-            }
-        }
-    };
-
     ListenerPrototype.registerImpl = function(impl) {
         this.implementations[impl.name] = this.implementations['.'+impl.name] = impl;
     };
 
-    ListenerPrototype.registerBuilder = function(builder) {
+    ListenerPrototype.registerBuilder = function(builder, filter) {
         if (!builder.resolved) {
             builder.build();
         }
-        this._iterBuilderResult(builder.result);
+        var services = getBuilderServices(builder.result, filter);
+        for (var idx in services) {
+            this._registerService(services[idx]);
+        }
     };
 
     ListenerPrototype.onmessage = function(channel, controller, content) {
@@ -377,14 +386,25 @@
         return wrapper;
     };
 
-    StubPrototype.rpc = function(method, req, cb) {
+    StubPrototype._rpc = function(method, req, cb) {
         this.channel.sendRequest(method, req, this._cbWrapper(cb));
     };
 
-    StubPrototype.registerStub = function(stub) {
-        var name = stub.$type.name;
+    StubPrototype._registerStub = function(stub) {
+        var name = stub.name;
+        cc.log('pymaid.Stub registering stub: ' + name);
         name = name[0].toLowerCase() + name.slice(1);
-        this[name] = new stub(this.rpc.bind(this));
+        this[name] = new stub.clazz(this._rpc.bind(this));
+    };
+
+    StubPrototype.registerBuilder = function(builder) {
+        if (!builder.resolved) {
+            builder.build();
+        }
+        var services = getBuilderServices(builder.result);
+        for (var idx in services) {
+            this._registerStub(services[idx]);
+        }
     };
 
 
@@ -451,18 +471,22 @@
 
             var status = req.status;
             var response = req.responseText;
+            var err = null;
 
             if (status >= 200 && status <= 207) {
                 try {
-                    var obj = JSON.parse(response);
+                    response = JSON.parse(response);
                 } catch (e) {
                     if (e instanceof SyntaxError) {
-                        cb({code: 1, message: 'invalide json response', status: status}, response);
+                        err = {
+                            error_code: 1,
+                            error_message: 'invalide json response',
+                            status: status
+                        };
                     } else {
                         throw e;
                     }
                 }
-                cb(null, obj);
             } else if (status == 301 || status == 302) {
                 var location = req.getResponseHeader('Location').trim();
                 if (!location.endsWith('/')) {
@@ -472,12 +496,16 @@
             } else if (status == 401 || status == 403) {
                 self.onNotAuthenticated();
             } else {
-                cb({code: 2, message: req.statusText, status: status}, response);
+                err = {
+                    error_code: 2, error_message: req.statusText, status: status
+                };
             }
+            cb(err, response);
         };
 
         req.onerror = function() {
-            cb({code: 3, message: 'http request onerror', status: req.status});
+            cb({error_code: 3, error_message: 'http request onerror',
+                status: req.status});
         };
 
         return req;
