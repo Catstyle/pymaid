@@ -28,9 +28,6 @@ class WebSocketProxy(object):
         self.conn_id = self.CONN_ID
         WebSocketProxy.CONN_ID += 1
 
-    def __getattr__(self, name):
-        return getattr(self.ws, name)
-
     @property
     def peername(self):
         try:
@@ -49,6 +46,9 @@ class WebSocketProxy(object):
     @property
     def fd(self):
         return self._socket.fileno()
+
+    def send(self, data, binary=1):
+        return self.ws.send(data, binary)
 
     def set_close_cb(self, close_cb):
         assert not self.close_cb
@@ -78,3 +78,6 @@ class WebSocketProxy(object):
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
+
+    def __getattr__(self, name):
+        return getattr(self.ws, name)

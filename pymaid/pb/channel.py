@@ -4,21 +4,36 @@ import six
 from _socket import error as socket_error
 
 from gevent.queue import Queue
-from gevent.event import AsyncResult
-
 from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
-from pymaid.pb.controller import Controller
-from pymaid.parser import unpack_header, HEADER_LENGTH
 from pymaid.error import RpcError, get_ex_by_code
 from pymaid.error.base import BaseEx
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
+from pymaid.parser import (
+    HEADER_LENGTH, DEFAULT_PARSER, pack_header, pack_packet,
+    unpack_packet, unpack_header,
+)
+
+from pymaid.pb.controller import Controller
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
+
 
 range = six.moves.range
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
+
+
+def pack(meta, content=b'', parser_type=DEFAULT_PARSER):
+    if not isinstance(content, Void):
+        content = pack_packet(content, parser_type)
+    else:
+        content = str(content)
+    meta_content = pack_packet(meta, parser_type)
+    return b''.join([
+        pack_header(parser_type, len(meta_content), len(content)),
+        meta_content, content
+    ])
 
 
 @pymaid_logger_wrapper
@@ -40,46 +55,6 @@ class PBChannel(Channel):
             conn.transmissions.clear()
         super(PBChannel, self)._connection_detached(conn, reason)
 
-    def CallMethod(self, method, controller, request, response_class, callback):
-        meta = controller.meta
-        meta.service_method = method.full_name
-        if not isinstance(request, Void):
-            controller.pack_content(request)
-
-        require_response = not issubclass(response_class, Void)
-        if require_response:
-            meta.packet_type = REQUEST
-            transmission_id = controller.conn.transmission_id
-            controller.conn.transmission_id += 1
-            meta.transmission_id = transmission_id
-        else:
-            meta.packet_type = NOTIFICATION
-
-        packet_buffer = controller.pack_packet()
-        if controller.broadcast:
-            # broadcast
-            assert not require_response
-            for conn in six.itervalues(self.clients):
-                conn.send(packet_buffer)
-        elif controller.group is not None:
-            # small broadcast
-            assert not require_response
-            get_conn = self.clients.get
-            for conn_id in controller.group:
-                conn = get_conn(conn_id)
-                if conn:
-                    conn.send(packet_buffer)
-        else:
-            controller.conn.send(packet_buffer)
-
-        if not require_response:
-            return
-
-        self.stub_response[meta.service_method] = response_class
-        async_result = AsyncResult()
-        controller.conn.transmissions[transmission_id] = async_result
-        return async_result.get()
-
     def append_service(self, service):
         assert service.DESCRIPTOR.full_name not in self.services
         self.services[service.DESCRIPTOR.full_name] = service
@@ -91,12 +66,16 @@ class PBChannel(Channel):
             response_class = service.GetResponseClass(method)
             method = getattr(service, method.name)
             service_methods[full_name] = method, request_class, response_class
+            # js/lua pb lib will format as '.service.method'
+            service_methods['.'+full_name] = method, request_class, response_class
 
     def connection_handler(self, conn):
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
-        read, unpack_packet = conn.read, Controller.unpack_packet
+        read = conn.read
         tasks_queue, handle_response = Queue(), self.handle_response
-        greenlet_pool.spawn(self.sequential_worker, tasks_queue)
+        gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
+        gr.link_exception(conn.close)
+
         callbacks = {
             REQUEST: self.handle_request,
             NOTIFICATION: self.handle_notification,
@@ -114,15 +93,16 @@ class PBChannel(Channel):
                     break
 
                 buf = read(packet_length+content_length)
-                assert len(buf) == packet_length+content_length
-                controller = unpack_packet(buf[:packet_length], parser_type)
-                controller.content = buf[packet_length:]
+                assert len(buf) == packet_length + content_length
+                meta = unpack_packet(buf[:packet_length], PBC, parser_type)
+                controller = Controller(meta, parser_type)
+                content = buf[packet_length:]
                 controller.conn = conn
                 packet_type = controller.meta.packet_type
                 if packet_type == RESPONSE:
-                    handle_response(conn, controller)
+                    handle_response(controller, content)
                 else:
-                    new_task((callbacks[packet_type], conn, controller))
+                    new_task((callbacks[packet_type], controller, content))
         except socket_error as ex:
             conn.close(ex, reset=True)
         except Exception as ex:
@@ -133,41 +113,43 @@ class PBChannel(Channel):
 
     def sequential_worker(self, tasks_queue):
         get_task = tasks_queue.get
-        try:
-            while 1:
-                task = get_task()
-                if not task:
-                    break
-                callback, conn, controller = task
-                callback(conn, controller)
-        except Exception as ex:
-            conn.close(ex)
+        while 1:
+            task = get_task()
+            if not task:
+                break
+            callback, controller, content = task
+            callback(controller, content)
 
-    def handle_request(self, conn, controller):
-        controller.meta.packet_type = RESPONSE
-        service_method = controller.meta.service_method
+    def handle_request(self, controller, content):
+        meta = controller.meta
+        meta.packet_type = RESPONSE
+        service_method = meta.service_method
 
+        conn, parser_type = controller.conn, controller.parser_type
         rpc = self._get_rpc(service_method)
         if not rpc:
-            controller.SetFailed(RPCNotExist(service_method=service_method))
-            conn.send(controller.pack_packet())
+            controller.SetFailed()
+            err = RPCNotExist(service_method=service_method)
+            err = ErrorMessage(error_code=err.code, error_message=err.message)
+            conn.send(pack(meta, err, parser_type))
             return
 
         method, request_class, response_class = rpc
         def send_response(response):
             assert response, 'rpc does not require a response of None'
             assert isinstance(response, response_class)
-            controller.pack_content(response)
-            conn.send(controller.pack_packet())
+            conn.send(pack(meta, response, parser_type))
 
-        request = controller.unpack_content(request_class)
+        request = unpack_packet(content, request_class, parser_type)
         try:
             method(controller, request, send_response)
         except BaseEx as ex:
-            controller.SetFailed(ex)
-            conn.send(controller.pack_packet())
+            controller.SetFailed()
+            if isinstance(ex, BaseEx):
+                err = ErrorMessage(error_code=ex.code, error_message=ex.message)
+            conn.send(pack(meta, err, parser_type))
 
-    def handle_notification(self, conn, controller):
+    def handle_notification(self, controller, content):
         service_method = controller.meta.service_method
         rpc = self._get_rpc(service_method)
         if not rpc:
@@ -175,26 +157,28 @@ class PBChannel(Channel):
             return
 
         method, request_class, response_class = rpc
-        request = controller.unpack_content(request_class)
+        request = unpack_packet(content, request_class, controller.parser_type)
         try:
             method(controller, request, lambda *args, **kwargs: '')
         except BaseEx:
             # failed silently when handle_notification
             pass
 
-    def handle_response(self, conn, controller):
+    def handle_response(self, controller, content):
+        conn = controller.conn
         transmission_id = controller.meta.transmission_id
-        assert transmission_id in conn.transmissions
+        assert transmission_id in conn.transmissions, (transmission_id, conn.transmissions)
         async_result = conn.transmissions.pop(transmission_id)
 
+        parser_type = controller.parser_type
         if controller.Failed():
-            error_message = controller.unpack_content(ErrorMessage)
+            error_message = unpack_packet(content, ErrorMessage, parser_type)
             ex = get_ex_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
             response_cls = self.stub_response[controller.meta.service_method]
             try:
-                async_result.set(controller.unpack_content(response_cls))
+                async_result.set(unpack_packet(content, response_cls, parser_type))
             except DecodeError as ex:
                 async_result.set_exception(ex)
