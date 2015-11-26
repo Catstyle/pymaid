@@ -33,14 +33,14 @@ class BaseEx(Exception):
 class Error(BaseEx):
 
     def __unicode__(self):
-        return u'[ERROR][code|{0}][message|{1}]'.format(self.code, self.message)
+        return u'[ERROR][code|{}][message|{}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
 
 
 class Warning(BaseEx):
 
     def __unicode__(self):
-        return u'[WARNING][code|{0}][message|{1}]'.format(self.code, self.message)
+        return u'[WARNING][code|{}][message|{}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
 
 

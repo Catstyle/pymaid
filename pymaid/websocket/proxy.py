@@ -8,7 +8,7 @@ from _socket import error as socket_error
 from gevent.greenlet import Greenlet
 
 from pymaid.utils import pymaid_logger_wrapper
-from pymaid.error import BaseEx
+from pymaid.error.base import BaseEx
 
 
 @pymaid_logger_wrapper
