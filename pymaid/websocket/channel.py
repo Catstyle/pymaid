@@ -32,7 +32,7 @@ class WSChannel(WebSocketServer, PBChannel):
             args[0] = self.connection_handler
         else:
             kwargs['application'] = self.connection_handler
-        WSChannel.__init__(self, listener, *args, **kwargs)
+        WebSocketServer.__init__(self, listener, *args, **kwargs)
         PBChannel.__init__(self)
 
     # TODO: should we use a greenlet alone?
