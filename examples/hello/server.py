@@ -23,7 +23,7 @@ def main():
     try:
         pymaid.serve_forever()
     except:
-        print(len(channel.clients))
+        print(len(channel.connections))
 
 
 if __name__ == "__main__":
