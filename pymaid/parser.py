@@ -3,14 +3,16 @@ __all__ = [
     'pack_packet', 'unpack_packet'
 ]
 
-import struct
-from collections import Mapping
-import six
 try:
     import ujson as json
 except ImportError:
     import json as json
-from pymaid.error import RpcError
+import struct
+from collections import Mapping
+
+import six
+
+from .error import RpcError
 
 HEADER = '!BHH'
 HEADER_LENGTH = struct.calcsize(HEADER)
