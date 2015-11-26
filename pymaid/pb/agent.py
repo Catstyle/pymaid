@@ -49,12 +49,12 @@ class ServiceAgent(object):
             if broadcast or group:
                 assert channel, 'group/broadcast without channel'
                 packet_buffer = pack(meta, request, parser_type)
-                connections = channel.connections
+                _connections = channel.connections
                 if broadcast:
-                    connections = itervalues(connections)
+                    connections = itervalues(_connections)
                 else:
                     connections = (
-                        connections[cid] for cid in group if cid in connections
+                        _connections[cid] for cid in group if cid in _connections
                     )
                 for conn in connections:
                     conn.send(packet_buffer)
