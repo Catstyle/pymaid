@@ -3,7 +3,7 @@ __all__ = ['WSChannel']
 
 from _socket import error as socket_error
 
-#from gevent import getcurrent, get_hub
+from gevent import getcurrent, get_hub
 from gevent.queue import Queue
 from geventwebsocket.server import WebSocketServer
 
@@ -16,7 +16,7 @@ from pymaid.pb.pymaid_pb2 import Controller as PBC
 
 from .proxy import WebSocketProxy
 
-#hub = get_hub()
+hub = get_hub()
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
 
@@ -35,17 +35,16 @@ class WSChannel(WebSocketServer, PBChannel):
         WebSocketServer.__init__(self, listener, *args, **kwargs)
         PBChannel.__init__(self)
 
-    # TODO: should we use a greenlet alone?
-    #def _bind_connection_handler(self, conn):
-    #    self.logger.info(
-    #        '[conn|%d][host|%s][peer|%s] made',
-    #        conn.conn_id, conn.sockname, conn.peername
-    #    )
+    def _bind_connection_handler(self, conn):
+        self.logger.info(
+            '[conn|%d][host|%s][peer|%s] made',
+            conn.conn_id, conn.sockname, conn.peername
+        )
 
-    #    current_gr = getcurrent()
-    #    if current_gr != hub:
-    #        conn.s_gr = current_gr
-    #        conn.s_gr.link_exception(conn.close)
+        current_gr = getcurrent()
+        if current_gr != hub:
+            conn.s_gr = current_gr
+            conn.s_gr.link_exception(conn.close)
 
     def connect(self, address, timeout=None):
         # import here to avoid requirement when not using as client side
