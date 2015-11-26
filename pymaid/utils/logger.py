@@ -58,7 +58,7 @@ def logger_wrapper(cls):
 
 def get_logger(name):
     if project_logger:
-        logger = project_logger.getChild(__name__)
+        logger = project_logger.getChild(name)
     else:
-        logger = root_logger.getChild(__name__)
+        logger = root_logger.getChild(name)
     return logger

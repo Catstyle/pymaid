@@ -3,7 +3,7 @@ __all__ = ['Controller']
 from google.protobuf.service import RpcController
 
 from pymaid.parser import pack_packet, unpack_packet, pack_header
-from pymaid.error import BaseEx
+from pymaid.error.base import BaseEx
 from pymaid.pb.pymaid_pb2 import Controller as Meta, ErrorMessage
 
 
