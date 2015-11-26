@@ -416,6 +416,18 @@
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
     pymaid.HttpManager = HttpManager;
 
+    var args4Method = function(args) {
+        var url = args[0];
+        var data = '', cb = null;
+        if (args.length == 2) {
+            cb = args[1];
+        } else if (args.length == 3) {
+            data = args[1];
+            cb = args[2];
+        }
+        return [url, data, cb];
+    };
+
     HMPrototype._realUrl = function(url) {
         if (url.startsWith('http://') || url.startsWith('https://')) {
             return url;
@@ -508,14 +520,18 @@
     };
 
     HMPrototype.get = function(url, data, cb) {
-        var data = data || '';
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        data = data || '';
         var req = this.newRequest('GET', url, cb);
         req.send(data);
         return req;
     };
 
     HMPrototype.post = function(url, data, cb) {
-        var data = JSON.stringify(data) || '';
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        data = JSON.stringify(data) || '';
         var req = this.newRequest('POST', url, cb);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
         req.send(data);
