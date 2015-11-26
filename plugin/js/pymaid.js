@@ -139,11 +139,7 @@
         var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
         var controller = pb.Controller.decode(controllerBuf);
 
-        var contentBuf = null;
-        if (contentSize) {
-            contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
-        }
-
+        var contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
         return {controller: controller, content: contentBuf};
     };
 
