@@ -1,3 +1,4 @@
+from _socket import error as socket_error
 from gevent.event import AsyncResult
 
 from pymaid.parser import DEFAULT_PARSER
@@ -35,7 +36,7 @@ class ServiceAgent(object):
         else:
             packet_type, require_response = NOTIFICATION, False
         def rpc(request=None, controller=None, conn=None, connections=None,
-                parser_type=DEFAULT_PARSER, **kwargs):
+                fail_silence=False, parser_type=DEFAULT_PARSER, **kwargs):
             if not controller:
                 controller = self.controller
                 controller.Reset()
@@ -47,7 +48,11 @@ class ServiceAgent(object):
             if connections:
                 packet_buffer = pack(meta, request, parser_type)
                 for conn in connections:
-                    conn.send(packet_buffer)
+                    try:
+                        conn.send(packet_buffer)
+                    except socket_error:
+                        # failed silence if receive socket_error
+                        continue
             else:
                 assert conn or self.conn
                 conn = conn or self.conn
@@ -55,7 +60,12 @@ class ServiceAgent(object):
                     meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
                 packet_buffer = pack(meta, request, parser_type)
-                conn.send(packet_buffer)
+                try:
+                    conn.send(packet_buffer)
+                except socket_error:
+                    if not fail_silence:
+                        raise
+                    return
                 
                 if not require_response:
                     return

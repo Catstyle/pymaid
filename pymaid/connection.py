@@ -18,7 +18,7 @@ from _socket import AF_INET, SOCK_STREAM
 
 from gevent import getcurrent, get_hub, Timeout
 from gevent.greenlet import Greenlet
-from gevent.core import READ, WRITE, EVENTS
+from gevent.core import READ, WRITE
 
 from pymaid.utils import pymaid_logger_wrapper, timer, io
 from pymaid.error.base import BaseEx
@@ -83,13 +83,13 @@ class Connection(object):
         except socket_error as ex:
             if ex.errno == EWOULDBLOCK:
                 queue[0] = membuf[sent:]
-                self.w_io.feed(WRITE, self._io_loop, EVENTS)
+                self.w_io.feed(WRITE, self._io_write)
                 self.fed_write = True
                 return
             self.close(ex, reset=True)
         else:
             if qsize > max_send:
-                self.w_io.feed(WRITE, self._io_loop, EVENTS)
+                self.w_io.feed(WRITE, self._io_write)
                 self.fed_write = True
             else:
                 self.fed_write = False
