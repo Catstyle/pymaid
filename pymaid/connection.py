@@ -68,7 +68,8 @@ class Connection(object):
     def _io_write(self, max_send=5):
         queue = self._send_queue
         send, qsize = self._socket.send, len(queue)
-        assert qsize, qsize
+        if qsize == 0:
+            return
 
         try:
             for _ in range(min(qsize, max_send)):
