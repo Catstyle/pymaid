@@ -38,7 +38,8 @@ class WebSocketProxy(object):
     def _io_write(self, max_send=5):
         queue = self._send_queue
         send, qsize = self._socket.send, len(queue)
-        assert qsize, qsize
+        if qsize == 0:
+            return
 
         self._socket.setblocking(0)
         try:
@@ -64,7 +65,8 @@ class WebSocketProxy(object):
                 self.fed_write = True
             else:
                 self.fed_write = False
-        self._socket.setblocking(1)
+        finally:
+            self._socket.setblocking(1)
 
     @property
     def peername(self):
