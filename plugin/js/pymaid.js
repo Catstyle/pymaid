@@ -348,6 +348,16 @@
 
                 this[method.name] = function(req, cb, conn, parserType) {
                     var conn = conn || this._manager.conn;
+                    if (!conn) {
+                        throw Error(
+                            'pymaid: rpc conn is undefined: ' + method.name
+                        );
+                    }
+                    if (!cb || cb.constructor.name != 'Function') {
+                        throw Error(
+                            'pymaid: rpc cb is not function: ' + method.name
+                        );
+                    }
 
                     var controller = new pb.Controller({
                         service_method: methodName,
@@ -404,7 +414,7 @@
 
     StubManagerPrototype._registerStub = function(stub) {
         var name = stub.name;
-        console.log('pymaid: Stub registering stub: ' + name);
+        console.log('pymaid: registering stub: ' + name);
         name = name[0].toLowerCase() + name.slice(1);
         this[name] = new Stub(this, stub.clazz);
     };
@@ -443,13 +453,13 @@
 
     ListenerPrototype._registerService = function(service) {
         var serviceName = service.fqn();
-        console.log('pymaid: Listener registering service: ' + serviceName);
+        console.log('pymaid: listener registering service: ' + serviceName);
         var rpc = service.getChildren(dcodeIO.ProtoBuf.Reflect.Service.RPCMethod);
         for (var idx = 0; idx < rpc.length; ++idx) {
             var method = rpc[idx], serviceMethod = method.fqn();
             var impl = this.implementations[serviceName][method.name];
             if (!impl || impl.constructor.name != 'Function') {
-                throw Error('implementations has no method: ' + method.name);
+                throw Error('pymaid: listener has no method: ' + method.name);
             }
             // '.package.service.method' vs 'package.service.method'
             this.classes[serviceMethod] = this.classes[serviceMethod.slice(1)]= {
@@ -497,7 +507,7 @@
                 conn.send(Parser.pack(controller, new pb.ErrorMessage(err)));
             } else {
                 if (content === null) {
-                    throw Error('impl:'+serviceMethod+' cb got null content');
+                    throw Error('pymaid: impl: '+serviceMethod+' got null content');
                 }
                 if (!(content instanceof resp)) {
                     content = new resp(content);
