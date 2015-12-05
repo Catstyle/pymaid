@@ -5,6 +5,7 @@
 
     var pb = pymaid.pb = {};
     var pbJson = {
+        "syntax": "proto3",
         "package": "pymaid.pb",
         "messages": [
             {
