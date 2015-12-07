@@ -212,9 +212,19 @@
 
     ChannelPrototype.close = function(reason) {
         console.log('pymaid: channel closing with reason ' + reason);
-        for (var idx = 0; idx < this.connections.length; idx++) {
-            var conn = this.connections.pop();
+        for (var connid in this.connections) {
+            var conn = this.connections[connid];
             conn.close(reason);
+        }
+    };
+
+    ChannelPrototype.connection_closed = function(conn) {
+        delete this.connections[conn.connid];
+        for (var idx = 0; idx < StubManager._managers.length; idx++) {
+            var manager = StubManager._managers[idx];
+            if (manager.conn.connid == conn.connid) {
+                manager.conn = null;
+            }
         }
     };
 
@@ -242,6 +252,8 @@
         this.ws.onclose = this.onclose.bind(this);
         this.ws.onmessage = this.onmessage.bind(this);
         this.ws.onerror = this.onerror.bind(this);
+
+        this.is_closed = false;
     };
     WSConnection.CONNID = 0;
 
@@ -292,6 +304,8 @@
 
     WSConnectionPrototype.onclose = function(evt) {
         console.log('pymaid: [WSConnection|' + this.connid + '] onclose');
+        this.is_closed = true;
+        this.channel.connection_closed(this);
         this._onclose(evt);
         // onclose is after onerror, cleanup from here
         this._onopen = null;
@@ -349,9 +363,9 @@
 
                 this[method.name] = function(req, cb, conn, parserType) {
                     var conn = conn || this._manager.conn;
-                    if (!conn) {
+                    if (!conn || conn.is_closed) {
                         throw Error(
-                            'pymaid: rpc conn is undefined: ' + method.name
+                            'pymaid: rpc conn is null/closed: '+method.name
                         );
                     }
                     if (!cb || cb.constructor.name != 'Function') {
@@ -407,11 +421,14 @@
      */
     var StubManager = function() {
         this.conn = null;
+        StubManager._managers.push(this);
     };
 
     var StubManagerPrototype = Object.create(StubManager.prototype);
     StubManager.prototype = StubManagerPrototype;
     pymaid.StubManager = StubManager;
+
+    StubManager._managers = [];
 
     StubManagerPrototype._registerStub = function(stub) {
         var name = stub.name;
@@ -431,7 +448,7 @@
     };
 
     StubManagerPrototype.bindConnection = function(conn) {
-        if (this.conn) {
+        if (this.conn && !this.conn.is_closed) {
             console.log('pymaid: StubManager already bound connection');
             return;
         }
