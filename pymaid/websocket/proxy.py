@@ -88,11 +88,10 @@ class WebSocketProxy(object):
         return self._socket.fileno()
 
     def write(self, packet_buffer):
-        assert packet_buffer
         header = Header.encode_header(
             True, self.ws.OPCODE_BINARY, '', len(packet_buffer), 0
         )
-        self._send_queue.append(header + packet_buffer)
+        self._send_queue.append(header+packet_buffer)
         if not self.fed_write:
             self._io_write()
     send = write
@@ -127,6 +126,21 @@ class WebSocketProxy(object):
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
+
+    def delay_close(self, reason=None):
+        self.read = self.readline = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: ''
+        sendall, queue = self._socket.sendall, self._send_queue
+        while 1:
+            if len(queue) == 0:
+                break
+            buf = queue[0]
+            header = Header.encode_header(
+                True, self.ws.OPCODE_BINARY, '', len(buf), 0
+            )
+            sendall(header + buf)
+            queue.popleft()
+        self.close(reason)
 
     def __getattr__(self, name):
         return getattr(self.ws, name)

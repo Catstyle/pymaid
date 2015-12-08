@@ -247,7 +247,6 @@ class Connection(object):
                 self.r_gr = self.r_timer = None
 
     def write(self, packet_buffer):
-        assert packet_buffer
         self._send_queue.append(packet_buffer)
         if not self.fed_write:
             self._io_write()
@@ -310,3 +309,31 @@ class Connection(object):
         self.close_cb = None
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
+
+    def delay_close(self, reason=None):
+        self.read = self.readline = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: ''
+        w_gr, w_io = getcurrent(), self.w_io
+        assert w_gr != get_hub().parent, 'could not call block func in main loop'
+        send, queue = self._socket.send, self._send_queue
+        while 1:
+            if len(queue):
+                buf = queue[0]
+            else:
+                break
+            sent, bufsize = 0, len(buf)
+            membuf = memoryview(buf)
+            while sent < bufsize:
+                try:
+                    sent += send(membuf[sent:])
+                except socket_error as ex:
+                    if ex.errno == EWOULDBLOCK:
+                        w_io.start(w_gr.switch)
+                        try:
+                            w_gr.parent.switch()
+                        finally:
+                            w_io.stop()
+                    else:
+                        raise
+            queue.popleft()
+        self.close(reason)
