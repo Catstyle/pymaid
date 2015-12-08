@@ -8,7 +8,7 @@ from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
 from pymaid.error import RpcError, get_ex_by_code
-from pymaid.error.base import BaseEx
+from pymaid.error.base import BaseEx, Error
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
 from pymaid.parser import (
     HEADER_LENGTH, DEFAULT_PARSER, pack_header, pack_packet,
@@ -135,8 +135,12 @@ class PBChannel(Channel):
             return
 
         method, request_class, response_class = rpc
-        def send_response(response):
-            assert response, 'rpc does not require a response of None'
+        def send_response(response=None, **kwargs):
+            if response_class is Void:
+                # do not send_response when response_class is Void
+                return
+            if response is None:
+                response = response_class(**kwargs)
             assert isinstance(response, response_class)
             conn.send(pack(meta, response, parser_type))
 
@@ -145,9 +149,10 @@ class PBChannel(Channel):
             method(controller, request, send_response)
         except BaseEx as ex:
             controller.SetFailed()
-            if isinstance(ex, BaseEx):
-                err = ErrorMessage(error_code=ex.code, error_message=ex.message)
+            err = ErrorMessage(error_code=ex.code, error_message=ex.message)
             conn.send(pack(meta, err, parser_type))
+            if isinstance(ex, Error):
+                conn.delay_close(ex)
 
     def handle_notification(self, controller, content):
         service_method = controller.meta.service_method
