@@ -3,7 +3,7 @@ __all__ = ['WSChannel']
 
 from _socket import error as socket_error
 
-from gevent import getcurrent, get_hub
+from gevent import getcurrent
 from gevent.queue import Queue
 from geventwebsocket.server import WebSocketServer
 
@@ -11,12 +11,11 @@ from pymaid.pb.channel import PBChannel
 from pymaid.pb.controller import Controller
 from pymaid.parser import unpack_packet, unpack_header, HEADER_LENGTH
 from pymaid.error import RpcError
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper, hub
 from pymaid.pb.pymaid_pb2 import Controller as PBC
 
 from .proxy import WebSocketProxy
 
-hub = get_hub()
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
 
