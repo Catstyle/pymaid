@@ -16,11 +16,11 @@ from _socket import (
 )
 from _socket import AF_INET, SOCK_STREAM
 
-from gevent import getcurrent, get_hub, Timeout
+from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
 from gevent.core import READ, WRITE
 
-from pymaid.utils import pymaid_logger_wrapper, timer, io
+from pymaid.utils import pymaid_logger_wrapper, timer, io, hub
 from pymaid.error.base import BaseEx
 
 range = six.moves.range
@@ -210,7 +210,7 @@ class Connection(object):
 
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
-        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
+        assert getcurrent() != hub, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -229,7 +229,7 @@ class Connection(object):
 
     def readline(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
-        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
+        assert getcurrent() != hub, 'could not call block func in main loop'
         self.r_gr = getcurrent()
         if not timeout:
             try:
@@ -253,7 +253,7 @@ class Connection(object):
     send = write
 
     def connect(self, address, timeout=None):
-        assert getcurrent() != get_hub().parent, 'could not call block func in main loop'
+        assert getcurrent() != hub, 'could not call block func in main loop'
         sock = self._socket
         errno = sock.connect_ex(address)
         if errno in connecting_error:
@@ -314,7 +314,7 @@ class Connection(object):
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
         w_gr, w_io = getcurrent(), self.w_io
-        assert w_gr != get_hub().parent, 'could not call block func in main loop'
+        assert w_gr != hub, 'could not call block func in main loop'
         send, queue = self._socket.send, self._send_queue
         while 1:
             if len(queue):
