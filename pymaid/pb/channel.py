@@ -151,7 +151,7 @@ class PBChannel(Channel):
             controller.SetFailed()
             err = ErrorMessage(error_code=ex.code, error_message=ex.message)
             conn.send(pack(meta, err, parser_type))
-            if isinstance(ex, Error):
+            if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
 
     def handle_notification(self, controller, content):
