@@ -2,12 +2,15 @@ __all__ = ['WebSocketProxy']
 
 import struct
 
-from errno import EINVAL, ENOTCONN
+from errno import EINVAL, ENOTCONN, EWOULDBLOCK
 from _socket import error as socket_error
+from collections import deque
 
 from gevent.greenlet import Greenlet
+from gevent.core import WRITE
+from geventwebsocket.websocket import Header
 
-from pymaid.utils import pymaid_logger_wrapper
+from pymaid.utils import pymaid_logger_wrapper, io
 from pymaid.error.base import BaseEx
 
 
@@ -28,6 +31,43 @@ class WebSocketProxy(object):
         self.conn_id = self.CONN_ID
         WebSocketProxy.CONN_ID += 1
 
+        self._send_queue = deque()
+        self.w_io = io(self._socket.fileno(), WRITE)
+        self.r_gr, self.fed_write = None, False
+
+    def _io_write(self, max_send=5):
+        queue = self._send_queue
+        send, qsize = self._socket.send, len(queue)
+        if qsize == 0:
+            return
+
+        self._socket.setblocking(0)
+        try:
+            for _ in range(min(qsize, max_send)):
+                buf = queue[0]
+                # see pydoc of socket.send
+                sent, bufsize = 0, len(buf)
+                membuf = memoryview(buf)
+                sent += send(membuf)
+                while sent < bufsize:
+                    sent += send(membuf[sent:])
+                queue.popleft()
+        except socket_error as ex:
+            if ex.errno == EWOULDBLOCK:
+                queue[0] = membuf[sent:]
+                self.w_io.feed(WRITE, self._io_write)
+                self.fed_write = True
+                return
+            self.close(ex, reset=True)
+        else:
+            if qsize > max_send:
+                self.w_io.feed(WRITE, self._io_write)
+                self.fed_write = True
+            else:
+                self.fed_write = False
+        finally:
+            self._socket.setblocking(1)
+
     @property
     def peername(self):
         try:
@@ -47,8 +87,14 @@ class WebSocketProxy(object):
     def fd(self):
         return self._socket.fileno()
 
-    def send(self, data, binary=1):
-        return self.ws.send(data, binary)
+    def write(self, packet_buffer):
+        header = Header.encode_header(
+            True, self.ws.OPCODE_BINARY, '', len(packet_buffer), 0
+        )
+        self._send_queue.append(header+packet_buffer)
+        if not self.fed_write:
+            self._io_write()
+    send = write
 
     def set_close_cb(self, close_cb):
         assert not self.close_cb
@@ -74,10 +120,27 @@ class WebSocketProxy(object):
             self.conn_id, self.sockname, self.peername, reason)
 
         self.ws.close()
+        self._send_queue.clear()
+        self.w_io.stop()
 
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
+
+    def delay_close(self, reason=None):
+        self.read = self.readline = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: ''
+        sendall, queue = self._socket.sendall, self._send_queue
+        while 1:
+            if len(queue) == 0:
+                break
+            buf = queue[0]
+            header = Header.encode_header(
+                True, self.ws.OPCODE_BINARY, '', len(buf), 0
+            )
+            sendall(header + buf)
+            queue.popleft()
+        self.close(reason)
 
     def __getattr__(self, name):
         return getattr(self.ws, name)

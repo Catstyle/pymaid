@@ -37,8 +37,9 @@ class Channel(object):
 
     def __init__(self, loop=None):
         self.loop = loop or get_hub().loop
+        self.close_conn_onerror = True
         self.connections = weakref.WeakValueDictionary()
-        self.is_bound = False
+        self.accept_watchers = []
 
     def _do_accept(self, sock, max_accept=MAX_ACCEPT):
         accept, attach = sock.accept, self._connection_attached
@@ -83,13 +84,6 @@ class Channel(object):
         return len(self.connections) >= self.MAX_CONCURRENCY
 
     def listen(self, address, type_=SOCK_STREAM, backlog=MAX_BACKLOG):
-        if self.is_bound:
-            self.logger.warn(
-                '%s wants to listen on %s while already bound %s',
-                self.__class__.__name__, address, self.listener.getsockname()
-            )
-            return
-        self.is_bound = True
         # not support ipv6 yet
         if isinstance(address, string_types):
             family = AF_UNIX
@@ -103,7 +97,7 @@ class Channel(object):
         sock.listen(backlog)
         sock.setblocking(0)
         self.listener = sock
-        self.accept_watcher = self.loop.io(sock.fileno(), READ)
+        self.accept_watchers.append(self.loop.io(sock.fileno(), READ))
 
     def connect(self, address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
         if isinstance(address, string_types):
@@ -129,11 +123,11 @@ class Channel(object):
         pass
 
     def start(self):
-        if not self.accept_watcher.active:
-            self.accept_watcher.start(
-                self._do_accept, self.listener, self.MAX_ACCEPT
-            )
+        for watcher in self.accept_watchers:
+            if not watcher.active:
+                watcher.start(self._do_accept, self.listener, self.MAX_ACCEPT)
 
     def stop(self):
-        if self.accept_watcher.active:
-            self.accept_watcher.stop()
+        for watcher in self.accept_watchers:
+            if watcher.active:
+                watcher.stop()
