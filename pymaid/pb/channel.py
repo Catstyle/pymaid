@@ -45,16 +45,6 @@ class PBChannel(Channel):
         self.services, self.service_methods, self.stub_response = {}, {}, {}
         self._get_rpc = self.service_methods.get
 
-    def _connection_detached(self, conn, reason):
-        if not conn.server_side:
-            ex = reason or RpcError.EOF()
-            for async_result in conn.transmissions.values():
-                # we should not reach here with async_result left
-                # that should be an exception
-                async_result.set_exception(ex)
-            conn.transmissions.clear()
-        super(PBChannel, self)._connection_detached(conn, reason)
-
     def append_service(self, service):
         assert service.DESCRIPTOR.full_name not in self.services
         self.services[service.DESCRIPTOR.full_name] = service
@@ -98,7 +88,7 @@ class PBChannel(Channel):
                 controller = Controller(meta, parser_type)
                 content = buf[packet_length:]
                 controller.conn = conn
-                packet_type = controller.meta.packet_type
+                packet_type = meta.packet_type
                 if packet_type == RESPONSE:
                     handle_response(controller, content)
                 else:
