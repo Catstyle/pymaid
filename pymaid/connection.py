@@ -22,6 +22,7 @@ from gevent.core import READ, WRITE
 
 from pymaid.utils import pymaid_logger_wrapper, timer, io, hub
 from pymaid.error.base import BaseEx
+from pymaid.error import RpcError
 
 range = six.moves.range
 string_types = six.string_types
@@ -296,6 +297,12 @@ class Connection(object):
             log = self.logger.info
         log('[conn|%d][host|%s][peer|%s] closed with reason: %r',
             self.conn_id, self.sockname, self.peername, reason)
+        ex = reason or RpcError.EOF()
+        for async_result in self.transmissions.values():
+            # we should not reach here with async_result left
+            # that should be an exception
+            async_result.set_exception(ex)
+        self.transmissions.clear()
 
         self._send_queue.clear()
         self.w_io.stop()
@@ -307,8 +314,6 @@ class Connection(object):
         if self.close_cb:
             self.close_cb(self, reason)
         self.close_cb = None
-        self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
 
     def delay_close(self, reason=None):
         self.read = self.readline = lambda *args, **kwargs: ''
