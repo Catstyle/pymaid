@@ -1,5 +1,5 @@
+from _socket import error as socket_error
 from gevent.event import AsyncResult
-from six import itervalues
 
 from pymaid.parser import DEFAULT_PARSER
 from pymaid.pb.channel import pack
@@ -35,9 +35,8 @@ class ServiceAgent(object):
             packet_type, require_response = REQUEST, True
         else:
             packet_type, require_response = NOTIFICATION, False
-        def rpc(request=None, controller=None, channel=None, conn=None,
-                broadcast=False, group=None, parser_type=DEFAULT_PARSER,
-                **kwargs):
+        def rpc(request=None, controller=None, conn=None, connections=None,
+                fail_silence=False, parser_type=DEFAULT_PARSER, **kwargs):
             if not controller:
                 controller = self.controller
                 controller.Reset()
@@ -46,18 +45,14 @@ class ServiceAgent(object):
             meta = controller.meta
             meta.service_method = method.full_name
             meta.packet_type = packet_type
-            if broadcast or group:
-                assert channel, 'group/broadcast without channel'
+            if connections:
                 packet_buffer = pack(meta, request, parser_type)
-                _connections = channel.connections
-                if broadcast:
-                    connections = itervalues(_connections)
-                else:
-                    connections = (
-                        _connections[cid] for cid in group if cid in _connections
-                    )
                 for conn in connections:
-                    conn.send(packet_buffer)
+                    try:
+                        conn.send(packet_buffer)
+                    except socket_error:
+                        # failed silence if receive socket_error
+                        continue
             else:
                 assert conn or self.conn
                 conn = conn or self.conn
@@ -65,7 +60,12 @@ class ServiceAgent(object):
                     meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
                 packet_buffer = pack(meta, request, parser_type)
-                conn.send(packet_buffer)
+                try:
+                    conn.send(packet_buffer)
+                except socket_error:
+                    if not fail_silence:
+                        raise
+                    return
                 
                 if not require_response:
                     return
