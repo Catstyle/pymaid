@@ -3,7 +3,7 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.pb.channel import PBChannel
-from pymaid.pb.agent import ServiceAgent
+from pymaid.pb.stub import ServiceStub
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import EchoService_Stub
@@ -19,7 +19,7 @@ def wrapper(pid, n, message=message):
 
 
 channel = PBChannel()
-service = ServiceAgent(EchoService_Stub(channel))
+service = ServiceStub(EchoService_Stub(channel))
 method = service.stub.DESCRIPTOR.FindMethodByName('echo')
 request_class = service.stub.GetRequestClass(method)
 request = request_class(message=message)

@@ -1,7 +1,7 @@
 from gevent.pool import Pool
 
 from pymaid.pb.channel import PBChannel
-from pymaid.pb.agent import ServiceAgent
+from pymaid.pb.stub import ServiceStub
 
 from rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
@@ -21,7 +21,7 @@ def wrapper(pid, n):
 
 cnt = 0
 channel = PBChannel()
-service = ServiceAgent(RemoteError_Stub(channel), conn=None)
+service = ServiceStub(RemoteError_Stub(channel), conn=None)
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
