@@ -1,6 +1,6 @@
 __all__ = [
-    'Channel', 'Connection', 'pb', 'websocket', 'error', 'utils',
-    'serve_forever'
+    'Channel', 'Connection', 'ConnectionPool',
+    'pb', 'websocket', 'error', 'utils', 'serve_forever'
 ]
 
 import sys
@@ -8,6 +8,7 @@ import os
 
 from .channel import Channel
 from .connection import Connection
+from .pools import ConnectionPool
 from . import pb
 from . import websocket
 from . import error

@@ -64,11 +64,11 @@ class Channel(object):
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
         )
+        conn.set_close_cb(self._connection_detached)
         conn.s_gr = greenlet_pool.spawn(self.connection_handler, conn)
         conn.s_gr.link_exception(conn.close)
 
     def _connection_attached(self, conn):
-        conn.set_close_cb(self._connection_detached)
         assert conn.conn_id not in self.connections
         self.connections[conn.conn_id] = conn
         self.connection_attached(conn)
