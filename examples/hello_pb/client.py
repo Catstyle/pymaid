@@ -2,7 +2,7 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.pb.channel import PBChannel
-from pymaid.pb.agent import ServiceAgent
+from pymaid.pb.stub import ServiceStub
 from pymaid.utils import greenlet_pool
 
 from hello_pb2 import HelloService_Stub
@@ -18,7 +18,7 @@ def wrapper(pid, n):
 
 
 channel = PBChannel()
-service = ServiceAgent(HelloService_Stub(channel))
+service = ServiceStub(HelloService_Stub(channel))
 def main():
     pool = Pool()
     for x in range(1000):
