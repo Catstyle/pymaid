@@ -18,7 +18,6 @@ from pymaid.parser import (
 from pymaid.pb.controller import Controller
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
-
 range = six.moves.range
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
@@ -48,10 +47,11 @@ class PBChannel(Channel):
 
     def _connection_detached(self, conn, reason):
         if not conn.server_side:
+            ex = reason or RpcError.EOF()
             for async_result in conn.transmissions.values():
                 # we should not reach here with async_result left
                 # that should be an exception
-                async_result.set_exception(reason)
+                async_result.set_exception(ex)
             conn.transmissions.clear()
         super(PBChannel, self)._connection_detached(conn, reason)
 
