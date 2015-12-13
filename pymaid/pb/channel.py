@@ -7,6 +7,7 @@ from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
+from pymaid.connection import Connection
 from pymaid.error import RpcError, get_ex_by_code
 from pymaid.error.base import BaseEx, Error
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
@@ -40,8 +41,8 @@ class PBChannel(Channel):
 
     MAX_PACKET_LENGTH = 8 * 1024
 
-    def __init__(self, loop=None):
-        super(PBChannel, self).__init__(loop)
+    def __init__(self, loop=None, connection_class=Connection):
+        super(PBChannel, self).__init__(loop, connection_class)
         self.services, self.service_methods, self.stub_response = {}, {}, {}
         self._get_rpc = self.service_methods.get
 

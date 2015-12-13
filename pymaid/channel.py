@@ -101,7 +101,7 @@ class Channel(object):
     def connect(self, address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
         if isinstance(address, string_types):
             family = AF_UNIX
-        conn = self.CONNECTION_CLASS(
+        conn = self.connection_class(
             self, family=family, type_=type_, server_side=False
         )
         conn.connect(address, timeout)
