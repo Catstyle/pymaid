@@ -81,7 +81,7 @@ class ConnectionPool(object):
     def release(self, connection):
         "Releases the connection back to the pool"
         self._checkpid()
-        if connection.pid != self.pid:
+        if connection.pid != self.pid or connection.is_closed:
             return
         try:
             self.pool.put_nowait(connection)
