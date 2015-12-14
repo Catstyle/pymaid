@@ -63,8 +63,8 @@ class Channel(object):
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
         )
-        conn.s_gr = greenlet_pool.spawn(self.connection_handler, conn)
-        conn.s_gr.link_exception(conn.close)
+        conn.worker_gr = greenlet_pool.spawn(self.connection_handler, conn)
+        conn.worker_gr.link_exception(conn.close)
 
     def _connection_attached(self, conn):
         conn.set_close_cb(self._connection_detached)
@@ -73,7 +73,7 @@ class Channel(object):
         self.connection_attached(conn)
 
     def _connection_detached(self, conn, reason=None):
-        conn.s_gr.kill(block=False)
+        conn.worker_gr.kill(block=False)
         assert conn.conn_id in self.connections
         del self.connections[conn.conn_id]
         self.connection_detached(conn, reason)

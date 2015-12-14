@@ -84,7 +84,6 @@ class PBChannel(Channel):
                     break
 
                 buf = read(packet_length+content_length)
-                assert len(buf) == packet_length + content_length
                 meta = unpack_packet(buf[:packet_length], PBC, parser_type)
                 controller = Controller(meta, parser_type)
                 content = buf[packet_length:]
@@ -163,8 +162,10 @@ class PBChannel(Channel):
     def handle_response(self, controller, content):
         conn = controller.conn
         transmission_id = controller.meta.transmission_id
-        assert transmission_id in conn.transmissions, (transmission_id, conn.transmissions)
-        async_result = conn.transmissions.pop(transmission_id)
+        async_result = conn.transmissions.pop(transmission_id, None)
+        if not async_result:
+            # invalid transmission_id, do nothing
+            return
 
         parser_type = controller.parser_type
         if controller.Failed():
