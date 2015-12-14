@@ -48,7 +48,7 @@ class Connection(object):
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_cb = False, None
 
-        self.conn_id = self.CONN_ID
+        self.conn_id = Connection.CONN_ID
         Connection.CONN_ID += 1
 
         self._send_queue = deque()
@@ -56,7 +56,7 @@ class Connection(object):
         self.channel = channel
         self.r_io = io(sock.fileno(), READ)
         self.w_io = io(sock.fileno(), WRITE)
-        self.r_gr, self.fed_write = None, False
+        self.r_gr, self.worker_gr, self.fed_write = None, None, False
 
     def _setsockopt(self, sock, server_side):
         self.setsockopt = setsockopt = sock.setsockopt
@@ -307,6 +307,10 @@ class Connection(object):
         self._send_queue.clear()
         self.w_io.stop()
         self.r_io.stop()
+        if self.r_gr:
+            self.r_gr.kill(block=False)
+        if self.worker_gr:
+            self.worker_gr.kill(block=False)
         self._socket.close()
         self.setsockopt = None
         self.buf = BytesIO()
@@ -322,10 +326,9 @@ class Connection(object):
         assert w_gr != hub, 'could not call block func in main loop'
         send, queue = self._socket.send, self._send_queue
         while 1:
-            if len(queue):
-                buf = queue[0]
-            else:
+            if len(queue) == 0:
                 break
+            buf = queue[0]
             sent, bufsize = 0, len(buf)
             membuf = memoryview(buf)
             while sent < bufsize:

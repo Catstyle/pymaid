@@ -81,8 +81,12 @@ class ConnectionPool(object):
     def release(self, connection):
         "Releases the connection back to the pool"
         self._checkpid()
-        if connection.pid != self.pid or connection.is_closed:
+        if connection.pid != self.pid:
             return
+
+        if connection.is_closed:
+            connection.release = None
+            connection = None
         try:
             self.pool.put_nowait(connection)
         except Full:
@@ -93,7 +97,6 @@ class ConnectionPool(object):
     def disconnect(self):
         "Disconnects all connections in the pool"
         for connection in self._connections:
-            connection.release = None
             connection.close()
 
     def __repr__(self):
