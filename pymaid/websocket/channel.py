@@ -42,8 +42,8 @@ class WSChannel(WebSocketServer, PBChannel):
 
         current_gr = getcurrent()
         if current_gr != hub:
-            conn.s_gr = current_gr
-            conn.s_gr.link_exception(conn.close)
+            conn.worker_gr = current_gr
+            conn.worker_gr.link_exception(conn.close)
 
     def connect(self, address, timeout=None):
         # import here to avoid requirement when not using as client side

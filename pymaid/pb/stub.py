@@ -73,6 +73,7 @@ class StubManager(object):
         assert name not in self._stubs, (name, self._stubs.keys())
         self._stubs[name] = stub
         stub.conn = stub.conn or self.conn
+        stub.name = name
         setattr(self, name, stub)
 
     def remove_stub(self, name):
