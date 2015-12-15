@@ -64,7 +64,7 @@ class ConnectionPool(object):
         self._checkpid()
         # will raise Empty if timeout is not None, so just raise to upper level
         connection = self.pool.get(block=True, timeout=timeout)
-        if connection is None:
+        if connection is None or connection.is_closed:
             connection = self.make_connection()
         return connection
 
