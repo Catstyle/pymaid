@@ -33,18 +33,17 @@ class Channel(object):
     MAX_BACKLOG = 1024
     MAX_CONCURRENCY = 50000
 
-    CONNECTION_CLASS = Connection
-
-    def __init__(self, loop=None):
+    def __init__(self, loop=None, connection_class=Connection):
         self.loop = loop or get_hub().loop
         self.close_conn_onerror = True
+        self.connection_class = connection_class
         self.connections = weakref.WeakValueDictionary()
         self.accept_watchers = []
 
     def _do_accept(self, sock, max_accept=MAX_ACCEPT):
-        accept, attach = sock.accept, self._connection_attached
-        bind = self._bind_connection_handler
-        ConnectionClass = self.CONNECTION_CLASS
+        accept, attach_connection = sock.accept, self._connection_attached
+        bind_handler = self._bind_connection_handler
+        ConnectionClass = self.connection_class
         for _ in range(max_accept):
             if self.is_full:
                 return
@@ -56,16 +55,16 @@ class Channel(object):
                 self.logger.exception(ex)
                 raise
             conn = ConnectionClass(self, sock=peer_socket, server_side=True)
-            bind(conn)
-            attach(conn)
+            bind_handler(conn)
+            attach_connection(conn)
 
     def _bind_connection_handler(self, conn):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.conn_id, conn.sockname, conn.peername
         )
-        conn.s_gr = greenlet_pool.spawn(self.connection_handler, conn)
-        conn.s_gr.link_exception(conn.close)
+        conn.worker_gr = greenlet_pool.spawn(self.connection_handler, conn)
+        conn.worker_gr.link_exception(conn.close)
 
     def _connection_attached(self, conn):
         conn.set_close_cb(self._connection_detached)
@@ -74,7 +73,7 @@ class Channel(object):
         self.connection_attached(conn)
 
     def _connection_detached(self, conn, reason=None):
-        conn.s_gr.kill(block=False)
+        conn.worker_gr.kill(block=False)
         assert conn.conn_id in self.connections
         del self.connections[conn.conn_id]
         self.connection_detached(conn, reason)
@@ -102,7 +101,7 @@ class Channel(object):
     def connect(self, address, family=AF_INET, type_=SOCK_STREAM, timeout=None):
         if isinstance(address, string_types):
             family = AF_UNIX
-        conn = self.CONNECTION_CLASS(
+        conn = self.connection_class(
             self, family=family, type_=type_, server_side=False
         )
         conn.connect(address, timeout)

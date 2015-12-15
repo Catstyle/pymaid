@@ -7,6 +7,7 @@ from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
 from pymaid.channel import Channel
+from pymaid.connection import Connection
 from pymaid.error import RpcError, get_ex_by_code
 from pymaid.error.base import BaseEx, Error
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
@@ -17,7 +18,6 @@ from pymaid.parser import (
 
 from pymaid.pb.controller import Controller
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
-
 
 range = six.moves.range
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
@@ -41,19 +41,10 @@ class PBChannel(Channel):
 
     MAX_PACKET_LENGTH = 8 * 1024
 
-    def __init__(self, loop=None):
-        super(PBChannel, self).__init__(loop)
+    def __init__(self, loop=None, connection_class=Connection):
+        super(PBChannel, self).__init__(loop, connection_class)
         self.services, self.service_methods, self.stub_response = {}, {}, {}
         self._get_rpc = self.service_methods.get
-
-    def _connection_detached(self, conn, reason):
-        if not conn.server_side:
-            for async_result in conn.transmissions.values():
-                # we should not reach here with async_result left
-                # that should be an exception
-                async_result.set_exception(reason)
-            conn.transmissions.clear()
-        super(PBChannel, self)._connection_detached(conn, reason)
 
     def append_service(self, service):
         assert service.DESCRIPTOR.full_name not in self.services
@@ -93,12 +84,11 @@ class PBChannel(Channel):
                     break
 
                 buf = read(packet_length+content_length)
-                assert len(buf) == packet_length + content_length
                 meta = unpack_packet(buf[:packet_length], PBC, parser_type)
                 controller = Controller(meta, parser_type)
                 content = buf[packet_length:]
                 controller.conn = conn
-                packet_type = controller.meta.packet_type
+                packet_type = meta.packet_type
                 if packet_type == RESPONSE:
                     handle_response(controller, content)
                 else:
@@ -172,8 +162,10 @@ class PBChannel(Channel):
     def handle_response(self, controller, content):
         conn = controller.conn
         transmission_id = controller.meta.transmission_id
-        assert transmission_id in conn.transmissions, (transmission_id, conn.transmissions)
-        async_result = conn.transmissions.pop(transmission_id)
+        async_result = conn.transmissions.pop(transmission_id, None)
+        if not async_result:
+            # invalid transmission_id, do nothing
+            return
 
         parser_type = controller.parser_type
         if controller.Failed():

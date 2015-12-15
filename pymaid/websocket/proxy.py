@@ -28,12 +28,12 @@ class WebSocketProxy(object):
         self.is_closed, self.close_cb = False, None
         self.server_side = False
 
-        self.conn_id = self.CONN_ID
+        self.conn_id = WebSocketProxy.CONN_ID
         WebSocketProxy.CONN_ID += 1
 
         self._send_queue = deque()
         self.w_io = io(self._socket.fileno(), WRITE)
-        self.r_gr, self.fed_write = None, False
+        self.worker_gr, self.fed_write = None, False
 
     def _io_write(self, max_send=5):
         queue = self._send_queue
@@ -122,6 +122,8 @@ class WebSocketProxy(object):
         self.ws.close()
         self._send_queue.clear()
         self.w_io.stop()
+        if self.worker_gr:
+            self.worker_gr.kill(block=False)
 
         if self.close_cb:
             self.close_cb(self, reason)
