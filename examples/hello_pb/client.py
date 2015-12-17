@@ -1,8 +1,8 @@
 from __future__ import print_function
 from gevent.pool import Pool
 
-from pymaid.pb.channel import PBChannel
-from pymaid.pb.stub import ServiceStub
+from pymaid.channel import ClientChannel
+from pymaid.pb import PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
 from hello_pb2 import HelloService_Stub
@@ -10,15 +10,15 @@ from hello_pb2 import HelloService_Stub
 
 def wrapper(pid, n):
     #conn = channel.connect(('localhost', 8888))
-    conn = channel.connect('/tmp/hello_pb.sock')
+    conn = channel.connect()
     for x in range(n):
         response = service.hello(conn=conn)
         assert response.message == 'from pymaid', response.message
     conn.close()
 
 
-channel = PBChannel()
-service = ServiceStub(HelloService_Stub(channel))
+channel = ClientChannel('/tmp/hello_pb.sock', PBHandler)
+service = ServiceStub(HelloService_Stub(None))
 def main():
     pool = Pool()
     for x in range(1000):
