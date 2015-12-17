@@ -10,7 +10,8 @@ except ImportError:
 import struct
 from collections import Mapping
 
-import six
+from six import add_metaclass
+from google.protobuf.message import Message
 
 from .error import RpcError
 
@@ -35,7 +36,7 @@ class ParserMeta(type):
         parsers[parser_type] = cls
 
 
-@six.add_metaclass(ParserMeta)
+@add_metaclass(ParserMeta)
 class Parser(object):
 
     parser_type = None
@@ -105,3 +106,15 @@ def keys_to_string(data):
     if not isinstance(data, Mapping):
         return data
     return {str(k): keys_to_string(v) for k, v in data.items()}
+
+
+def pack(meta, content=b'', parser_type=DEFAULT_PARSER):
+    if isinstance(content, Message):
+        content = pack_packet(content, parser_type)
+    else:
+        content = str(content)
+    meta_content = pack_packet(meta, parser_type)
+    return b''.join([
+        pack_header(parser_type, len(meta_content), len(content)),
+        meta_content, content
+    ])

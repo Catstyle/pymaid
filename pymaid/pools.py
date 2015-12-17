@@ -67,15 +67,20 @@ class ConnectionPool(object):
         if connection is None or connection.is_closed:
             connection = self.make_connection()
         return connection
+    
+    @contextmanager
+    def get_autorelease_connection(self, timeout=None):
+        conn = self.get_connection(timeout)
+        try:
+            yield conn
+        finally:
+            self.release(conn)
 
     def make_connection(self):
         "Create a new connection"
         connection = self.channel.connect(**self.connection_kwargs)
         connection.pid = os.getpid()
         self._connections.append(connection)
-        def release():
-            self.release(connection)
-        connection.release = release
         return connection
 
     def release(self, connection):
@@ -94,20 +99,12 @@ class ConnectionPool(object):
             # we don't want this connection
             pass
 
-    def disconnect(self):
+    def disconnect(self, reason=None):
         "Disconnects all connections in the pool"
         for connection in self._connections:
-            connection.close()
+            connection.close(reason)
 
     def __repr__(self):
         return "ConnectionPool of %s: [connect_kwargs|%s][created|%d]" % (
             self.name, self.connection_kwargs, len(self._connections)
         )
-
-
-@contextmanager
-def release(conn):
-    try:
-        yield conn
-    finally:
-        conn.release()

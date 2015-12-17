@@ -1,66 +1,35 @@
-__all__ = ['PBChannel']
-
-import six
 from _socket import error as socket_error
 
 from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
-from pymaid.channel import Channel
-from pymaid.connection import Connection
 from pymaid.error import RpcError, get_ex_by_code
 from pymaid.error.base import BaseEx, Error
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper
-from pymaid.parser import (
-    HEADER_LENGTH, DEFAULT_PARSER, pack_header, pack_packet,
-    unpack_packet, unpack_header,
-)
+from pymaid.utils import greenlet_pool
+from pymaid.parser import HEADER_LENGTH, pack, unpack_packet, unpack_header
 
 from pymaid.pb.controller import Controller
+from pymaid.pb.listener import Listener
+from pymaid.pb.stub import StubManager
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
-range = six.moves.range
 REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
 RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
 
 
-def pack(meta, content=b'', parser_type=DEFAULT_PARSER):
-    if not isinstance(content, Void):
-        content = pack_packet(content, parser_type)
-    else:
-        content = str(content)
-    meta_content = pack_packet(meta, parser_type)
-    return b''.join([
-        pack_header(parser_type, len(meta_content), len(content)),
-        meta_content, content
-    ])
-
-
-@pymaid_logger_wrapper
-class PBChannel(Channel):
+class PBHandler(object):
 
     MAX_PACKET_LENGTH = 8 * 1024
 
-    def __init__(self, loop=None, connection_class=Connection):
-        super(PBChannel, self).__init__(loop, connection_class)
-        self.services, self.service_methods, self.stub_response = {}, {}, {}
-        self._get_rpc = self.service_methods.get
+    def __init__(self, conn, listener=None, close_conn_onerror=True):
+        self.listener = listener or Listener()
+        self.close_conn_onerror = close_conn_onerror
+        self._get_rpc = self.listener.service_methods.get
+        self.run(conn)
 
-    def append_service(self, service):
-        assert service.DESCRIPTOR.full_name not in self.services
-        self.services[service.DESCRIPTOR.full_name] = service
-        service_methods = self.service_methods
-        for method in service.DESCRIPTOR.methods:
-            full_name = method.full_name
-            assert full_name not in service_methods
-            request_class = service.GetRequestClass(method)
-            response_class = service.GetResponseClass(method)
-            method = getattr(service, method.name)
-            service_methods[full_name] = method, request_class, response_class
-            # js/lua pb lib will format as '.service.method'
-            service_methods['.'+full_name] = method, request_class, response_class
-
-    def connection_handler(self, conn):
+    def run(self, conn):
+        if not conn.oninit():
+            return
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
         read = conn.read
         tasks_queue, handle_response = Queue(), self.handle_response
@@ -85,9 +54,8 @@ class PBChannel(Channel):
 
                 buf = read(packet_length+content_length)
                 meta = unpack_packet(buf[:packet_length], PBC, parser_type)
-                controller = Controller(meta, parser_type)
+                controller = Controller(meta, conn, parser_type)
                 content = buf[packet_length:]
-                controller.conn = conn
                 packet_type = meta.packet_type
                 if packet_type == RESPONSE:
                     handle_response(controller, content)
@@ -118,7 +86,7 @@ class PBChannel(Channel):
         conn, parser_type = controller.conn, controller.parser_type
         rpc = self._get_rpc(service_method)
         if not rpc:
-            controller.SetFailed()
+            meta.is_failed = True
             err = RPCNotExist(service_method=service_method)
             err = ErrorMessage(error_code=err.code, error_message=err.message)
             conn.send(pack(meta, err, parser_type))
@@ -138,7 +106,7 @@ class PBChannel(Channel):
         try:
             method(controller, request, send_response)
         except BaseEx as ex:
-            controller.SetFailed()
+            meta.is_failed = True
             err = ErrorMessage(error_code=ex.code, error_message=ex.message)
             conn.send(pack(meta, err, parser_type))
             if isinstance(ex, Error) and self.close_conn_onerror:
@@ -160,22 +128,24 @@ class PBChannel(Channel):
             pass
 
     def handle_response(self, controller, content):
-        conn = controller.conn
-        transmission_id = controller.meta.transmission_id
+        conn, meta = controller.conn, controller.meta
+        transmission_id = meta.transmission_id
         async_result = conn.transmissions.pop(transmission_id, None)
         if not async_result:
             # invalid transmission_id, do nothing
             return
 
         parser_type = controller.parser_type
-        if controller.Failed():
+        if meta.is_failed:
             error_message = unpack_packet(content, ErrorMessage, parser_type)
             ex = get_ex_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
-            response_cls = self.stub_response[controller.meta.service_method]
+            response_cls = StubManager.response_class[meta.service_method]
             try:
-                async_result.set(unpack_packet(content, response_cls, parser_type))
+                async_result.set(
+                    unpack_packet(content, response_cls, parser_type)
+                )
             except DecodeError as ex:
                 async_result.set_exception(ex)
