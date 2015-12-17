@@ -1,7 +1,8 @@
 from __future__ import print_function
 
-import pymaid
-from pymaid.pb.channel import PBChannel
+from pymaid import serve_forever
+from pymaid.channel import ServerChannel
+from pymaid.pb import Listener, PBHandler
 from pymaid.utils import greenlet_pool
 
 from hello_pb2 import HelloResponse
@@ -16,13 +17,14 @@ class HelloServiceImpl(HelloService):
         callback(response)
 
 def main():
-    channel = PBChannel()
+    listener = Listener()
+    listener.append_service(HelloServiceImpl())
+    channel = ServerChannel(PBHandler, listener)
     #channel.listen(('localhost', 8888))
     channel.listen('/tmp/hello_pb.sock')
-    channel.append_service(HelloServiceImpl())
     channel.start()
     try:
-        pymaid.serve_forever()
+        serve_forever()
     except:
         print(len(channel.connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
