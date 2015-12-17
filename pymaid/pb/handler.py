@@ -6,7 +6,7 @@ from google.protobuf.message import DecodeError
 from pymaid.error import RpcError, get_ex_by_code
 from pymaid.error.base import BaseEx, Error
 from pymaid.utils import greenlet_pool
-from pymaid.parser import HEADER_LENGTH, pack, unpack_packet, unpack_header
+from pymaid.parser import HEADER_LENGTH, get_unpack, unpack_header
 
 from pymaid.pb.controller import Controller
 from pymaid.pb.listener import Listener
@@ -53,7 +53,8 @@ class PBHandler(object):
                     break
 
                 buf = read(packet_length+content_length)
-                meta = unpack_packet(buf[:packet_length], PBC, parser_type)
+                unpack = get_unpack(parser_type)
+                meta = unpack(buf[:packet_length], PBC)
                 controller = Controller(meta, conn, parser_type)
                 content = buf[packet_length:]
                 packet_type = meta.packet_type
@@ -83,13 +84,13 @@ class PBHandler(object):
         meta.packet_type = RESPONSE
         service_method = meta.service_method
 
-        conn, parser_type = controller.conn, controller.parser_type
+        conn, pack = controller.conn, controller.pack
         rpc = self._get_rpc(service_method)
         if not rpc:
             meta.is_failed = True
             err = RPCNotExist(service_method=service_method)
             err = ErrorMessage(error_code=err.code, error_message=err.message)
-            conn.send(pack(meta, err, parser_type))
+            conn.send(pack(meta, err))
             return
 
         method, request_class, response_class = rpc
@@ -100,15 +101,15 @@ class PBHandler(object):
             if response is None:
                 response = response_class(**kwargs)
             assert isinstance(response, response_class)
-            conn.send(pack(meta, response, parser_type))
+            conn.send(pack(meta, response))
 
-        request = unpack_packet(content, request_class, parser_type)
+        request = controller.unpack(content, request_class)
         try:
             method(controller, request, send_response)
         except BaseEx as ex:
             meta.is_failed = True
             err = ErrorMessage(error_code=ex.code, error_message=ex.message)
-            conn.send(pack(meta, err, parser_type))
+            conn.send(pack(meta, err))
             if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
 
@@ -120,7 +121,7 @@ class PBHandler(object):
             return
 
         method, request_class, response_class = rpc
-        request = unpack_packet(content, request_class, controller.parser_type)
+        request = controller.unpack(content, request_class)
         try:
             method(controller, request, lambda *args, **kwargs: '')
         except BaseEx:
@@ -135,17 +136,14 @@ class PBHandler(object):
             # invalid transmission_id, do nothing
             return
 
-        parser_type = controller.parser_type
         if meta.is_failed:
-            error_message = unpack_packet(content, ErrorMessage, parser_type)
+            error_message = controller.unpack(content, ErrorMessage)
             ex = get_ex_by_code(error_message.error_code)()
             ex.message = error_message.error_message
             async_result.set_exception(ex)
         else:
             response_cls = StubManager.response_class[meta.service_method]
             try:
-                async_result.set(
-                    unpack_packet(content, response_cls, parser_type)
-                )
+                async_result.set(controller.unpack(content, response_cls))
             except DecodeError as ex:
                 async_result.set_exception(ex)

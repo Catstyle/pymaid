@@ -1,6 +1,5 @@
 __all__ = [
-    'DEFAULT_PARSER', 'PBParser', 'JSONParser', 'get_parser',
-    'pack_packet', 'unpack_packet'
+    'DEFAULT_PARSER', 'pb_type', 'json_type', 'get_pack', 'get_unpack', 'pack'
 ]
 
 try:
@@ -10,7 +9,6 @@ except ImportError:
 import struct
 from collections import Mapping
 
-from six import add_metaclass
 from google.protobuf.message import Message
 
 from .error import RpcError
@@ -21,85 +19,47 @@ HEADER_STRUCT = struct.Struct(HEADER)
 pack_header = HEADER_STRUCT.pack
 unpack_header = HEADER_STRUCT.unpack
 
-parsers = {}
+
+def pack_pb_packet(packet):
+    return packet.SerializeToString()
+
+
+def unpack_pb_packet(packet_buffer, cls):
+    return cls.FromString(packet_buffer)
+
+
+def pack_json_packet(packet):
+    return json.dumps(
+        {field.name: value for field, value in packet.ListFields()},
+        ensure_ascii=False,
+    ).encode('utf-8')
+
+
+def unpack_json_packet(packet_buffer, cls):
+    return cls(**keys_to_string(json.loads(packet_buffer)))
+
+
+packs, unpacks = {}, {}
 ParserNotExist = RpcError.ParserNotExist
+pb_type = 1
+json_type = 2
+DEFAULT_PARSER = pb_type
+packs[pb_type] = pack_pb_packet
+unpacks[pb_type] = unpack_pb_packet
+packs[json_type] = pack_json_packet
+unpacks[json_type] = unpack_json_packet
 
 
-class ParserMeta(type):
-
-    def __init__(cls, name, bases, attrs):
-        super(ParserMeta, cls).__init__(name, bases, attrs)
-        if 'parser_type' not in attrs:
-            raise AttributeError('%s has not set `parser_type` attribute')
-        parser_type = attrs['parser_type']
-        assert parser_type not in parsers
-        parsers[parser_type] = cls
-
-
-@add_metaclass(ParserMeta)
-class Parser(object):
-
-    parser_type = None
-
-    @staticmethod
-    def pack_packet(packet):
-        raise NotImplementedError
-
-    @staticmethod
-    def unpack_packet(packet_buffer, cls):
-        raise NotImplementedError
-
-
-class PBParser(Parser):
-    '''Google Protocol Buffer Parser'''
-
-    parser_type = 1
-
-    @staticmethod
-    def pack_packet(packet):
-        return packet.SerializeToString()
-
-    @staticmethod
-    def unpack_packet(packet_buffer, cls):
-        return cls.FromString(packet_buffer)
-
-
-class JSONParser(Parser):
-    '''JSON style parser'''
-
-    parser_type = 2
-
-    @staticmethod
-    def pack_packet(packet):
-        return json.dumps(
-            {field.name: value for field, value in packet.ListFields()},
-            ensure_ascii=False,
-        ).encode('utf-8')
-
-    @staticmethod
-    def unpack_packet(packet_buffer, cls):
-        return cls(**keys_to_string(json.loads(packet_buffer)))
-
-
-DEFAULT_PARSER = PBParser.parser_type
-
-
-def get_parser(parser_type):
-    if parser_type not in parsers:
+def get_pack(parser_type):
+    if parser_type not in packs:
         raise ParserNotExist(parser_type=parser_type)
-    return parsers[parser_type]
+    return packs[parser_type]
 
 
-def pack_packet(packet, parser_type):
-    if parser_type not in parsers:
+def get_unpack(parser_type):
+    if parser_type not in unpacks:
         raise ParserNotExist(parser_type=parser_type)
-    return parsers[parser_type].pack_packet(packet)
-
-
-def unpack_packet(packet_buffer, cls, parser_type):
-    if parser_type not in parsers:
-        raise ParserNotExist(parser_type=parser_type)
-    return parsers[parser_type].unpack_packet(packet_buffer, cls)
+    return unpacks[parser_type]
 
 
 def keys_to_string(data):
@@ -109,11 +69,12 @@ def keys_to_string(data):
 
 
 def pack(meta, content=b'', parser_type=DEFAULT_PARSER):
+    pack_function = get_pack(parser_type)
     if isinstance(content, Message):
-        content = pack_packet(content, parser_type)
+        content = pack_function(content)
     else:
         content = str(content)
-    meta_content = pack_packet(meta, parser_type)
+    meta_content = pack_function(meta)
     return b''.join([
         pack_header(parser_type, len(meta_content), len(content)),
         meta_content, content
