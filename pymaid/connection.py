@@ -29,7 +29,7 @@ connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 class Connection(object):
 
     CONNID = 1
-    LINGER_PACK = struct.pack('ii', 1, 0)
+    LINGER_PACK = struct.pack('ii', 1, 1)
 
     def __init__(self, sock):
         self._socket = sock

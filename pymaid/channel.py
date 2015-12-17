@@ -19,13 +19,13 @@ class BaseChannel(object):
 
     MAX_CONCURRENCY = 50000
 
-    def __init__(self, handler, connection_class=Connection):
+    def __init__(self, handler, connection_class=Connection, **kwargs):
         self.handler = handler
-        self.handler_args = ()
+        self.handler_kwargs = kwargs
         self.connection_class = connection_class
         self.connections = weakref.WeakValueDictionary()
 
-    def _connection_attached(self, conn):
+    def _connection_attached(self, conn, **handler_kwargs):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.connid, conn.sockname, conn.peername
@@ -34,7 +34,7 @@ class BaseChannel(object):
         self.connections[conn.connid] = conn
         conn.set_close_cb(self._connection_detached)
         conn.worker_gr = greenlet_pool.spawn(
-            self.handler, conn, *self.handler_args
+            self.handler, conn, **handler_kwargs
         )
         conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
@@ -81,16 +81,16 @@ class ServerChannel(BaseChannel):
     MAX_ACCEPT = 256
 
     def __init__(self, handler, listener=None, connection_class=Connection,
-                 close_conn_onerror=True):
-        super(ServerChannel, self).__init__(handler, connection_class)
-        self.handler_args = (listener,)
+                 close_conn_onerror=True, **kwargs):
+        super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
+        self.handler_kwargs.update({'listener': listener})
         self.close_conn_onerror = close_conn_onerror
         self.accept_watchers = []
 
     def _do_accept(self, sock, max_accept):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
-        cnt = 0
+        cnt, handler_kwargs = 0, self.handler_kwargs
         while 1:
             if cnt >= max_accept or self.is_full:
                 break
@@ -102,7 +102,7 @@ class ServerChannel(BaseChannel):
                     break
                 self.logger.exception(ex)
                 raise
-            attach_connection(ConnectionClass(peer_socket))
+            attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
 
     def listen(self, address, backlog=1024, type_=SOCK_STREAM):
         # not support ipv6 yet
@@ -134,16 +134,19 @@ class ServerChannel(BaseChannel):
 @pymaid_logger_wrapper
 class ClientChannel(BaseChannel):
 
-    def __init__(self, address, handler, connection_class=Connection):
-        super(ClientChannel, self).__init__(handler, connection_class)
+    def __init__(self, address, handler=lambda *args, **kwargs: '',
+                 connection_class=Connection, **kwargs):
+        super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
         self.address = address
         self.family = AF_INET
         if isinstance(address, string_types):
             self.family = AF_UNIX
 
-    def connect(self, type_=SOCK_STREAM, timeout=None):
+    def connect(self, type_=SOCK_STREAM, timeout=None, **kwargs):
         conn = self.connection_class.connect(
             self.address, timeout, self.family, type_
         )
-        self._connection_attached(conn)
+        handler_kwargs = self.handler_kwargs.copy()
+        handler_kwargs.update(kwargs)
+        self._connection_attached(conn, **handler_kwargs)
         return conn
