@@ -1,23 +1,21 @@
 from __future__ import print_function
 
 import pymaid
-from pymaid.channel import Channel
+from pymaid.channel import ServerChannel
 
 
-class Channel(Channel):
-
-    def connection_handler(self, conn):
-        readline, write = conn.readline, conn.write
-        while 1:
-            data = readline(1024)
-            if not data:
-                break
-            write(data)
-        conn.close()
+def handler(conn, listener):
+    readline, write = conn.readline, conn.write
+    while 1:
+        data = readline(1024)
+        if not data:
+            break
+        write(data)
+    conn.close()
 
 
 def main():
-    channel = Channel()
+    channel = ServerChannel(handler)
     channel.listen('/tmp/hello.sock')
     channel.start()
     try:

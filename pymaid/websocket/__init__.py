@@ -1,4 +1,3 @@
-__all__ = ['WSChannel', 'WebSocketProxy']
+__all__ = ['WebSocket']
 
-from .channel import WSChannel
-from .proxy import WebSocketProxy
+from .websocket import WebSocket

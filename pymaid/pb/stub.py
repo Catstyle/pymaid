@@ -1,7 +1,6 @@
 from gevent.event import AsyncResult
 
-from pymaid.parser import DEFAULT_PARSER
-from pymaid.pb.channel import pack
+from pymaid.parser import DEFAULT_PARSER, pack
 from pymaid.pb.pymaid_pb2 import Void, Controller
 
 REQUEST = Controller.REQUEST
@@ -29,6 +28,8 @@ class ServiceStub(object):
             packet_type, require_response = REQUEST, True
         else:
             packet_type, require_response = NOTIFICATION, False
+        StubManager.request_class[service_method] = response_class
+        StubManager.response_class[service_method] = response_class
         def rpc(request=None, conn=None, connections=None,
                 parser_type=DEFAULT_PARSER, **kwargs):
             request = request or request_class(**kwargs)
@@ -53,7 +54,6 @@ class ServiceStub(object):
                 if not require_response:
                     return
 
-                conn.channel.stub_response[meta.service_method] = response_class
                 async_result = AsyncResult()
                 conn.transmissions[meta.transmission_id] = async_result
                 return async_result.get()
@@ -65,9 +65,17 @@ class ServiceStub(object):
 
 class StubManager(object):
 
+    request_class = {}
+    response_class = {}
+
     def __init__(self, conn=None):
         self.conn = conn
         self._stubs = {}
+
+    def bind(self, conn):
+        self.conn = conn
+        for stub in self._stubs.values():
+            stub.conn = conn
 
     def add_stub(self, name, stub):
         assert name not in self._stubs, (name, self._stubs.keys())

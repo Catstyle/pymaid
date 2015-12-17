@@ -1,14 +1,13 @@
 __all__ = ['Connection']
 
 import struct
-import six
 from os import strerror
 from io import BytesIO
 from collections import deque
 
 from errno import (
-    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY, EINPROGRESS,
-    EBADF, EINVAL
+    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY,
+    EINPROGRESS, EBADF
 )
 from _socket import socket as realsocket, error as socket_error
 from _socket import (
@@ -20,58 +19,58 @@ from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
 from gevent.core import READ, WRITE
 
-from pymaid.utils import pymaid_logger_wrapper, timer, io, hub
-from pymaid.error.base import BaseEx
 from pymaid.error import RpcError
-
-range = six.moves.range
-string_types = six.string_types
+from pymaid.utils import timer, io, hub
 
 invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
 
 
-@pymaid_logger_wrapper
 class Connection(object):
 
-    CONN_ID = 1
-    LINGER_PACK = struct.pack('ii', 1, 0)
+    CONNID = 1
+    LINGER_PACK = struct.pack('ii', 1, 1)
 
-    def __init__(self, channel, sock=None, family=AF_INET, type_=SOCK_STREAM,
-                 proto=0, server_side=False):
-        self._socket = sock = sock or realsocket(family, type_, proto)
+    def __init__(self, sock):
+        self._socket = sock
         sock.setblocking(0)
-        self._setsockopt(sock, server_side)
+        self._setsockopt(sock)
         self._socket = sock
 
-        self.server_side, self.buf = server_side, BytesIO()
+        self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_cb = False, None
 
-        self.conn_id = Connection.CONN_ID
-        Connection.CONN_ID += 1
+        self.connid = Connection.CONNID
+        Connection.CONNID += 1
+        self.peername = sock.getpeername()
+        self.sockname = sock.getsockname()
+        fd = self.fd = sock.fileno()
 
         self._send_queue = deque()
+        self.r_io, self.w_io = io(fd, READ), io(fd, WRITE)
+        self.r_gr, self.fed_write = None, False
 
-        self.channel = channel
-        self.r_io = io(sock.fileno(), READ)
-        self.w_io = io(sock.fileno(), WRITE)
-        self.r_gr, self.worker_gr, self.fed_write = None, None, False
+    def __del__(self):
+        try:
+            self.close()
+        except:
+            # close() may fail if __init__ didn't complete
+            pass
 
-    def _setsockopt(self, sock, server_side):
-        self.setsockopt = setsockopt = sock.setsockopt
+    def _setsockopt(self, sock):
+        setsockopt = sock.setsockopt
         if sock.family == AF_INET:
             setsockopt(SOL_TCP, TCP_NODELAY, 1)
             setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
-        if server_side:
-            setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
+        setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
-    def _io_write(self, max_send=5):
-        queue = self._send_queue
-        send, qsize = self._socket.send, len(queue)
+    def _send(self, max_send=5):
+        qsize = len(self._send_queue)
         if qsize == 0:
             return
 
+        send, queue = self._socket.send, self._send_queue
         try:
             for _ in range(min(qsize, max_send)):
                 buf = queue[0]
@@ -85,16 +84,32 @@ class Connection(object):
         except socket_error as ex:
             if ex.errno == EWOULDBLOCK:
                 queue[0] = membuf[sent:]
-                self.w_io.feed(WRITE, self._io_write)
+                self.w_io.feed(WRITE, self._send)
                 self.fed_write = True
                 return
-            self.close(ex, reset=True)
+            if not self.is_closed:
+                self.close(ex, reset=True)
         else:
             if qsize > max_send:
-                self.w_io.feed(WRITE, self._io_write)
+                self.w_io.feed(WRITE, self._send)
                 self.fed_write = True
             else:
                 self.fed_write = False
+
+    def _sendall(self):
+        """ block current greenlet util all data sent"""
+        w_gr, w_io = getcurrent(), self.w_io
+        assert w_gr != hub, 'could not call block func in main loop'
+        queue = self._send_queue
+        while 1:
+            self._send(len(queue))
+            if len(queue) == 0 or self.is_closed:
+                break
+            w_io.start(w_gr.switch)
+            try:
+                w_gr.parent.switch()
+            finally:
+                w_io.stop()
 
     def _read(self, size):
         buf = self.buf
@@ -192,22 +207,30 @@ class Connection(object):
             remain -= n
         return buf.getvalue()
 
-    @property
-    def peername(self):
-        try:
-            return self._socket.getpeername()
-        except socket_error as err:
-            if err.errno == EINVAL:
-                return 'invalid in shutdown socket on osx'
-            raise
-
-    @property
-    def sockname(self):
-        return self._socket.getsockname()
-
-    @property
-    def fd(self):
-        return self._socket.fileno()
+    @classmethod
+    def connect(cls, address, timeout=None, family=AF_INET,
+                type_=SOCK_STREAM, proto=0):
+        assert getcurrent() != hub, 'could not call block func in main loop'
+        sock = realsocket(family, type_, proto)
+        errno = sock.connect_ex(address)
+        if errno in connecting_error:
+            rw_io = io(sock.fileno(), READ | WRITE)
+            rw_gr = getcurrent()
+            rw_io.start(rw_gr.switch)
+            if timeout:
+                rw_timer = timer(timeout)
+                rw_timer.start(rw_gr.throw, Timeout)
+            try:
+                rw_gr.parent.switch()
+            finally:
+                if timeout:
+                    rw_timer.stop()
+                rw_io.stop()
+                rw_timer = rw_io = None
+            errno = sock.connect_ex(address)
+        if errno != 0 and errno != EISCONN:
+            raise socket_error(errno, strerror(errno))
+        return cls(sock)
 
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
@@ -247,33 +270,19 @@ class Connection(object):
                 self.r_timer.stop()
                 self.r_gr = self.r_timer = None
 
-    def write(self, packet_buffer):
+    def send(self, packet_buffer):
         self._send_queue.append(packet_buffer)
         if not self.fed_write:
-            self._io_write()
-    send = write
+            self._send()
+    write = send
 
-    def connect(self, address, timeout=None):
-        assert getcurrent() != hub, 'could not call block func in main loop'
-        sock = self._socket
-        errno = sock.connect_ex(address)
-        if errno in connecting_error:
-            rw_io = io(self.fd, READ | WRITE)
-            rw_gr = getcurrent()
-            rw_io.start(rw_gr.switch)
-            if timeout:
-                rw_timer = timer(timeout)
-                rw_timer.start(rw_gr.throw, Timeout)
-            try:
-                rw_gr.parent.switch()
-            finally:
-                if timeout:
-                    rw_timer.stop()
-                rw_io.stop()
-                rw_timer = rw_io = None
-            errno = sock.connect_ex(address)
-        if errno != 0 and errno != EISCONN:
-            raise socket_error(errno, strerror(errno))
+    def oninit(self):
+        """
+        Called by handler once handler start on a greenlet.
+
+        return True to continue or False to terminate.
+        """
+        return True
 
     def set_close_cb(self, close_cb):
         assert not self.close_cb
@@ -288,15 +297,6 @@ class Connection(object):
         if isinstance(reason, Greenlet):
             reason = reason.exception
 
-        if reason:
-            if reset or isinstance(reason, BaseEx):
-                log = self.logger.error
-            else:
-                log = self.logger.exception
-        else:
-            log = self.logger.info
-        log('[conn|%d][host|%s][peer|%s] closed with reason: %r',
-            self.conn_id, self.sockname, self.peername, reason)
         ex = reason or RpcError.EOF()
         for async_result in self.transmissions.values():
             # we should not reach here with async_result left
@@ -309,39 +309,21 @@ class Connection(object):
         self.r_io.stop()
         if self.r_gr:
             self.r_gr.kill(block=False)
-        if self.worker_gr:
-            self.worker_gr.kill(block=False)
-        self._socket.close()
-        self.setsockopt = None
         self.buf = BytesIO()
 
         if self.close_cb:
-            self.close_cb(self, reason)
+            self.close_cb(self, reason, reset)
         self.close_cb = None
+        self._socket.close()
 
-    def delay_close(self, reason=None):
+    def delay_close(self, reason=None, reset=False):
+        if self.is_closed:
+            return
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
-        w_gr, w_io = getcurrent(), self.w_io
-        assert w_gr != hub, 'could not call block func in main loop'
-        send, queue = self._socket.send, self._send_queue
-        while 1:
-            if len(queue) == 0:
-                break
-            buf = queue[0]
-            sent, bufsize = 0, len(buf)
-            membuf = memoryview(buf)
-            while sent < bufsize:
-                try:
-                    sent += send(membuf[sent:])
-                except socket_error as ex:
-                    if ex.errno == EWOULDBLOCK:
-                        w_io.start(w_gr.switch)
-                        try:
-                            w_gr.parent.switch()
-                        finally:
-                            w_io.stop()
-                    else:
-                        raise
-            queue.popleft()
-        self.close(reason)
+        # _sendall will check is_closed to avoid recursion
+        self.is_closed = True
+        self._sendall()
+        # super close need is_closed = False
+        self.is_closed = False
+        self.close(reason, reset)
