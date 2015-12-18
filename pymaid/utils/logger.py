@@ -7,9 +7,9 @@ basic_logging = {
     'version': 1,
     'formatters': {
         'standard': {
-            'format': ('[%(asctime)s.%(msecs).03d] [process|%(process)d] '
+            'format': ('[%(asctime)s.%(msecs).03d] [pid|%(process)d] '
                        '[%(name)s:%(lineno)d] [%(levelname)s] %(message)s'),
-            'datefmt': '%Y-%m-%d %H:%M:%S'
+            'datefmt': '%m-%d %H:%M:%S'
         }
     },
     'handlers': {
