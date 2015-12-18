@@ -112,6 +112,9 @@ class ServerChannel(BaseChannel):
                 os.unlink(address)
         else:
             family = AF_INET
+        self.logger.info(
+            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
+        )
         sock = realsocket(family, type_)
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
         sock.bind(address)
