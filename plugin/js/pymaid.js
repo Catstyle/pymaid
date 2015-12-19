@@ -204,8 +204,8 @@
         this.listener = listener;
     };
 
-    ChannelPrototype.connect = function(urlpath, callbacks) {
-        var conn = new this.connectionClass(urlpath, this, callbacks);
+    ChannelPrototype.connect = function(address, callbacks) {
+        var conn = new this.connectionClass(address, this, callbacks);
         this.connections[conn.conn_id] = conn;
         return conn;
     };
@@ -233,11 +233,12 @@
      * WSConnection, connection wrapper for websocket
      *
     **/
-    var WSConnection = function(urlpath, channel, callbacks) {
-        this.ws = new WebSocket(urlpath);
+    var WSConnection = function(address, channel, callbacks) {
+        this.ws = new WebSocket(address);
         this.ws.binaryType = 'arraybuffer';
         this.channel = channel;
 
+        this.address = address;
         this.connid = WSConnection.CONNID;
         WSConnection.CONNID++;
         this.transmissionId = 0;
@@ -267,7 +268,8 @@
 
     WSConnectionPrototype.close = function(reason) {
         console.log(
-            'pymaid: [WSConnection|'+this.connid+'] close with reason: '+reason
+            'pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+
+            '[reason|'+reason+'] closed'
         );
         this.ws.close();
         for (var idx in this.transmissions) {
@@ -285,7 +287,8 @@
             var cb = this.transmissions[tid];
             if (!cb) {
                 console.log(
-                    'pymaid: [WSConnection|'+this.connid+'][transmission|'+tid+'] has no cb'
+                    'pymaid: [WSConnection|'+this.connid+'][transmission|'+tid+']' +
+                    '[service_method|'+controller.service_method+'] has no cb'
                 );
                 // what to do?
                 return;
@@ -479,8 +482,8 @@
             if (!impl || impl.constructor.name != 'Function') {
                 throw Error('pymaid: listener has no method: ' + method.name);
             }
-            // '.package.service.method' vs 'package.service.method'
-            this.classes[serviceMethod] = this.classes[serviceMethod.slice(1)]= {
+            // '.package.service.method' and 'package.service.method'
+            this.classes[serviceMethod] = this.classes[serviceMethod.slice(1)] = {
                 req: method.resolvedRequestType,
                 resp: method.resolvedResponseType
             };
