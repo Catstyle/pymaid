@@ -51,13 +51,6 @@ class Connection(object):
         self.r_io, self.w_io = io(fd, READ), io(fd, WRITE)
         self.r_gr, self.fed_write = None, False
 
-    def __del__(self):
-        try:
-            self.close()
-        except:
-            # close() may fail if __init__ didn't complete
-            pass
-
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
         if sock.family == AF_INET:
@@ -327,3 +320,30 @@ class Connection(object):
         # super close need is_closed = False
         self.is_closed = False
         self.close(reason, reset)
+
+    def __del__(self):
+        try:
+            self.close()
+        except:
+            # close() may fail if __init__ didn't complete
+            pass
+
+    def __str__(self):
+        return '[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
+            self.connid, self.sockname, self.peername, self.is_closed
+        )
+
+
+class DisconnectedConnection(Connection):
+
+    def __init__(self):
+        self.read = self.readline = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: ''
+        self.connid = 0
+        self.sockname = self.peername = 'disconnected'
+        self.is_closed = True
+
+    def __str__(self):
+        return '[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
+            self.connid, self.sockname, self.peername, self.is_closed
+        )
