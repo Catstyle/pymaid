@@ -33,6 +33,10 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.set_close_cb(self._connection_detached)
+        if self.parser:
+            # used by stub
+            conn.pack_meta = self.parser.pack_meta
+            conn.unpack = self.parser.unpack
         conn.worker_gr = greenlet_pool.spawn(
             self.handler, conn, **handler_kwargs
         )
@@ -83,8 +87,10 @@ class ServerChannel(BaseChannel):
     def __init__(self, handler, listener=None, connection_class=Connection,
                  close_conn_onerror=True, **kwargs):
         super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
-        self.handler_kwargs.update({'listener': listener})
-        self.close_conn_onerror = close_conn_onerror
+        self.parser = kwargs.pop('parser', None)
+        self.handler_kwargs.update(
+            {'listener': listener, 'close_conn_onerror': close_conn_onerror}
+        )
         self.accept_watchers = []
 
     def _do_accept(self, sock, max_accept):
@@ -140,6 +146,7 @@ class ClientChannel(BaseChannel):
     def __init__(self, address, handler=lambda *args, **kwargs: '',
                  connection_class=Connection, **kwargs):
         super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
+        self.parser = kwargs.pop('parser', None)
         self.address = address
         self.family = AF_INET
         if isinstance(address, string_types):
