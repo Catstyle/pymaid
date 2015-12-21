@@ -79,7 +79,7 @@ def trace_service(level='INFO'):
     if isinstance(level, str):
         return wrapper
     else:
-        assert issubclass(level, object), level
+        assert issubclass(level, Service), level
         cls, level = level, 'INFO'
         return wrapper(cls)
 
@@ -98,17 +98,17 @@ def trace_method(level='INFO'):
             }
 
             if hasattr(controller.conn, 'player'):
-                pk = '[player|%s]' % controller.conn.player.user_id
+                pk = controller.conn.player
             else:
                 pk = '[conn|%d]' % controller.conn.connid
-            log('[%s] [Enter|%s] [request|%s]', pk, full_name, fields)
-            def done_wrapper(resp, **kwargs):
-                log('[%s] [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp)
+            log('%s [Enter|%s] [request|%s]', pk, full_name, fields)
+            def done_wrapper(resp=None, **kwargs):
+                log('%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp)
                 done(resp, **kwargs)
             try:
-                return func(self, controller, request, done)
+                return func(self, controller, request, done_wrapper)
             except BaseException as ex:
-                log('[%s] [Leave|%s] [exception|%s]', pk, full_name, ex)
+                log('%s [Leave|%s] [exception|%s]', pk, full_name, ex)
                 raise
         return _
     if isinstance(level, str):
