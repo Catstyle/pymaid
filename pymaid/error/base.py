@@ -14,7 +14,7 @@ class ErrorMeta(type):
         if issubclass(cls, Error):
             assert cls.code not in ErrorMeta.errors
             ErrorMeta.errors[cls.code] = cls
-        if issubclass(cls, Warning):
+        elif issubclass(cls, Warning):
             assert cls.code not in ErrorMeta.warnings
             ErrorMeta.warnings[cls.code] = cls
         assert hasattr(cls, 'message_format')
@@ -64,10 +64,16 @@ class Builder(object):
         )
 
 
+class InvalidErrorMessage(Warning):
+
+    code = 13500
+    message_format = '[code|{}] not such error message'
+
+
 def get_ex_by_code(code):
     if code in ErrorMeta.errors:
         return ErrorMeta.errors[code]
     elif code in ErrorMeta.warnings:
         return ErrorMeta.warnings[code]
     else:
-        assert False, 'undefinded code'
+        raise InvalidErrorMessage(code)

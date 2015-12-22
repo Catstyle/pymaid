@@ -7,15 +7,13 @@ from .pymaid_pb2 import Controller as Meta
 
 class Controller(RpcController):
 
-    __slots__  = ['meta', 'conn', 'parser_type']
+    __slots__  = ['meta', 'conn']
 
-    def __init__(self, meta=None, conn=None, parser_type=None, **kwargs):
+    def __init__(self, meta=None, conn=None, **kwargs):
         self.meta, self.conn = meta or Meta(**kwargs), conn
-        self.parser_type = parser_type
 
     def Reset(self):
         self.meta.Clear()
-        self.conn, self.parser_type = None, None
 
     def Failed(self):
         return self.meta.is_failed
