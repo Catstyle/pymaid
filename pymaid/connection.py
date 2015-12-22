@@ -339,6 +339,7 @@ class DisconnectedConnection(Connection):
     def __init__(self):
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
+        self.pack_meta = self.unpack = lambda *args, **kwargs: ''
         self.connid = 0
         self.sockname = self.peername = 'disconnected'
         self.is_closed = True
