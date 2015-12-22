@@ -2,6 +2,7 @@ from __future__ import print_function
 
 from pymaid import serve_forever
 from pymaid.channel import ServerChannel
+from pymaid.parser import PBParser
 from pymaid.pb import Listener, PBHandler
 from pymaid.utils import greenlet_pool
 
@@ -16,10 +17,11 @@ class HelloServiceImpl(HelloService):
         response.message = "from pymaid"
         callback(response)
 
+
 def main():
     listener = Listener()
     listener.append_service(HelloServiceImpl())
-    channel = ServerChannel(PBHandler, listener)
+    channel = ServerChannel(PBHandler, listener, parser=PBParser)
     #channel.listen(('localhost', 8888))
     channel.listen('/tmp/hello_pb.sock')
     channel.start()

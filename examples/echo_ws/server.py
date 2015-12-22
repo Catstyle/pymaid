@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import pymaid
 from pymaid.channel import ServerChannel
+from pymaid.parser import PBParser
 from pymaid.pb import PBHandler, Listener
 from pymaid.utils import greenlet_pool
 
@@ -19,7 +20,7 @@ class EchoServiceImpl(EchoService):
 def main():
     listener = Listener()
     listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler, listener)
+    channel = ServerChannel(PBHandler, listener, parser=PBParser)
     channel.listen(("", 8888))
     channel.start()
     try:
