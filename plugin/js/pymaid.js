@@ -99,20 +99,18 @@
      * Parser, encode/decode packet
      *
      */
-    var Parser = {};
+    var PBParser = {}, JSONParser = {};
+    pymaid.PBParser = PBParser;
+    pymaid.JSONParser = JSONParser;
 
-    // 5 is for '!BHH'
-    Parser._headerSize = 5;
-    Parser._pbType = 1;
-    Parser._jsonType = 2;
-    Parser._defaultType = Parser._pbType
+    // 4 is for '!HH'
+    PBParser._headerSize = JSONParser._headerSize = 4;
 
-    Parser._packPb = function(controller, content) {
+    PBParser.pack = function(controller, content) {
         var ctrlSize = controller.calculate();
         var contentSize = content.calculate();
 
         var bb = new dcodeIO.ByteBuffer(this._headerSize + ctrlSize + contentSize);
-        bb.writeUint8(this._pbType); // protobuf
         bb.writeUint16(ctrlSize);
         bb.writeUint16(contentSize);
         bb.append(controller.toBuffer());
@@ -121,12 +119,24 @@
         return bb.toBuffer();
     };
 
-    Parser._packJson = function(controller, content) {
+    PBParser.unpack = function(ab) {
+        var bb = dcodeIO.ByteBuffer.wrap(ab);
+        var ctrlSize = bb.readUint16();
+        var contentSize = bb.readUint16();
+
+        var ctrlLimit = this._headerSize + ctrlSize;
+        var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
+        var controller = pb.Controller.decode(controllerBuf);
+
+        var contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
+        return {controller: controller, content: contentBuf};
+    };
+
+    JSONParser.pack = function(controller, content) {
         var ctrlSize = controller.calculate();
         var contentSize = content.calculate();
 
         var bb = new dcodeIO.ByteBuffer(this._headerSize + ctrlSize + contentSize);
-        bb.writeUint8(this._jsonType); // json
         bb.writeUint16(ctrlSize);
         bb.writeUint16(contentSize);
         bb.append(controller.encodeJSON());
@@ -135,48 +145,16 @@
         return bb.toBuffer();
     };
 
-    Parser._unpackPb = function(bb) {
-        var ctrlSize = bb.readUint16();
-        var contentSize = bb.readUint16();
-
-        var ctrlLimit = this._headerSize + ctrlSize;
-        var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
-        var controller = pb.Controller.decode(controllerBuf);
-        controller.parserType = this._pbType;
-
-        var contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
-        return {controller: controller, content: contentBuf};
-    };
-
-    Parser._unpackJson = function(bb) {
+    JSONParser.unpack = function(ab) {
+        var bb = dcodeIO.ByteBuffer.wrap(ab);
         var ctrlSize = bb.readUint16();
         var contentSize = bb.readUint16();
 
         var controllerBuf = bb.readString(ctrlSize);
         var controller = pb.Controller.decode(JSON.parse(controllerBuf));
-        controller.parserType = this._jsonType;
 
         var contentBuf = bb.readString(contentSize);
         return {controller: controller, content: JSON.parse(contentBuf)};
-    };
-
-    Parser.pack = function(controller, content, parserType) {
-        var parserType = parserType || controller.parserType || this._defaultType;
-        if (parserType == this._pbType) {
-            return this._packPb(controller, content);
-        } else if (parserType == this._jsonType) {
-            return this._packJson(controller, content);
-        }
-    };
-
-    Parser.unpack = function(ab) {
-        var bb = dcodeIO.ByteBuffer.wrap(ab);
-        var parserType = bb.readUint8();
-        if (parserType == this._pbType) {
-            return this._unpackPb(bb);
-        } else if (parserType == this._jsonType) {
-            return this._unpackJson(bb);
-        }
     };
 
 
@@ -184,11 +162,12 @@
      * Channel, implement rpc pack/unpack
      *
     **/
-    var Channel = function(connectionClass) {
+    var Channel = function(connectionClass, parser) {
         this.connectionClass = connectionClass;
 
         this.connections = {};
         this.listener = null;
+        this.parser = parser;
     };
 
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
@@ -237,6 +216,7 @@
         this.ws = new WebSocket(address);
         this.ws.binaryType = 'arraybuffer';
         this.channel = channel;
+        this.parser = channel.parser;
 
         this.address = address;
         this.connid = WSConnection.CONNID;
@@ -280,7 +260,7 @@
     };
 
     WSConnectionPrototype.onmessage = function(evt) {
-        var packet = Parser.unpack(evt.data);
+        var packet = this.parser.unpack(evt.data);
         var controller = packet.controller, content = packet.content;
         if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
             var tid = controller.transmission_id;
@@ -364,7 +344,7 @@
                     error_message: "Illegal response received in: " + methodName
                 };
 
-                this[method.name] = function(req, cb, conn, parserType) {
+                this[method.name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
                     if (!conn || conn.is_closed) {
                         throw Error(
@@ -389,7 +369,7 @@
                     if (!(req instanceof requestType.clazz)) {
                         req = new requestType.clazz(req);
                     }
-                    conn.send(Parser.pack(controller, req, parserType));
+                    conn.send(conn.parser.pack(controller, req));
 
                     if (!requireResponse) {
                         setTimeout(cb.bind(this, null, null), 0);
@@ -525,7 +505,7 @@
             controller.packet_type = pb.Controller.PacketType.RESPONSE;
             if (err) {
                 controller.is_failed = true;
-                conn.send(Parser.pack(controller, new pb.ErrorMessage(err)));
+                conn.send(conn.parser.pack(controller, new pb.ErrorMessage(err)));
             } else {
                 if (content === null) {
                     throw Error('pymaid: impl: '+serviceMethod+' got null content');
@@ -533,7 +513,7 @@
                 if (!(content instanceof resp)) {
                     content = new resp(content);
                 }
-                conn.send(Parser.pack(controller, content));
+                conn.send(conn.parser.pack(controller, content));
             }
         });
     };
