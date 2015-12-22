@@ -3,27 +3,25 @@ from _socket import error as socket_error
 from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
-from pymaid.error import RpcError, get_ex_by_code
-from pymaid.error.base import BaseEx, Error
+from pymaid.error import BaseEx, Error, RpcError, InvalidErrorMessage
+from pymaid.error import get_ex_by_code
 from pymaid.utils import greenlet_pool
-from pymaid.parser import HEADER_LENGTH, get_unpack, unpack_header
+from pymaid.parser import HEADER_LENGTH, unpack_header
 
 from pymaid.pb.controller import Controller
 from pymaid.pb.listener import Listener
 from pymaid.pb.stub import StubManager
 from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
-REQUEST, RESPONSE, NOTIFICATION = PBC.REQUEST, PBC.RESPONSE, PBC.NOTIFICATION
-RPCNotExist, PacketTooLarge = RpcError.RPCNotExist, RpcError.PacketTooLarge
-
 
 class PBHandler(object):
 
     MAX_PACKET_LENGTH = 8 * 1024
 
-    def __init__(self, conn, listener=None, close_conn_onerror=True):
+    def __init__(self, conn, parser, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()
         self.close_conn_onerror = close_conn_onerror
+        self.pack_meta, self.unpack = parser.pack_meta, parser.unpack
         self._get_rpc = self.listener.service_methods.get
         self.run(conn)
 
@@ -31,34 +29,35 @@ class PBHandler(object):
         if not conn.oninit():
             return
         header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
-        read = conn.read
+        read, unpack = conn.read, self.unpack
         tasks_queue, handle_response = Queue(), self.handle_response
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
 
         callbacks = {
-            REQUEST: self.handle_request,
-            NOTIFICATION: self.handle_notification,
+            PBC.REQUEST: self.handle_request,
+            PBC.NOTIFICATION: self.handle_notification,
         }
-        new_task = tasks_queue.put
+        response, new_task = PBC.RESPONSE, tasks_queue.put
         try:
             while 1:
                 header = read(header_length)
                 if not header:
                     conn.close(reset=True)
                     break
-                parser_type, packet_length, content_length = unpack_header(header)
+                packet_length, content_length = unpack_header(header)
                 if packet_length > max_packet_length:
-                    conn.close(PacketTooLarge(packet_length=packet_length))
+                    conn.close(
+                        RpcError.PacketTooLarge(packet_length=packet_length)
+                    )
                     break
 
                 buf = read(packet_length+content_length)
-                unpack = get_unpack(parser_type)
                 meta = unpack(buf[:packet_length], PBC)
-                controller = Controller(meta, conn, parser_type)
+                controller = Controller(meta, conn)
                 content = buf[packet_length:]
                 packet_type = meta.packet_type
-                if packet_type == RESPONSE:
+                if packet_type == response:
                     handle_response(controller, content)
                 else:
                     new_task((callbacks[packet_type], controller, content))
@@ -81,16 +80,16 @@ class PBHandler(object):
 
     def handle_request(self, controller, content):
         meta = controller.meta
-        meta.packet_type = RESPONSE
+        meta.packet_type = PBC.RESPONSE
         service_method = meta.service_method
 
-        conn, pack = controller.conn, controller.pack
+        conn = controller.conn
         rpc = self._get_rpc(service_method)
         if not rpc:
             meta.is_failed = True
-            err = RPCNotExist(service_method=service_method)
+            err = RpcError.RPCNotExist(service_method=service_method)
             err = ErrorMessage(error_code=err.code, error_message=err.message)
-            conn.send(pack(meta, err))
+            conn.send(self.pack_meta(meta, err))
             return
 
         method, request_class, response_class = rpc
@@ -101,15 +100,15 @@ class PBHandler(object):
             if response is None:
                 response = response_class(**kwargs)
             assert isinstance(response, response_class)
-            conn.send(pack(meta, response))
+            conn.send(self.pack_meta(meta, response))
 
-        request = controller.unpack(content, request_class)
+        request = self.unpack(content, request_class)
         try:
             method(controller, request, send_response)
         except BaseEx as ex:
             meta.is_failed = True
             err = ErrorMessage(error_code=ex.code, error_message=ex.message)
-            conn.send(pack(meta, err))
+            conn.send(self.pack_meta(meta, err))
             if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
 
@@ -121,7 +120,7 @@ class PBHandler(object):
             return
 
         method, request_class, response_class = rpc
-        request = controller.unpack(content, request_class)
+        request = self.unpack(content, request_class)
         try:
             method(controller, request, lambda *args, **kwargs: '')
         except BaseEx:
@@ -137,13 +136,16 @@ class PBHandler(object):
             return
 
         if meta.is_failed:
-            error_message = controller.unpack(content, ErrorMessage)
-            ex = get_ex_by_code(error_message.error_code)()
-            ex.message = error_message.error_message
+            try:
+                error_message = self.unpack(content, ErrorMessage)
+                ex = get_ex_by_code(error_message.error_code)()
+                ex.message = error_message.error_message
+            except (DecodeError, ValueError, InvalidErrorMessage) as ex:
+                ex = ex
             async_result.set_exception(ex)
         else:
             response_cls = StubManager.response_class[meta.service_method]
             try:
-                async_result.set(controller.unpack(content, response_cls))
-            except DecodeError as ex:
+                async_result.set(self.unpack(content, response_cls))
+            except (DecodeError, ValueError) as ex:
                 async_result.set_exception(ex)
