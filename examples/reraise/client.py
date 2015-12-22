@@ -1,6 +1,7 @@
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
+from pymaid.parser import PBParser
 from pymaid.pb import ServiceStub, PBHandler
 
 from rpc_pb2 import RemoteError_Stub
@@ -21,7 +22,7 @@ def wrapper(pid, n):
 
 
 cnt = 0
-channel = ClientChannel(("127.0.0.1", 8888), PBHandler)
+channel = ClientChannel(("127.0.0.1", 8888), PBHandler, parser=PBParser)
 service = ServiceStub(RemoteError_Stub(None))
 def main():
     pool = Pool()
