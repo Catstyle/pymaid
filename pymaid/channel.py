@@ -85,12 +85,10 @@ class ServerChannel(BaseChannel):
     MAX_ACCEPT = 256
 
     def __init__(self, handler, listener=None, connection_class=Connection,
-                 close_conn_onerror=True, **kwargs):
+                 **kwargs):
         super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
         self.parser = kwargs.pop('parser', None)
-        self.handler_kwargs.update(
-            {'listener': listener, 'close_conn_onerror': close_conn_onerror}
-        )
+        self.handler_kwargs.update({'listener': listener})
         self.accept_watchers = []
 
     def _do_accept(self, sock, max_accept):
