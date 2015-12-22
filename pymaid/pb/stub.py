@@ -1,11 +1,6 @@
 from gevent.event import AsyncResult
 
-from pymaid.parser import DEFAULT_PARSER, pack
 from pymaid.pb.pymaid_pb2 import Void, Controller
-
-REQUEST = Controller.REQUEST
-RESPONSE = Controller.RESPONSE
-NOTIFICATION = Controller.NOTIFICATION
 
 
 class ServiceStub(object):
@@ -25,13 +20,12 @@ class ServiceStub(object):
 
     def _build_rpc_stub(self, service_method, request_class, response_class):
         if not issubclass(response_class, Void):
-            packet_type, require_response = REQUEST, True
+            packet_type, require_response = Controller.REQUEST, True
         else:
-            packet_type, require_response = NOTIFICATION, False
+            packet_type, require_response = Controller.NOTIFICATION, False
         StubManager.request_class[service_method] = response_class
         StubManager.response_class[service_method] = response_class
-        def rpc(request=None, conn=None, connections=None,
-                parser_type=DEFAULT_PARSER, **kwargs):
+        def rpc(request=None, conn=None, connections=None, **kwargs):
             request = request or request_class(**kwargs)
 
             meta = self.meta
@@ -39,17 +33,15 @@ class ServiceStub(object):
             meta.service_method = service_method
             meta.packet_type = packet_type
             if connections:
-                packet_buffer = pack(meta, request, parser_type)
                 for conn in connections:
-                    conn.send(packet_buffer)
+                    conn.send(conn.pack_meta(meta, request))
             else:
                 assert conn or self.conn
                 conn = conn or self.conn
                 if require_response:
                     meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
-                packet_buffer = pack(meta, request, parser_type)
-                conn.send(packet_buffer)
+                conn.send(conn.pack_meta(meta, request))
                 
                 if not require_response:
                     return

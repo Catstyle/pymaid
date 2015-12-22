@@ -1,13 +1,13 @@
 __all__ = [
-    'ServerChannel', 'ClientChannel', 'Connection', 'ConnectionPool',
-    'pb', 'websocket', 'error', 'utils', 'serve_forever'
+    'ServerChannel', 'ClientChannel', 'Connection', 'DisconnectedConnection',
+    'ConnectionPool', 'pb', 'websocket', 'error', 'utils', 'serve_forever'
 ]
 
 import sys
 import os
 
 from .channel import ServerChannel, ClientChannel
-from .connection import Connection
+from .connection import Connection, DisconnectedConnection
 from .pools import ConnectionPool
 from . import pb
 from . import websocket
