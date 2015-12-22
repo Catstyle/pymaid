@@ -2,6 +2,7 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
+from pymaid.parser import PBParser
 from pymaid.pb import PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -17,7 +18,7 @@ def wrapper(pid, n, message=message):
     conn.close()
 
 
-channel = ClientChannel(("127.0.0.1", 8888), PBHandler)
+channel = ClientChannel(("127.0.0.1", 8888), PBHandler, parser=PBParser)
 service = ServiceStub(EchoService_Stub(None))
 method = service.stub.DESCRIPTOR.FindMethodByName('echo')
 request_class = service.stub.GetRequestClass(method)
@@ -25,7 +26,7 @@ request = request_class(message=message)
 def main():
     pool = Pool()
     #pool.spawn(wrapper, 111111, 10000)
-    for x in range(100):
+    for x in range(1000):
         pool.spawn(wrapper, x, 1000)
 
     try:
