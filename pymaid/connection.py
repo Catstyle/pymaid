@@ -31,6 +31,8 @@ class Connection(object):
     CONNID = 1
     LINGER_PACK = struct.pack('ii', 1, 1)
 
+    MAX_RECV_SIZE = 512
+
     def __init__(self, sock):
         self._socket = sock
         sock.setblocking(0)
@@ -108,14 +110,15 @@ class Connection(object):
         buf = self.buf
         buf.seek(0, 2)
         bufsize = buf.tell()
+        self.buf = BytesIO()
         if bufsize >= size:
             buf.seek(0)
             data = buf.read(size)
-            self.buf = BytesIO()
             self.buf.write(buf.read())
             return data
+
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        remain = size - bufsize
+        total_read, remain = 0, max(size - bufsize, self.MAX_RECV_SIZE)
         while 1:
             try:
                 data = recv(remain)
@@ -141,11 +144,17 @@ class Connection(object):
                 return data
             buf.write(data)
             del data
-            if n == remain:
+            total_read += n
+            if total_read >= size:
                 break
             remain -= n
-        self.buf = BytesIO()
-        return buf.getvalue()
+
+        if total_read + bufsize == size:
+            return buf.getvalue()
+        buf.seek(0)
+        data = buf.read(size)
+        self.buf.write(buf.read())
+        return data
 
     def _readline(self, size):
         buf = self.buf
@@ -160,11 +169,12 @@ class Connection(object):
                 return bline
             del bline
             buf.seek(0, 2)
+
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        remain = size - bufsize
+        remain, recvsize = size - bufsize, self.MAX_RECV_SIZE
         while 1:
             try:
-                data = recv(remain)
+                data = recv(recvsize)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
                     r_io.start(r_gr.switch)
@@ -192,11 +202,14 @@ class Connection(object):
                 else:
                     return data[:nl]
             n = len(data)
-            if n == size:
+            if n == size and not bufsize:
                 return data
-            buf.write(data)
-            if n == remain:
+            if n >= remain:
+                buf.write(data[:remain])
+                self.buf.write(data[remain:])
                 break
+            buf.write(data)
+            del data
             remain -= n
         return buf.getvalue()
 
