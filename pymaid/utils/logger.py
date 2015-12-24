@@ -92,16 +92,12 @@ def trace_method(level='INFO'):
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
-            fields = {
-                field.name: getattr(request, field.name)
-                for field in request.DESCRIPTOR.fields
-            }
 
             if hasattr(controller.conn, 'player'):
                 pk = controller.conn.player
             else:
                 pk = '[conn|%d]' % controller.conn.connid
-            log('%s [Enter|%s] [request|%s]', pk, full_name, fields)
+            log('%s [Enter|%s] [request|%s]', pk, full_name, repr(str(request)))
             def done_wrapper(resp=None, **kwargs):
                 log('%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp)
                 done(resp, **kwargs)
