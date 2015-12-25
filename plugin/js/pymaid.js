@@ -624,8 +624,10 @@
                     location += '/';
                 }
                 self.get(location, '', cb);
+                return;
             } else if (status == 401 || status == 403) {
                 self.onNotAuthenticated();
+                return;
             } else {
                 err = {
                     error_code: 2, error_message: req.statusText, status: status
@@ -644,10 +646,18 @@
 
     HMPrototype.get = function(url, data, cb) {
         var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        data = data || '';
+        var url = args[0], data = args[1] || {}, cb = args[2];
+        var attr, params = [];
+        if (data) {
+            for (attr in data) {
+                if (data.hasOwnProperty(attr)) {
+                    params.push(attr+'='data[attr]);
+                }
+            }
+            url += '?' + params.join('&');
+        }
         var req = this.newRequest('GET', url, cb);
-        req.send(data);
+        req.send();
         return req;
     };
 
