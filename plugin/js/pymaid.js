@@ -651,10 +651,12 @@
         if (data) {
             for (attr in data) {
                 if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='data[attr]);
+                    params.push(attr+'='+data[attr]);
                 }
             }
-            url += '?' + params.join('&');
+            if (params.length !== 0) {
+                url += '?' + params.join('&');
+            }
         }
         var req = this.newRequest('GET', url, cb);
         req.send();
