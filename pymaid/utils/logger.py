@@ -1,5 +1,5 @@
 __all__ = [
-    'configure_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper',
+    'create_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper',
     'trace_service', 'trace_method'
 ]
 import logging
@@ -44,15 +44,22 @@ pymaid_logger = logging.getLogger('pymaid')
 project_logger = None
 
 
-def configure_project_logger(name):
+def create_project_logger(name):
     global project_logger
+    global pymaid_logger
     assert not project_logger
     project_logger = logging.getLogger(name)
+    for cls in pymaid_logger.wrappers:
+        cls.logger = project_logger.getChild(cls.__name__)
+    pymaid_logger = project_logger
     return project_logger
 
 
 def pymaid_logger_wrapper(cls):
+    if not hasattr(pymaid_logger, 'wrappers'):
+        pymaid_logger.wrappers = []
     cls.logger = pymaid_logger.getChild(cls.__name__)
+    pymaid_logger.wrappers.append(cls)
     return cls
 
 
