@@ -262,6 +262,10 @@
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
         var controller = packet.controller, content = packet.content;
+        console.log(
+            'pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+
+            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+content+']'
+        );
         if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
             var tid = controller.transmission_id;
             var cb = this.transmissions[tid];
@@ -369,6 +373,10 @@
                     if (!(req instanceof requestType.clazz)) {
                         req = new requestType.clazz(req);
                     }
+                    console.log(
+                        'pymaid: [Stub][controller|'+controller.encodeJSON()+']'+
+                        '[req|'+req.encodeJSON()+']'
+                    );
                     conn.send(conn.parser.pack(controller, req));
 
                     if (!requireResponse) {
