@@ -20,6 +20,7 @@ class BaseChannel(object):
     MAX_CONCURRENCY = 50000
 
     def __init__(self, handler, connection_class=Connection, **kwargs):
+        self.parser = None
         self.handler = handler
         self.handler_kwargs = kwargs
         self.connection_class = connection_class
@@ -141,19 +142,14 @@ class ServerChannel(BaseChannel):
 @pymaid_logger_wrapper
 class ClientChannel(BaseChannel):
 
-    def __init__(self, address, handler=lambda *args, **kwargs: '',
+    def __init__(self, handler=lambda *args, **kwargs: '',
                  connection_class=Connection, **kwargs):
         super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
         self.parser = kwargs.pop('parser', None)
-        self.address = address
-        self.family = AF_INET
-        if isinstance(address, string_types):
-            self.family = AF_UNIX
 
-    def connect(self, type_=SOCK_STREAM, timeout=None, **kwargs):
-        conn = self.connection_class.connect(
-            self.address, timeout, self.family, type_
-        )
+    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
+        family = AF_UNIX if isinstance(address, string_types) else AF_INET
+        conn = self.connection_class.connect(address, timeout, family, type_)
         handler_kwargs = self.handler_kwargs.copy()
         handler_kwargs.update(kwargs)
         self._connection_attached(conn, **handler_kwargs)

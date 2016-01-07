@@ -7,14 +7,14 @@ from pymaid.utils import greenlet_pool
 
 req = '1234567890' * 100 + '\n'
 req_size = len(req)
-channel = ClientChannel('/tmp/hello.sock')
+channel = ClientChannel()
 def wrapper(n):
-    conn = channel.connect()
+    conn = channel.connect('/tmp/hello.sock')
     read, write = conn.readline, conn.write
     for x in range(n):
         write(req)
         resp = read(req_size)
-        assert resp == req, len(resp)
+        assert resp == req, (len(resp), repr(resp))
     conn.close()
 
 

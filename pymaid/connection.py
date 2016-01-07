@@ -118,7 +118,7 @@ class Connection(object):
             return data
 
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        total_read, remain = 0, max(size - bufsize, self.MAX_RECV_SIZE)
+        total, remain = bufsize, max(size - bufsize, self.MAX_RECV_SIZE)
         while 1:
             try:
                 data = recv(remain)
@@ -144,12 +144,12 @@ class Connection(object):
                 return data
             buf.write(data)
             del data
-            total_read += n
-            if total_read >= size:
+            total += n
+            if total >= size:
                 break
             remain -= n
 
-        if total_read + bufsize == size:
+        if total == size:
             return buf.getvalue()
         buf.seek(0)
         data = buf.read(size)
@@ -171,7 +171,7 @@ class Connection(object):
             buf.seek(0, 2)
 
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        remain, recvsize = size - bufsize, self.MAX_RECV_SIZE
+        recvsize = self.MAX_RECV_SIZE
         while 1:
             try:
                 data = recv(recvsize)
@@ -192,6 +192,7 @@ class Connection(object):
                 raise
             if not data:
                 break
+            remain = size - bufsize
             nl = data.find('\n', 0, remain)
             if nl >= 0:
                 nl += 1
@@ -210,7 +211,7 @@ class Connection(object):
                 break
             buf.write(data)
             del data
-            remain -= n
+            bufsize += n
         return buf.getvalue()
 
     @classmethod
