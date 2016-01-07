@@ -9,7 +9,7 @@ from error import PlayerNotExist
 
 
 def wrapper(pid, n):
-    conn = channel.connect()
+    conn = channel.connect(("127.0.0.1", 8888))
     global cnt
     for x in range(n):
         try:
@@ -22,7 +22,7 @@ def wrapper(pid, n):
 
 
 cnt = 0
-channel = ClientChannel(("127.0.0.1", 8888), PBHandler, parser=PBParser)
+channel = ClientChannel(PBHandler, parser=PBParser)
 service = ServiceStub(RemoteError_Stub(None))
 def main():
     pool = Pool()
