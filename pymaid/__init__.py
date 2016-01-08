@@ -1,51 +1,37 @@
-from __future__ import absolute_import
 __all__ = [
-    'ServiceAgent', 'Channel', 'Controller', 'Connection',
-    'Error', 'Warning', 'parser', 'logger', 'pool', 'serve_forever'
+    'ServerChannel', 'ClientChannel', 'Connection', 'DisconnectedConnection',
+    'ConnectionPool', 'pb', 'websocket', 'error', 'utils', 'serve_forever'
 ]
 
-
 import sys
-import six
+import os
 
-__version__ = '0.2.9'
+from .channel import ServerChannel, ClientChannel
+from .connection import Connection, DisconnectedConnection
+from .pools import ConnectionPool
+from . import pb
+from . import websocket
+from . import error
+from . import utils
+
+
+__version__ = '0.3.0'
 VERSION = tuple(map(int, __version__.split('.')))
 
 
-platform = sys.platform
-if 'linux' in platform or 'darwin' in platform:
-    import os
-    if 'GEVENT_RESOLVER' not in os.environ:
-        os.environ['GEVENT_RESOLVER'] = 'ares'
-        import gevent
-        six.moves.reload_module(gevent)
-    else:
-        gevent_resolver = os.environ['GEVENT_RESOLVER']
-        if 'ares' not in gevent_resolver:
-            sys.stdout.write(
-                'ares-resolver is better, just `export GEVENT_RESOLVER=ares`\n'
-            )
+if 'linux' in sys.platform or 'darwin' in sys.platform:
+    if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
+        sys.stdout.write(
+            'ares-resolver is better, just `export GEVENT_RESOLVER=ares`\n'
+        )
     if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION') != 'cpp':
         sys.stdout.write(
             'C++ implementation protocol buffer has overall performance, see'
-            '`https://github.com/google/protobuf/blob/master/python/README.txt#L84-L105`\n'
+            '`https://github.com/google/protobuf/blob/master/python/README.md#c-implementation`\n'
         )
-    if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION_VERSION') != '2':
-        sys.stdout.write(
-            'pb>=2.6 new C++ implementation also require to '
-            '`export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION_VERSION=2`\n'
-        )
+del os, sys
 
 
-from pymaid.agent import ServiceAgent
-from pymaid.channel import Channel
-from pymaid.controller import Controller
-from pymaid.connection import Connection
-from pymaid import parser
-from pymaid.error import Error, Warning
-from pymaid.utils import logger, pool
-
-
-from gevent import wait
 def serve_forever():
-    wait()
+    import gevent
+    gevent.wait()

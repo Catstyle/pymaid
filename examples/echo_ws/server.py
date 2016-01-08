@@ -1,33 +1,33 @@
 from __future__ import print_function
 
-from pymaid import serve_forever
+import pymaid
 from pymaid.channel import ServerChannel
 from pymaid.parser import PBParser
-from pymaid.pb import Listener, PBHandler
+from pymaid.pb import PBHandler, Listener
 from pymaid.utils import greenlet_pool
 
-from hello_pb2 import HelloResponse
-from hello_pb2 import HelloService
+from echo_pb2 import Message, EchoService
 
 
-class HelloServiceImpl(HelloService):
+class EchoServiceImpl(EchoService):
 
-    def hello(self, controller, request, callback):
-        response = HelloResponse()
-        response.message = "from pymaid"
+    def echo(self, controller, request, callback):
+        response = Message()
+        response.CopyFrom(request)
         callback(response)
 
 
 def main():
     listener = Listener()
-    listener.append_service(HelloServiceImpl())
+    listener.append_service(EchoServiceImpl())
     channel = ServerChannel(PBHandler, listener, parser=PBParser)
-    #channel.listen(('localhost', 8888))
-    channel.listen('/tmp/hello_pb.sock')
+    channel.listen(("", 8888))
     channel.start()
     try:
-        serve_forever()
+        pymaid.serve_forever()
     except:
+        import traceback
+        traceback.print_exc()
         print(len(channel.connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 

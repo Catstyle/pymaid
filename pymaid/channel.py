@@ -1,25 +1,80 @@
-__all__ = ['Channel']
+__all__ = ['ServerChannel', 'ClientChannel']
 
-import socket
-import _socket
-from _socket import socket as realsocket
-
-import six
+import os
 from copy import weakref
+from _socket import socket as realsocket
+from _socket import AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 
+from six import itervalues, string_types
 from gevent.socket import error as socket_error, EWOULDBLOCK
 from gevent.core import READ
-from gevent.hub import get_hub
 
 from pymaid.connection import Connection
-from pymaid.utils import pymaid_logger_wrapper
-
-range = six.moves.range
-del six
+from pymaid.error.base import BaseEx
+from pymaid.utils import greenlet_pool, pymaid_logger_wrapper, io
 
 
 @pymaid_logger_wrapper
-class Channel(object):
+class BaseChannel(object):
+
+    MAX_CONCURRENCY = 50000
+
+    def __init__(self, handler, connection_class=Connection, **kwargs):
+        self.parser = None
+        self.handler = handler
+        self.handler_kwargs = kwargs
+        self.connection_class = connection_class
+        self.connections = weakref.WeakValueDictionary()
+
+    def _connection_attached(self, conn, **handler_kwargs):
+        self.logger.info(
+            '[conn|%d][host|%s][peer|%s] made',
+            conn.connid, conn.sockname, conn.peername
+        )
+        assert conn.connid not in self.connections
+        self.connections[conn.connid] = conn
+        conn.set_close_cb(self._connection_detached)
+        if self.parser:
+            # used by stub
+            conn.pack_meta = self.parser.pack_meta
+            conn.unpack = self.parser.unpack
+        conn.worker_gr = greenlet_pool.spawn(
+            self.handler, conn, **handler_kwargs
+        )
+        conn.worker_gr.link_exception(conn.close)
+        self.connection_attached(conn)
+
+    def _connection_detached(self, conn, reason=None, reset=False):
+        log = self.logger.info
+        if reason:
+            if reset or isinstance(reason, (BaseEx, string_types)):
+                log = self.logger.error
+            else:
+                log = self.logger.exception
+        log('[conn|%d][host|%s][peer|%s] closed with reason: %r',
+            conn.connid, conn.sockname, conn.peername, reason)
+        conn.worker_gr.kill(block=False)
+        assert conn.connid in self.connections
+        del self.connections[conn.connid]
+        self.connection_detached(conn, reason)
+
+    @property
+    def is_full(self):
+        return len(self.connections) >= self.MAX_CONCURRENCY
+
+    def connection_attached(self, conn):
+        pass
+
+    def connection_detached(self, conn, reason=None):
+        pass
+
+    def stop(self, reason='Channel calls stop'):
+        for conn in itervalues(self.connections):
+            conn.delay_close(reason)
+
+
+@pymaid_logger_wrapper
+class ServerChannel(BaseChannel):
 
     # Sets the maximum number of consecutive accepts that a process may perform
     # on a single wake up. High values give higher priority to high connection
@@ -29,75 +84,73 @@ class Channel(object):
     # same listening value, it should be set to a lower value.
     # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 256
-    MAX_BACKLOG = 8192
-    MAX_CONCURRENCY = 50000
 
-    def __init__(self, loop=None):
-        self.loop = loop or get_hub().loop
-        self.listeners = []
-        self.incoming_connections = weakref.WeakValueDictionary()
-        self.outgoing_connections = weakref.WeakValueDictionary()
+    def __init__(self, handler, listener=None, connection_class=Connection,
+                 **kwargs):
+        super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
+        self.parser = kwargs.pop('parser', None)
+        self.handler_kwargs.update({'listener': listener})
+        self.accept_watchers = []
 
-    def _do_accept(self, sock):
-        for _ in range(self.MAX_ACCEPT):
-            if self.is_full:
-                return
+    def _do_accept(self, sock, max_accept):
+        accept, attach_connection = sock.accept, self._connection_attached
+        ConnectionClass = self.connection_class
+        cnt, handler_kwargs = 0, self.handler_kwargs
+        while 1:
+            if cnt >= max_accept or self.is_full:
+                break
+            cnt += 1
             try:
-                peer_socket, address = sock.accept()
+                peer_socket, address = accept()
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
-                    return
+                    break
                 self.logger.exception(ex)
                 raise
-            self._new_connection(peer_socket, server_side=True)
+            attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
 
-    def _new_connection(self, sock, server_side, ignore_heartbeat=False):
-        conn = Connection(self, sock, server_side)
-        conn.set_close_cb(self.connection_closed)
-        if server_side:
-            assert conn.conn_id not in self.incoming_connections
-            self.incoming_connections[conn.conn_id] = conn
+    def listen(self, address, backlog=1024, type_=SOCK_STREAM):
+        # not support ipv6 yet
+        if isinstance(address, string_types):
+            family = AF_UNIX
+            if os.path.exists(address):
+                os.unlink(address)
         else:
-            assert conn.conn_id not in self.outgoing_connections
-            self.outgoing_connections[conn.conn_id] = conn
-        self.logger.debug(
-            '[conn|%d][host|%s][peer|%s] made',
-            conn.conn_id, conn.sockname, conn.peername
+            family = AF_INET
+        self.logger.info(
+            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
         )
-        self.connection_made(conn)
-        return conn
-
-    @property
-    def is_full(self):
-        return len(self.incoming_connections) >= self.MAX_CONCURRENCY
-
-    def connect(self, host, port, timeout=None, ignore_heartbeat=False):
-        sock = socket.create_connection((host, port), timeout=timeout)
-        conn = self._new_connection(sock, False, ignore_heartbeat)
-        return conn
-
-    def listen(self, host, port, backlog=MAX_BACKLOG):
-        sock = realsocket(_socket.AF_INET, _socket.SOCK_STREAM, 0)
-        sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_REUSEADDR, 1)
-        sock.bind((host, port))
+        sock = realsocket(family, type_)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        accept_watcher = self.loop.io(sock.fileno(), READ)
-        self.listeners.append((sock, accept_watcher))
-
-    def connection_made(self, conn):
-        pass
-
-    def connection_closed(self, conn, reason=None):
-        pass
-
-    def connection_handler(self, conn):
-        '''automatically called by connection once made,
-        it will run in an independent greenlet'''
-        pass
+        self.accept_watchers.append((io(sock.fileno(), READ), sock))
 
     def start(self):
-        [io.start(self._do_accept, s) for s, io in self.listeners if not io.active]
+        for watcher, sock in self.accept_watchers:
+            if not watcher.active:
+                watcher.start(self._do_accept, sock, self.MAX_ACCEPT)
 
-    def stop(self):
-        [io.stop() for _, io in self.listeners if io.active]
+    def stop(self, reason='ServerChannel calls stop'):
+        for watcher, sock in self.accept_watchers:
+            if watcher.active:
+                watcher.stop()
+        super(ServerChannel, self).stop(reason)
+
+
+@pymaid_logger_wrapper
+class ClientChannel(BaseChannel):
+
+    def __init__(self, handler=lambda *args, **kwargs: '',
+                 connection_class=Connection, **kwargs):
+        super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
+        self.parser = kwargs.pop('parser', None)
+
+    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
+        family = AF_UNIX if isinstance(address, string_types) else AF_INET
+        conn = self.connection_class.connect(address, timeout, family, type_)
+        handler_kwargs = self.handler_kwargs.copy()
+        handler_kwargs.update(kwargs)
+        self._connection_attached(conn, **handler_kwargs)
+        return conn

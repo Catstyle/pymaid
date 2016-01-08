@@ -1,14 +1,15 @@
 from gevent.pool import Pool
 
-from pymaid.pb.channel import PBChannel
-from pymaid.agent import ServiceAgent
+from pymaid.channel import ClientChannel
+from pymaid.parser import PBParser
+from pymaid.pb import ServiceStub, PBHandler
 
 from rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
 
 def wrapper(pid, n):
-    conn = channel.connect("127.0.0.1", 8888, ignore_heartbeat=True)
+    conn = channel.connect(("127.0.0.1", 8888))
     global cnt
     for x in range(n):
         try:
@@ -19,9 +20,10 @@ def wrapper(pid, n):
             assert 'should catch PlayerNotExist'
     conn.close()
 
+
 cnt = 0
-channel = PBChannel()
-service = ServiceAgent(RemoteError_Stub(channel), conn=None)
+channel = ClientChannel(PBHandler, parser=PBParser)
+service = ServiceStub(RemoteError_Stub(None))
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
@@ -30,6 +32,7 @@ def main():
 
     pool.join()
     assert cnt == 3000
+
 
 if __name__ == "__main__":
     main()

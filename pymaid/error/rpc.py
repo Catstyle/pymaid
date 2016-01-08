@@ -1,39 +1,12 @@
-from .base import Error, Warning
-
-module_index = 10000
+from .base import Builder
 
 
-class ServiceNotExist(Error):
-
-    code = module_index + 1
-    message_format = '[service|{service_name}] not found'
-
-
-class MethodNotExist(Error):
-
-    code = module_index + 2
-    message_format = '[service|{service_name}][method|{method_name}] not found'
-
-
-class ParserNotExist(Error):
-
-    code = module_index + 3
-    message_format = '[parser|{parser_type}] not found'
-
-
-class HeartbeatTimeout(Error):
-
-    code = module_index + 4
-    message_format = '[host|{host}][peer|{peer}] peer heartbeat timeout'
-
-
-class PacketTooLarge(Error):
-
-    code = module_index + 5
-    message_format = '[packet_length|{packet_length}] out of limitation'
-
-
-class EOF(Warning):
-
-    code = module_index + 6
-    message_format = 'socket received eof'
+RpcError = Builder(13570)
+RpcError.build_error('RPCNotExist', 1, '[rpc|{service_method}] not found')
+RpcError.build_error(
+    'HeartbeatTimeout', 2, '[host|{host}][peer|{peer}] peer heartbeat timeout'
+)
+RpcError.build_error(
+    'PacketTooLarge', 3, '[packet_length|{packet_length}] out of limitation'
+)
+RpcError.build_error('EOF', 4, 'socket received eof')

@@ -40,3 +40,5 @@ nosetests.xml
 
 # pb
 *_pb2.py
+*.lua
+protos/
