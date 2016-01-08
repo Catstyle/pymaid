@@ -1,18 +1,16 @@
-syntax = "proto2";
+syntax = "proto3";
 
 package reraise;
 option py_generic_services = true;
 
-
 message UserId {
-    required uint32 user_id = 1;
+    uint32 user_id = 1;
 }
 
 message Player {
-    required uint32 user_id = 1;
-    required string nickname = 2;
+    uint32 user_id = 1;
+    string nickname = 2;
 }
-
 
 service RemoteError {
     rpc player_profile(UserId) returns (Player);

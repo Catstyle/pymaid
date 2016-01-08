@@ -1,37 +1,28 @@
 from __future__ import print_function
 
 import pymaid
-from pymaid.channel import Channel
+from pymaid.channel import ServerChannel
 
 
-class Channel(Channel):
-
-    def connection_handler(self, conn):
-        read, write = conn.readline, conn.write
-        while 1:
-            data = read(1024)
-            if not data:
-                break
-            write(data)
+def handler(conn, listener):
+    readline, write = conn.readline, conn.write
+    while 1:
+        data = readline(1024)
+        if not data:
+            break
+        write(data)
+    conn.close()
 
 
 def main():
-    import gc
-    from collections import Counter
-    gc.set_debug(gc.DEBUG_LEAK&gc.DEBUG_UNCOLLECTABLE)
-    gc.enable()
-
-    channel = Channel()
-    channel.listen("127.0.0.1", 8888)
+    channel = ServerChannel(handler)
+    channel.listen('/tmp/hello.sock')
     channel.start()
     try:
         pymaid.serve_forever()
     except:
-        print(len(channel.outgoing_connections))
-        print(len(channel.incoming_connections))
+        print(len(channel.connections))
 
-        objects = gc.get_objects()
-        print(Counter(map(type, objects)))
 
 if __name__ == "__main__":
     main()
