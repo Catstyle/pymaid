@@ -8,6 +8,8 @@ from functools import wraps
 
 from google.protobuf.service import Service
 
+from pymaid.error import Warning
+
 basic_logging = {
     'version': 1,
     'formatters': {
@@ -96,6 +98,8 @@ def trace_method(level='INFO'):
         assert level.upper() in logging._levelNames, level
         full_name = '%s.%s' % (func.im_class.DESCRIPTOR.name, func.__name__)
         log = getattr(func.im_class.logger, level.lower())
+        warn = getattr(func.im_class.logger, 'warn')
+        error = getattr(func.im_class.logger, 'error')
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
@@ -111,7 +115,10 @@ def trace_method(level='INFO'):
             try:
                 return func(self, controller, request, done_wrapper)
             except BaseException as ex:
-                log('%s [Leave|%s] [exception|%s]', pk, full_name, ex)
+                if isinstance(ex, Warning):
+                    warn('%s [Leave|%s] [%s]', pk, full_name, ex)
+                else:
+                    error('%s [Leave|%s] [exception|%s]', pk, full_name, ex)
                 raise
         return _
     if isinstance(level, str):

@@ -118,10 +118,10 @@ class Connection(object):
             return data
 
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        total, remain = bufsize, max(size - bufsize, self.MAX_RECV_SIZE)
+        recvsize = self.MAX_RECV_SIZE
         while 1:
             try:
-                data = recv(remain)
+                data = recv(recvsize)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
                     r_io.start(r_gr.switch)
@@ -140,21 +140,17 @@ class Connection(object):
             if not data:
                 break
             n = len(data)
-            if n == size:
+            if n == size and not bufsize:
                 return data
+            remain = size - bufsize
+            if n >= remain:
+                buf.write(data[:remain])
+                self.buf.write(data[remain:])
+                break
             buf.write(data)
             del data
-            total += n
-            if total >= size:
-                break
-            remain -= n
-
-        if total == size:
-            return buf.getvalue()
-        buf.seek(0)
-        data = buf.read(size)
-        self.buf.write(buf.read())
-        return data
+            bufsize += n
+        return buf.getvalue()
 
     def _readline(self, size):
         buf = self.buf
