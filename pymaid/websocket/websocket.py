@@ -166,6 +166,8 @@ class WebSocket(Connection):
         :return: The header and payload as a tuple.
         """
         header = Header.decode_header(super(WebSocket, self).read)
+        if not header:
+            return header, ''
 
         if header.flags:
             raise ProtocolError
@@ -193,8 +195,10 @@ class WebSocket(Connection):
 
         while 1:
             header, payload = self.read_frame()
-            f_opcode = header.opcode
+            if not header:
+                break
 
+            f_opcode = header.opcode
             if f_opcode in (self.OPCODE_TEXT, self.OPCODE_BINARY):
                 # a new frame
                 if opcode:
@@ -248,22 +252,31 @@ class WebSocket(Connection):
             self.close()
 
     def read(self, size, timeout=None):
-        message = self.message
-        message.seek(0, 2)
-        bufsize = message.tell()
-        if bufsize < size:
-            remain = size - bufsize
-            while 1:
-                msg = self.read_message()
-                message.write(msg)
-                if len(msg) >= remain:
-                    break
-                remain -= len(msg)
-        message.seek(0)
-        msg = message.read(size)
+        buf = self.message
+        buf.seek(0, 2)
+        bufsize = buf.tell()
         self.message = BytesIO()
-        self.message.write(message.read())
-        return msg
+        if bufsize >= size:
+            buf.seek(0)
+            data = buf.read(size)
+            self.message.write(buf.read())
+            return data
+
+        while 1:
+            data = self.read_message()
+            if not data:
+                break
+            n = len(data)
+            if n == size and not bufsize:
+                return data
+            remain = size - bufsize
+            if n >= remain:
+                buf.write(data[:remain])
+                self.message.write(data[remain:])
+                break
+            buf.write(data)
+            bufsize += n
+        return buf.getvalue()
 
     def readline(self, size, timeout=None):
         raise RuntimeError('websocket cannot readline')
@@ -362,6 +375,9 @@ class Header(object):
         :returns: A `Header` instance.
         """
         data = raw_read(2)
+        if not data:
+            return
+
         if len(data) != 2:
             raise WebSocketError("Unexpected EOF while decoding header")
 

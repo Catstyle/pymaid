@@ -1,3 +1,5 @@
+from functools import wraps
+
 from gevent import get_hub
 from gevent.pool import Pool
 
@@ -16,10 +18,12 @@ class Timer(object):
             self.again = self._again_async
 
     def _start_async(self, callback, *args):
-        self.realtimer.start(lambda *args: greenlet_pool.apply_async(callback, *args))
+        # proto: apply_async(func, args=None, kwds=None, callback=None)
+        self.realtimer.start(greenlet_pool.apply_async, callback, args)
 
     def _again_async(self, callback, *args):
-        self.realtimer.again(lambda *args: greenlet_pool.apply_async(callback, *args))
+        # proto: apply_async(func, args=None, kwds=None, callback=None)
+        self.realtimer.again(greenlet_pool.apply_async, callback, args)
 
     def __getattr__(self, name):
         return getattr(self.realtimer, name)
@@ -42,3 +46,10 @@ def implall(service):
                     '%s.%s is not implemented' % (service_name, method_name)
                 )
     return service
+
+
+def greenlet_worker(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        return greenlet_pool.apply_async(func, args=args, kwds=kwargs)
+    return wrapper
