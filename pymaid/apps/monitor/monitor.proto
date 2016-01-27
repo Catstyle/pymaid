@@ -5,13 +5,6 @@ option py_generic_services = true;
 
 import "pymaid/pb/pymaid.proto";
 
-message HeartbeatInfo {
-    bool need_heartbeat = 1;
-    float heartbeat_interval = 2;
-}
-
-
 service MonitorService {
     rpc notify_heartbeat(pymaid.pb.Void) returns (pymaid.pb.Void);
-    rpc get_heartbeat_info(pymaid.pb.Void) returns (HeartbeatInfo);
 }

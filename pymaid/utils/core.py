@@ -28,6 +28,9 @@ class Timer(object):
     def __getattr__(self, name):
         return getattr(self.realtimer, name)
 
+    def __dir__(self):
+        return dir(self.realtimer)
+
 
 def timer(after=0.0, repeat=0.0, ref=True, priority=None, use_greenlet=False):
     # run callback on a greentlet if greenlet=True
