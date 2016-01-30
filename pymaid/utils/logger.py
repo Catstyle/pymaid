@@ -42,7 +42,9 @@ basic_logging = {
 logging.config.dictConfig(basic_logging)
 
 root_logger = logging.getLogger('root')
+root_logger.wrappers = []
 pymaid_logger = logging.getLogger('pymaid')
+pymaid_logger.wrappers = []
 project_logger = None
 
 
@@ -51,15 +53,13 @@ def create_project_logger(name):
     global pymaid_logger
     assert not project_logger
     project_logger = logging.getLogger(name)
-    for cls in pymaid_logger.wrappers:
+    for cls in pymaid_logger.wrappers + root_logger.wrappers:
         cls.logger = project_logger.getChild(cls.__name__)
     pymaid_logger = project_logger
     return project_logger
 
 
 def pymaid_logger_wrapper(cls):
-    if not hasattr(pymaid_logger, 'wrappers'):
-        pymaid_logger.wrappers = []
     cls.logger = pymaid_logger.getChild(cls.__name__)
     pymaid_logger.wrappers.append(cls)
     return cls
@@ -67,6 +67,8 @@ def pymaid_logger_wrapper(cls):
 
 def logger_wrapper(cls):
     cls.logger = get_logger(cls.__name__)
+    if cls.logger.parent is root_logger:
+        root_logger.wrappers.append(cls)
     return cls
 
 
