@@ -17,23 +17,23 @@ for name, attr in descriptor.FieldDescriptor.__dict__.items():
         LABELS[attr] = name.lower().split('_')[-1]
 
 SERVICE_TEMPLATE = Template("""(function(global) {
-    var service = {
+    (global['${package}'] = global['${package}'] || {})['${service_name}'] = {
+        name: '${full_name}',
+        messages: [],
 ${methods}
     };
-    service.name = '${full_name}';
-    (global['${package}'] = global['${package}'] || {})['${service_name}'] = service;
 })(this);
 """)
 
 METHOD_TEMPLATE = Template("""/**${req}${resp}
 **/
 ${method_name}: function(controller, req, cb) {
-${cb}
+    this.messages.push(['${method_name}', req]);${cb}
 },
 """)
 
 indent = '\n        '
-star_ident = '\n * '
+star_indent = '\n * '
 
 
 def parse_args():
@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument('-p', nargs='*', type=str, help='extra python path')
     parser.add_argument('--output', default='.', type=str, help='output path')
     parser.add_argument(
-        '--package', type=str, default='impl', help='js package name'
+        '--package', type=str, default='pbimpl', help='js package name'
     )
 
     args = parser.parse_args()
@@ -84,21 +84,23 @@ def extra_message(message, indent='    '):
 
 def generate_jsimpl(service_descriptor, package):
     methods = ['']
+    service_name = service_descriptor.name
     for method in service_descriptor.methods:
-        req = star_ident + 'req: ' + method.input_type.name + star_ident
-        req += star_ident.join(extra_message(method.input_type))
-        resp = star_ident + 'resp: ' + method.output_type.name + star_ident
-        resp += star_ident.join(extra_message(method.output_type))
-        cb = '    cb(controller, res);'
+        req = star_indent + 'req: ' + method.input_type.name + star_indent
+        req += star_indent.join(extra_message(method.input_type))
+        resp = star_indent + 'resp: ' + method.output_type.name + star_indent
+        resp += star_indent.join(extra_message(method.output_type))
+        cb = '\n    cb(controller, req);'
         if method.output_type.name == 'Void':
-            cb = '    '
+            cb = ''
         mstr = METHOD_TEMPLATE.safe_substitute(
-            req=req, resp=resp, method_name=method.name, cb=cb
+            req=req, resp=resp, service_name=service_name,
+            method_name=method.name, cb=cb
         )
         methods.append(indent.join(mstr.split('\n')))
     return SERVICE_TEMPLATE.safe_substitute(
         package=package, full_name=service_descriptor.full_name,
-        service_name=service_descriptor.name, methods=indent.join(methods),
+        service_name=service_name, methods=indent.join(methods),
     )
 
 
