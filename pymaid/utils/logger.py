@@ -99,9 +99,8 @@ def trace_method(level='INFO'):
     def wrapper(func):
         assert level.upper() in logging._levelNames, level
         full_name = '%s.%s' % (func.im_class.DESCRIPTOR.name, func.__name__)
-        log = getattr(func.im_class.logger, level.lower())
-        warn = getattr(func.im_class.logger, 'warn')
-        error = getattr(func.im_class.logger, 'error')
+        cls = func.im_class
+        lv = level.lower()
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
@@ -110,17 +109,23 @@ def trace_method(level='INFO'):
                 pk = controller.conn.player
             else:
                 pk = '[conn|%d]' % controller.conn.connid
-            log('%s [Enter|%s] [request|%s]', pk, full_name, repr(str(request)))
+            getattr(cls.logger, lv)(
+                '%s [Enter|%s] [request|%s]', pk, full_name, repr(str(request))
+            )
             def done_wrapper(resp=None, **kwargs):
-                log('%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp)
+                getattr(cls.logger, lv)(
+                    '%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp
+                )
                 done(resp, **kwargs)
             try:
                 return func(self, controller, request, done_wrapper)
             except BaseException as ex:
                 if isinstance(ex, Warning):
-                    warn('%s [Leave|%s] [%s]', pk, full_name, ex)
+                    cls.logger.warn('%s [Leave|%s] [%s]', pk, full_name, ex)
                 else:
-                    error('%s [Leave|%s] [exception|%s]', pk, full_name, ex)
+                    cls.logger.error(
+                        '%s [Leave|%s] [exception|%s]', pk, full_name, ex
+                    )
                 raise
         return _
     if isinstance(level, str):
