@@ -33,7 +33,7 @@ class BaseChannel(object):
         )
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
-        conn.set_close_cb(self._connection_detached)
+        conn.add_close_cb(self._connection_detached)
         if self.parser:
             # used by stub
             conn.pack_meta = self.parser.pack_meta
