@@ -41,7 +41,7 @@ class Connection(object):
 
         self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
-        self.is_closed, self.close_cb = False, None
+        self.is_closed, self.close_callbacks = False, []
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
@@ -287,10 +287,11 @@ class Connection(object):
         """
         return True
 
-    def set_close_cb(self, close_cb):
-        assert not self.close_cb
+    def add_close_cb(self, close_cb):
+        'last added close callback will be call first'
+        assert close_cb not in self.close_callbacks
         assert callable(close_cb)
-        self.close_cb = close_cb
+        self.close_callbacks.append(close_cb)
 
     def close(self, reason=None, reset=False):
         if self.is_closed:
@@ -313,11 +314,11 @@ class Connection(object):
         if self.r_gr:
             self.r_gr.kill(block=False)
         self.buf = BytesIO()
-
-        if self.close_cb:
-            self.close_cb(self, reason, reset)
-        self.close_cb = None
         self._socket.close()
+
+        for cb in self.close_callbacks[::-1]:
+            cb(self, reason, reset)
+        del self.close_callbacks[:]
 
     def delay_close(self, reason=None, reset=False):
         if self.is_closed:
