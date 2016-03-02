@@ -1,6 +1,7 @@
 import os
 import threading
 from contextlib import contextmanager
+from _socket import error as socket_error
 
 from gevent.queue import LifoQueue, Full
 
@@ -78,9 +79,12 @@ class ConnectionPool(object):
 
     def make_connection(self):
         "Create a new connection"
-        connection = self.channel.connect(**self.connection_kwargs)
-        connection.pid = os.getpid()
-        self._connections.append(connection)
+        try:
+            connection = self.channel.connect(**self.connection_kwargs)
+            connection.pid = os.getpid()
+            self._connections.append(connection)
+        except socket_error:
+            connection = None
         return connection
 
     def release(self, connection):
@@ -90,7 +94,6 @@ class ConnectionPool(object):
             return
 
         if connection.is_closed:
-            connection.release = None
             connection = None
         try:
             self.pool.put_nowait(connection)
@@ -105,6 +108,8 @@ class ConnectionPool(object):
             connection.close(reason)
 
     def __repr__(self):
-        return "ConnectionPool of %s: [connect_kwargs|%s][created|%d]" % (
-            self.name, self.connection_kwargs, len(self._connections)
+        return "[ConnectionPool|%s][connect_kwargs|%s][max|%d][created|%d]" % (
+            self.name, self.connection_kwargs,
+            self.max_connections, len(self._connections)
         )
+    __str__ = __repr__
