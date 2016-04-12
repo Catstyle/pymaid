@@ -5,8 +5,9 @@ from pymaid.pb.pymaid_pb2 import Void, Controller
 
 class ServiceStub(object):
 
-    def __init__(self, stub, conn=None):
-        self.stub, self.conn, self.meta = stub, conn, Controller()
+    def __init__(self, stub, conn=None, connection_pool=None):
+        self.stub, self.meta = stub, Controller()
+        self.conn, self.connection_pool = conn, connection_pool
         self._bind_stub()
 
     def _bind_stub(self):
@@ -25,6 +26,7 @@ class ServiceStub(object):
             packet_type, require_response = Controller.NOTIFICATION, False
         StubManager.request_class[service_method] = response_class
         StubManager.response_class[service_method] = response_class
+
         def rpc(request=None, conn=None, connections=None, **kwargs):
             request = request or request_class(**kwargs)
 
@@ -36,13 +38,15 @@ class ServiceStub(object):
                 for conn in connections:
                     conn.send(conn.pack_meta(meta, request))
             else:
-                assert conn or self.conn
-                conn = conn or self.conn
+                conn = conn or self.conn or self.connection_pool.get_connection()
+                assert conn and not conn.is_closed
                 if require_response:
                     meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
                 conn.send(conn.pack_meta(meta, request))
                 
+                if hasattr(conn, 'release'):
+                    conn.release()
                 if not require_response:
                     return
 
@@ -52,7 +56,8 @@ class ServiceStub(object):
         return rpc
 
     def close(self):
-        self.stub, self.conn, self.meta = None, None, None
+        self.stub = self.meta = None
+        self.conn = self.connection_pool = None
 
 
 class StubManager(object):
@@ -60,19 +65,16 @@ class StubManager(object):
     request_class = {}
     response_class = {}
 
-    def __init__(self, conn=None):
+    def __init__(self, conn=None, connection_pool=None):
         self.conn = conn
+        self.connection_pool = connection_pool
         self._stubs = {}
-
-    def bind(self, conn):
-        self.conn = conn
-        for stub in self._stubs.values():
-            stub.conn = conn
 
     def add_stub(self, name, stub):
         assert name not in self._stubs, (name, self._stubs.keys())
         self._stubs[name] = stub
         stub.conn = stub.conn or self.conn
+        stub.connection_pool = stub.connection_pool or self.connection_pool
         stub.name = name
         setattr(self, name, stub)
 
