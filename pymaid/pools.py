@@ -3,14 +3,15 @@ import threading
 from contextlib import contextmanager
 from _socket import error as socket_error
 
-from gevent.queue import LifoQueue, Full
+from gevent.queue import PriorityQueue, Full
 
 
 class ConnectionPool(object):
     """Inspired by redis.ConnectionPool"""
 
-    def __init__(self, name, channel, max_connections=50, queue_class=LifoQueue,
-                 **connection_kwargs):
+    queue_class = PriorityQueue
+
+    def __init__(self, name, channel, max_connections=50, **connection_kwargs):
         """
         Create a blocking connection pool.
 
@@ -26,7 +27,7 @@ class ConnectionPool(object):
 
         self.name = name
         self.max_connections = max_connections
-        self.queue_class = queue_class
+        self.empty_item = (10000, None)
         self.channel = channel
         self.connection_kwargs = connection_kwargs
         self.reset()
@@ -49,7 +50,7 @@ class ConnectionPool(object):
         self.pool = self.queue_class(self.max_connections)
         while 1:
             try:
-                self.pool.put_nowait(None)
+                self.pool.put_nowait(self.empty_item)
             except Full:
                 break
 
@@ -64,9 +65,11 @@ class ConnectionPool(object):
         """
         self._checkpid()
         # will raise Empty if timeout is not None, so just raise to upper level
-        connection = self.pool.get(block=True, timeout=timeout)
-        if connection is None or connection.is_closed:
+        item = self.pool.get(block=True, timeout=timeout)
+        if item is self.empty_item:
             connection = self.make_connection()
+        else:
+            connection = item[1]
         return connection
     
     @contextmanager
@@ -82,29 +85,40 @@ class ConnectionPool(object):
         try:
             connection = self.channel.connect(**self.connection_kwargs)
             connection.pid = os.getpid()
+            connection.add_close_cb(self.release)
+            def release():
+                self.release(connection)
+            connection.release = release
             self._connections.append(connection)
         except socket_error:
             connection = None
         return connection
 
-    def release(self, connection):
+    def release(self, connection, *args):
         "Releases the connection back to the pool"
         self._checkpid()
         if connection.pid != self.pid:
             return
 
         if connection.is_closed:
+            if connection in self._connections:
+                self._connections.remove(connection)
             connection = None
+            item = self.empty_item
+        else:
+            item = (len(connection.transmissions), connection)
         try:
-            self.pool.put_nowait(connection)
+            self.pool.put_nowait(item)
         except Full:
             # perhaps the pool has been reset() after a fork? regardless,
             # we don't want this connection
-            pass
+            # should we close this conn?
+            if connection:
+                connection.close('useless')
 
     def disconnect(self, reason=None):
         "Disconnects all connections in the pool"
-        for connection in self._connections:
+        for connection in self._connections[:]:
             connection.close(reason)
 
     def __repr__(self):
