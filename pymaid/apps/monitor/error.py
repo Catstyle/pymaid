@@ -1,7 +1,7 @@
-from pymaid.error import Builder
+from pymaid.error import create_manager
 
 
-MonitorError = Builder(index=13580)
+MonitorError = create_manager('MonitorError', 13580)
 MonitorError.build_error(
     'HeartbeatTimeout', 1, 'has not received heartbeat notification in time'
 )
