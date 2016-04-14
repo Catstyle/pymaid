@@ -1,4 +1,5 @@
 import six
+import abc
 
 
 class ErrorMeta(type):
@@ -46,22 +47,25 @@ class Warning(BaseEx):
 
 class Builder(object):
 
-    def __init__(self, index):
-        self.index = index
+    index = 0
 
-    def build_error(self, name, code, message_format):
-        setattr(
-            self, name,
-            type(name, (Error,),
-                 {'code': self.index+code, 'message_format': message_format})
+    @classmethod
+    def build_error(cls, name, code, message_format):
+        error = type(
+            name, (Error,),
+            {'code': cls.index+code, 'message_format': message_format}
         )
+        setattr(cls, name, error)
+        cls.register(error)
 
-    def build_warning(self, name, code, message_format):
-        setattr(
-            self, name,
-            type(name, (Warning,),
-                 {'code': self.index+code, 'message_format': message_format})
+    @classmethod
+    def build_warning(cls, name, code, message_format):
+        warning = type(
+            name, (Warning,),
+            {'code': cls.index+code, 'message_format': message_format}
         )
+        setattr(cls, name, warning)
+        cls.register(warning)
 
 
 class InvalidErrorMessage(Warning):
@@ -77,3 +81,10 @@ def get_ex_by_code(code):
         return ErrorMeta.warnings[code]
     else:
         raise InvalidErrorMessage(code)
+
+
+def create_manager(name, index):
+    manager = type(name, (Builder,), dict(Builder.__dict__))
+    manager = six.add_metaclass(abc.ABCMeta)(manager)
+    manager.index = index
+    return manager
