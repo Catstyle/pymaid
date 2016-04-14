@@ -1,7 +1,7 @@
-from .base import Builder
+from .base import create_manager
 
 
-RpcError = Builder(13570)
+RpcError = create_manager('RpcError', 13570)
 RpcError.build_error('RPCNotExist', 1, '[rpc|{service_method}] not found')
 RpcError.build_error(
     'HeartbeatTimeout', 2, '[host|{host}][peer|{peer}] peer heartbeat timeout'

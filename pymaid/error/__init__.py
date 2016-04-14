@@ -1,8 +1,8 @@
 __all__ = [
-    'BaseEx', 'Builder', 'Error', 'Warning', 'InvalidErrorMessage', 'RpcError',
-    'get_ex_by_code'
+    'BaseEx', 'Error', 'Warning', 'InvalidErrorMessage', 'RpcError',
+    'get_ex_by_code', 'create_manager'
 ]
 
-from .base import BaseEx, Builder, Error, Warning, InvalidErrorMessage
-from .base import get_ex_by_code
+from .base import BaseEx, Error, Warning, InvalidErrorMessage
+from .base import get_ex_by_code, create_manager
 from .rpc import RpcError
