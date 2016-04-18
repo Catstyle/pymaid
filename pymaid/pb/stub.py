@@ -39,7 +39,7 @@ class ServiceStub(object):
                     conn.send(conn.pack_meta(meta, request))
             else:
                 conn = conn or self.conn or self.connection_pool.get_connection()
-                assert conn and not conn.is_closed
+                assert conn, conn
                 if require_response:
                     meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
