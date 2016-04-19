@@ -82,7 +82,6 @@ class ServerChannel(BaseChannel):
     # connections.
     # Default is 256. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
-    # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 256
 
     def __init__(self, handler, listener=None, connection_class=Connection,

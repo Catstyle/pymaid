@@ -57,6 +57,10 @@ class ConnectionPool(object):
         # Keep a list of actual connection instances so that we can
         # disconnect them later.
         self._connections = []
+        self._onconnect = []
+
+    def add_connect_cb(self, cb):
+        self._onconnect.append(cb)
 
     def get_connection(self, timeout=None):
         """
@@ -90,6 +94,8 @@ class ConnectionPool(object):
                 self.release(connection)
             connection.release = release
             self._connections.append(connection)
+            for cb in self._onconnect:
+                cb(connection)
         except socket_error:
             connection = None
         return connection
