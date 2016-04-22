@@ -1,8 +1,11 @@
+import sys
 from functools import wraps
 
 import gevent
 from gevent.queue import JoinableQueue
 from gevent.event import AsyncResult
+
+from .core import hub
 
 
 class Worker(object):
@@ -26,6 +29,7 @@ class Worker(object):
                 resp = func(*args, **kwargs)
                 result.set(resp)
             except Exception as ex:
+                hub.handle_error(task, *sys.exc_info())
                 result.set_exception(ex)
             finally:
                 task_done()
