@@ -3,7 +3,7 @@ import threading
 from contextlib import contextmanager
 from _socket import error as socket_error
 
-from gevent.queue import PriorityQueue, Full
+from gevent.queue import PriorityQueue, Full, Empty
 
 
 class ConnectionPool(object):
@@ -11,22 +11,22 @@ class ConnectionPool(object):
 
     queue_class = PriorityQueue
 
-    def __init__(self, name, channel, max_connections=50, **connection_kwargs):
+    def __init__(self, name, size=50, channel=None, **connection_kwargs):
         """
         Create a blocking connection pool.
 
-        Use ``max_connections`` to increase / decrease the pool size::
+        Use ``size`` to increase / decrease the pool size::
 
         By default, connections will be created by channel.connect method.
 
         Any additional keyword arguments are passed to the channel.connect.
         """
-        max_connections = max_connections or 2 ** 31
-        if not isinstance(max_connections, (int, long)) or max_connections < 0:
-            raise ValueError('"max_connections" must be a positive integer')
+        size = size or 2 ** 31
+        if not isinstance(size, (int, long)) or size < 0:
+            raise ValueError('"size" must be a positive integer')
 
         self.name = name
-        self.max_connections = max_connections
+        self.size = size
         self.empty_item = (10000, None)
         self.channel = channel
         self.connection_kwargs = connection_kwargs
@@ -46,8 +46,8 @@ class ConnectionPool(object):
         self.pid = os.getpid()
         self._check_lock = threading.Lock()
 
-        # Create and fill up a thread safe queue with ``None`` values.
-        self.pool = self.queue_class(self.max_connections)
+        # Create and fill up a thread safe queue with ``empty_item`` values.
+        self.pool = self.queue_class(self.size)
         while 1:
             try:
                 self.pool.put_nowait(self.empty_item)
@@ -57,10 +57,26 @@ class ConnectionPool(object):
         # Keep a list of actual connection instances so that we can
         # disconnect them later.
         self._connections = []
-        self._onconnect = []
 
-    def add_connect_cb(self, cb):
-        self._onconnect.append(cb)
+    def initpool(self, init_count):
+        if self._connections:
+            # do not init pool if there are connections
+            return
+        if init_count > self.size:
+            raise ValueError('init_count should not greater than pool size')
+        if not self.channel:
+            raise AssertionError('calling initpool with channel is None')
+        try:
+            for _ in range(init_count):
+                self.pool.get_nowait()
+        except Empty:
+            pass
+        try:
+            for _ in range(init_count):
+                conn = self.make_connection()
+                self.pool.put_nowait((len(conn.transmissions), conn))
+        except Full:
+            pass
 
     def get_connection(self, timeout=None):
         """
@@ -94,8 +110,6 @@ class ConnectionPool(object):
                 self.release(connection)
             connection.release = release
             self._connections.append(connection)
-            for cb in self._onconnect:
-                cb(connection)
         except socket_error:
             connection = None
         return connection
@@ -129,7 +143,6 @@ class ConnectionPool(object):
 
     def __repr__(self):
         return "[ConnectionPool|%s][connect_kwargs|%s][max|%d][created|%d]" % (
-            self.name, self.connection_kwargs,
-            self.max_connections, len(self._connections)
+            self.name, self.connection_kwargs, self.size, len(self._connections)
         )
     __str__ = __repr__
