@@ -19,7 +19,15 @@ for name, attr in descriptor.FieldDescriptor.__dict__.items():
 SERVICE_TEMPLATE = Template("""(function(global) {
     (global['${package}'] = global['${package}'] || {})['${service_name}'] = {
         name: '${full_name}',
-        messages: [],
+        listeners: [],
+
+        registerListener: function(listener) {
+            this.listeners.push(listener);
+        },
+
+        unregisterListener: function(listener) {
+            this.listeners.splice(this.listeners.indexOf(listener), 1);
+        },
 ${methods}
     };
 })(this);
@@ -28,7 +36,9 @@ ${methods}
 METHOD_TEMPLATE = Template("""/**${req}${resp}
 **/
 ${method_name}: function(controller, req, cb) {
-    this.messages.push(['${method_name}', req]);${cb}
+    this.listeners.forEach(function(listener) {
+        listener.dispatch(['${method_name}', req]);
+    });
 },
 """)
 
