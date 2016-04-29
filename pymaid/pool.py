@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 from contextlib import contextmanager
 from _socket import error as socket_error
@@ -156,7 +157,7 @@ class ConnectionPool(object):
 class PriorityPool(ConnectionPool):
 
     queue_class = PriorityQueue
-    empty_item = (10000, None)
+    empty_item = (sys.maxint, None)
 
     def item_getter(self, item):
         return item[1]
