@@ -42,7 +42,7 @@ class ServiceStub(object):
                 assert conn, conn
                 if require_response:
                     meta.transmission_id = conn.transmission_id
-                    conn.transmission_id += 1
+                conn.transmission_id += 1
                 conn.send(conn.pack_meta(meta, request))
                 
                 if hasattr(conn, 'release'):
