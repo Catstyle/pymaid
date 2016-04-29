@@ -3,13 +3,14 @@ import threading
 from contextlib import contextmanager
 from _socket import error as socket_error
 
-from gevent.queue import PriorityQueue, Full, Empty
+from gevent.queue import LifoQueue, PriorityQueue, Full, Empty
 
 
 class ConnectionPool(object):
     """Inspired by redis.ConnectionPool"""
 
-    queue_class = PriorityQueue
+    queue_class = LifoQueue
+    empty_item = None
 
     def __init__(self, name, size=50, channel=None, **connection_kwargs):
         """
@@ -27,7 +28,6 @@ class ConnectionPool(object):
 
         self.name = name
         self.size = size
-        self.empty_item = (10000, None)
         self.channel = channel
         self.connection_kwargs = connection_kwargs
         self.reset()
@@ -58,6 +58,12 @@ class ConnectionPool(object):
         # disconnect them later.
         self._connections = []
 
+    def item_getter(self, item):
+        return item
+
+    def item_putter(self, conn):
+        return conn
+
     def initpool(self, init_count):
         if self._connections:
             # do not init pool if there are connections
@@ -74,7 +80,7 @@ class ConnectionPool(object):
         try:
             for _ in range(init_count):
                 conn = self.make_connection()
-                self.pool.put_nowait((len(conn.transmissions), conn))
+                self.pool.put_nowait(self.item_putter(conn))
         except Full:
             pass
 
@@ -87,11 +93,10 @@ class ConnectionPool(object):
         # will raise Empty if timeout is not None, so just raise to upper level
         item = self.pool.get(block=True, timeout=timeout)
         if item is self.empty_item:
-            connection = self.make_connection()
+            return self.make_connection()
         else:
-            connection = item[1]
-        return connection
-    
+            return self.item_getter(item)
+
     @contextmanager
     def get_autorelease_connection(self, timeout=None):
         conn = self.get_connection(timeout)
@@ -114,7 +119,7 @@ class ConnectionPool(object):
             connection = None
         return connection
 
-    def release(self, connection, *args):
+    def release(self, connection):
         "Releases the connection back to the pool"
         self._checkpid()
         if connection.pid != self.pid:
@@ -126,7 +131,7 @@ class ConnectionPool(object):
             connection = None
             item = self.empty_item
         else:
-            item = (len(connection.transmissions), connection)
+            item = self.item_putter(connection)
         try:
             self.pool.put_nowait(item)
         except Full:
@@ -146,3 +151,15 @@ class ConnectionPool(object):
             self.name, self.connection_kwargs, self.size, len(self._connections)
         )
     __str__ = __repr__
+
+
+class PriorityPool(ConnectionPool):
+
+    queue_class = PriorityQueue
+    empty_item = (10000, None)
+
+    def item_getter(self, item):
+        return item[1]
+
+    def item_putter(self, conn):
+        return (conn.transmission_id, conn)
