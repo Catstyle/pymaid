@@ -109,8 +109,9 @@ def trace_method(level='INFO'):
                 pk = controller.conn.player
             else:
                 pk = '[conn|%d]' % controller.conn.connid
+            req = repr(str(request))
             getattr(cls.logger, lv)(
-                '%s [Enter|%s] [request|%s]', pk, full_name, repr(str(request))
+                '%s [Enter|%s] [req|%s]', pk, full_name, req
             )
             def done_wrapper(resp=None, **kwargs):
                 getattr(cls.logger, lv)(
@@ -121,10 +122,13 @@ def trace_method(level='INFO'):
                 return func(self, controller, request, done_wrapper)
             except BaseException as ex:
                 if isinstance(ex, Warning):
-                    cls.logger.warn('%s [Leave|%s] [%s]', pk, full_name, ex)
+                    cls.logger.warn(
+                        '%s [Leave|%s][req|%s] %s', pk, full_name, req, ex
+                    )
                 else:
                     cls.logger.error(
-                        '%s [Leave|%s] [exception|%s]', pk, full_name, ex
+                        '%s [Leave|%s][req|%s] [exception|%s]',
+                        pk, full_name, req, ex
                     )
                 raise
         return _
