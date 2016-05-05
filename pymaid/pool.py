@@ -13,7 +13,8 @@ class ConnectionPool(object):
     queue_class = LifoQueue
     empty_item = None
 
-    def __init__(self, name, size=50, channel=None, **connection_kwargs):
+    def __init__(self, name, size=50, init_count=0, channel=None,
+                 **connection_kwargs):
         """
         Create a blocking connection pool.
 
@@ -29,6 +30,7 @@ class ConnectionPool(object):
 
         self.name = name
         self.size = size
+        self.init_count = init_count
         self.channel = channel
         self.connection_kwargs = connection_kwargs
         self.reset()
@@ -58,6 +60,8 @@ class ConnectionPool(object):
         # Keep a list of actual connection instances so that we can
         # disconnect them later.
         self._connections = []
+        if self.init_count:
+            self.initpool(self.init_count)
 
     def item_getter(self, item):
         return item
@@ -73,6 +77,7 @@ class ConnectionPool(object):
             raise ValueError('init_count should not greater than pool size')
         if not self.channel:
             raise AssertionError('calling initpool with channel is None')
+        self.init_count = init_count
         try:
             for _ in range(init_count):
                 self.pool.get_nowait()
