@@ -111,7 +111,9 @@ class ConnectionPool(object):
         try:
             connection = self.channel.connect(**self.connection_kwargs)
             connection.pid = os.getpid()
-            connection.add_close_cb(self.release)
+            def close(conn, reason=None, reset=None):
+                self._connections.remove(conn)
+            connection.add_close_cb(close)
             def release():
                 self.release(connection)
             connection.release = release
