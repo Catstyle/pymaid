@@ -170,4 +170,4 @@ class PriorityPool(ConnectionPool):
         return item[1]
 
     def item_putter(self, conn):
-        return (conn.transmission_id, conn)
+        return (conn.transmission_id, conn) if conn else conn
