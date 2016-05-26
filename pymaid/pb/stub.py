@@ -5,9 +5,10 @@ from pymaid.pb.pymaid_pb2 import Void, Controller
 
 class ServiceStub(object):
 
-    def __init__(self, stub, conn=None, connection_pool=None):
+    def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
         self.stub, self.meta = stub, Controller()
         self.conn, self.connection_pool = conn, connection_pool
+        self.timeout = timeout
         self._bind_stub()
 
     def _bind_stub(self):
@@ -27,7 +28,8 @@ class ServiceStub(object):
         StubManager.request_class[service_method] = response_class
         StubManager.response_class[service_method] = response_class
 
-        def rpc(request=None, conn=None, connections=None, **kwargs):
+        def rpc(request=None, conn=None, connections=None, timeout=None,
+                **kwargs):
             request = request or request_class(**kwargs)
 
             meta = self.meta
@@ -52,7 +54,7 @@ class ServiceStub(object):
 
                 async_result = AsyncResult()
                 conn.transmissions[meta.transmission_id] = async_result
-                return async_result.get()
+                return async_result.get(timeout=timeout or self.timeout)
         return rpc
 
     def close(self):
