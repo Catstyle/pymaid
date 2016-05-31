@@ -167,7 +167,7 @@ class PriorityPool(ConnectionPool):
     empty_item = (sys.maxint, None)
 
     def item_getter(self, item):
-        return item[1]
+        return item[1] if item else item
 
     def item_putter(self, conn):
         return (conn.transmission_id, conn) if conn else conn
