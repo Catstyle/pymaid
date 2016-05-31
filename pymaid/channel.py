@@ -33,7 +33,7 @@ class BaseChannel(object):
         )
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
-        conn.set_close_cb(self._connection_detached)
+        conn.add_close_cb(self._connection_detached)
         if self.parser:
             # used by stub
             conn.pack_meta = self.parser.pack_meta
@@ -82,7 +82,6 @@ class ServerChannel(BaseChannel):
     # connections.
     # Default is 256. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
-    # (pywsgi.WSGIServer sets it to 1 when environ["wsgi.multiprocess"] is true)
     MAX_ACCEPT = 256
 
     def __init__(self, handler, listener=None, connection_class=Connection,
@@ -91,6 +90,7 @@ class ServerChannel(BaseChannel):
         self.parser = kwargs.pop('parser', None)
         self.handler_kwargs.update({'listener': listener})
         self.accept_watchers = []
+        self.middlewares = []
 
     def _do_accept(self, sock, max_accept):
         accept, attach_connection = sock.accept, self._connection_attached
@@ -109,6 +109,16 @@ class ServerChannel(BaseChannel):
                 raise
             attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
 
+    def _connection_attached(self, conn, **handler_kwargs):
+        super(ServerChannel, self)._connection_attached(conn, **handler_kwargs)
+        for middleware in self.middlewares:
+            middleware.on_connect(conn)
+
+    def _connection_detached(self, conn, reason=None, reset=False):
+        super(ServerChannel, self)._connection_detached(conn, reason, reset)
+        for middleware in self.middlewares:
+            middleware.on_close(conn)
+
     def listen(self, address, backlog=1024, type_=SOCK_STREAM):
         # not support ipv6 yet
         if isinstance(address, string_types):
@@ -126,6 +136,9 @@ class ServerChannel(BaseChannel):
         sock.listen(backlog)
         sock.setblocking(0)
         self.accept_watchers.append((io(sock.fileno(), READ), sock))
+
+    def append_middleware(self, middleware):
+        self.middlewares.append(middleware)
 
     def start(self):
         for watcher, sock in self.accept_watchers:

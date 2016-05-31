@@ -316,6 +316,8 @@
                 services.push(attr.$type);
             } else if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Namespace) {
                 services = services.concat(getBuilderServices(attr, filter));
+            } else if (typeof attr === 'object' && Object.keys(attr)) {
+                services = services.concat(getBuilderServices(attr, filter));
             }
         }
         return services;

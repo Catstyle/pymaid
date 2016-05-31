@@ -41,7 +41,7 @@ class Connection(object):
 
         self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
-        self.is_closed, self.close_cb = False, None
+        self.is_closed, self.close_callbacks = False, []
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
@@ -118,10 +118,10 @@ class Connection(object):
             return data
 
         recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        total, remain = bufsize, max(size - bufsize, self.MAX_RECV_SIZE)
+        recvsize = self.MAX_RECV_SIZE
         while 1:
             try:
-                data = recv(remain)
+                data = recv(recvsize)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
                     r_io.start(r_gr.switch)
@@ -140,21 +140,17 @@ class Connection(object):
             if not data:
                 break
             n = len(data)
-            if n == size:
+            if n == size and not bufsize:
                 return data
+            remain = size - bufsize
+            if n >= remain:
+                buf.write(data[:remain])
+                self.buf.write(data[remain:])
+                break
             buf.write(data)
             del data
-            total += n
-            if total >= size:
-                break
-            remain -= n
-
-        if total == size:
-            return buf.getvalue()
-        buf.seek(0)
-        data = buf.read(size)
-        self.buf.write(buf.read())
-        return data
+            bufsize += n
+        return buf.getvalue()
 
     def _readline(self, size):
         buf = self.buf
@@ -291,10 +287,11 @@ class Connection(object):
         """
         return True
 
-    def set_close_cb(self, close_cb):
-        assert not self.close_cb
+    def add_close_cb(self, close_cb):
+        'last added close callback will be call first'
+        assert close_cb not in self.close_callbacks
         assert callable(close_cb)
-        self.close_cb = close_cb
+        self.close_callbacks.append(close_cb)
 
     def close(self, reason=None, reset=False):
         if self.is_closed:
@@ -317,11 +314,11 @@ class Connection(object):
         if self.r_gr:
             self.r_gr.kill(block=False)
         self.buf = BytesIO()
-
-        if self.close_cb:
-            self.close_cb(self, reason, reset)
-        self.close_cb = None
         self._socket.close()
+
+        for cb in self.close_callbacks[::-1]:
+            cb(self, reason, reset)
+        del self.close_callbacks[:]
 
     def delay_close(self, reason=None, reset=False):
         if self.is_closed:
@@ -355,6 +352,7 @@ class DisconnectedConnection(Connection):
         self.write = self.send = lambda *args, **kwargs: ''
         self.pack_meta = self.unpack = lambda *args, **kwargs: ''
         self.connid = 0
+        self.transmission_id = 0
         self.sockname = self.peername = 'disconnected'
         self.is_closed = True
 
