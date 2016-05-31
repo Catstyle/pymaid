@@ -1,21 +1,21 @@
 __all__ = [
-    'ServerChannel', 'ClientChannel', 'Connection', 'DisconnectedConnection',
-    'ConnectionPool', 'pb', 'websocket', 'error', 'utils', 'serve_forever'
+    'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
+    'serve_forever'
 ]
 
 import sys
 import os
 
-from .channel import ServerChannel, ClientChannel
-from .connection import Connection, DisconnectedConnection
-from .pools import ConnectionPool
-from . import pb
+from . import channel
+from . import connection
 from . import websocket
+from . import pb
+from . import pool
 from . import error
 from . import utils
 
 
-__version__ = '0.3.0'
+__version__ = '0.3.3'
 VERSION = tuple(map(int, __version__.split('.')))
 
 

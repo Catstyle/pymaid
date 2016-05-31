@@ -5,6 +5,7 @@ import os.path
 import subprocess
 import argparse
 import json
+import tempfile
 
 from distutils.spawn import find_executable
 from string import Template
@@ -14,7 +15,7 @@ extra_include = os.path.join(prefix, 'include/')
 
 JS_TEMPLATE = Template("""(function(global) {
     var next = global['${package}'] = global['${package}'] || {};
-    ${nexts};
+    ${nexts}
 })(this);
 """)
 
@@ -91,7 +92,15 @@ def _pbjs(pbjs, source, path, extra_command):
     command = [pbjs, source, '-p', '.', '-p', path, '-p', extra_include]
     command.extend(extra_command)
     print ('pbjs %s' % command)
-    return subprocess.check_output(command)
+    with tempfile.SpooledTemporaryFile() as fp:
+        proc = subprocess.Popen(command, stdout=fp.fileno())
+        proc.wait()
+        fp.seek(0)
+        content = fp.readlines()
+    content = json.loads(''.join(content))
+    content.setdefault('syntax', 'proto3')
+    content = json.dumps(content, indent=4)
+    return content
 
 
 def pb2js(pbjs, source, path, output_path, js_package):
@@ -104,7 +113,7 @@ def pb2js(pbjs, source, path, output_path, js_package):
         nexts.append(
             'var next = global["%s"] = global["%s"] || {};' % (dirname, dirname)
         )
-    nexts.append('next["%s"] = %s' % (dirnames[-1], content.replace('\n', '\n    ')))
+    nexts.append('next["%s"] = %s;' % (dirnames[-1], content.replace('\n', '\n    ')))
     content = JS_TEMPLATE.safe_substitute(
         package=js_package, nexts='\n    '.join(nexts)
     )

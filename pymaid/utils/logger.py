@@ -8,6 +8,8 @@ from functools import wraps
 
 from google.protobuf.service import Service
 
+from pymaid.error import Warning
+
 basic_logging = {
     'version': 1,
     'formatters': {
@@ -40,7 +42,9 @@ basic_logging = {
 logging.config.dictConfig(basic_logging)
 
 root_logger = logging.getLogger('root')
+root_logger.wrappers = []
 pymaid_logger = logging.getLogger('pymaid')
+pymaid_logger.wrappers = []
 project_logger = None
 
 
@@ -49,15 +53,13 @@ def create_project_logger(name):
     global pymaid_logger
     assert not project_logger
     project_logger = logging.getLogger(name)
-    for cls in pymaid_logger.wrappers:
+    for cls in pymaid_logger.wrappers + root_logger.wrappers:
         cls.logger = project_logger.getChild(cls.__name__)
     pymaid_logger = project_logger
     return project_logger
 
 
 def pymaid_logger_wrapper(cls):
-    if not hasattr(pymaid_logger, 'wrappers'):
-        pymaid_logger.wrappers = []
     cls.logger = pymaid_logger.getChild(cls.__name__)
     pymaid_logger.wrappers.append(cls)
     return cls
@@ -65,6 +67,8 @@ def pymaid_logger_wrapper(cls):
 
 def logger_wrapper(cls):
     cls.logger = get_logger(cls.__name__)
+    if cls.logger.parent is root_logger:
+        root_logger.wrappers.append(cls)
     return cls
 
 
@@ -95,7 +99,8 @@ def trace_method(level='INFO'):
     def wrapper(func):
         assert level.upper() in logging._levelNames, level
         full_name = '%s.%s' % (func.im_class.DESCRIPTOR.name, func.__name__)
-        log = getattr(func.im_class.logger, level.lower())
+        cls = func.im_class
+        lv = level.lower()
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
@@ -104,14 +109,27 @@ def trace_method(level='INFO'):
                 pk = controller.conn.player
             else:
                 pk = '[conn|%d]' % controller.conn.connid
-            log('%s [Enter|%s] [request|%s]', pk, full_name, repr(str(request)))
+            req = repr(str(request))
+            getattr(cls.logger, lv)(
+                '%s [Enter|%s] [req|%s]', pk, full_name, req
+            )
             def done_wrapper(resp=None, **kwargs):
-                log('%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp)
+                getattr(cls.logger, lv)(
+                    '%s [Leave|%s] [resp|%s]', pk, full_name, kwargs or resp
+                )
                 done(resp, **kwargs)
             try:
                 return func(self, controller, request, done_wrapper)
             except BaseException as ex:
-                log('%s [Leave|%s] [exception|%s]', pk, full_name, ex)
+                if isinstance(ex, Warning):
+                    cls.logger.warn(
+                        '%s [Leave|%s][req|%s] %s', pk, full_name, req, ex
+                    )
+                else:
+                    cls.logger.error(
+                        '%s [Leave|%s][req|%s] [exception|%s]',
+                        pk, full_name, req, ex
+                    )
                 raise
         return _
     if isinstance(level, str):
