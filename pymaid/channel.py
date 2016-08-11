@@ -3,7 +3,9 @@ __all__ = ['ServerChannel', 'ClientChannel']
 import os
 from copy import weakref
 from _socket import socket as realsocket
-from _socket import AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from _socket import (
+    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_REUSEPORT
+)
 
 from six import itervalues, string_types
 from gevent.socket import error as socket_error, EWOULDBLOCK
@@ -132,6 +134,7 @@ class ServerChannel(BaseChannel):
         )
         sock = realsocket(family, type_)
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
