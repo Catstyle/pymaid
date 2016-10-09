@@ -1,7 +1,6 @@
 import struct
 from os import strerror
 from io import BytesIO
-from collections import deque
 
 from errno import (
     EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY,
@@ -49,7 +48,7 @@ class Connection(object):
         self.sockname = sock.getsockname()
         fd = self.fd = sock.fileno()
 
-        self._send_queue = deque()
+        self._send_queue = []
         self.r_io, self.w_io = io(fd, READ), io(fd, WRITE)
         self.r_gr, self.fed_write = None, False
 
@@ -60,36 +59,28 @@ class Connection(object):
             setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
         setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
-    def _send(self, max_send=5):
-        qsize = len(self._send_queue)
-        if qsize == 0:
+    def _send(self):
+        '''try to send all packets to reduce system call'''
+        if not self._send_queue:
             return
 
-        send, queue = self._socket.send, self._send_queue
+        send = self._socket.send
+        membuf = memoryview(''.join(self._send_queue))
+        del self._send_queue[:]
+        bufsize = len(membuf)
         try:
-            for _ in range(min(qsize, max_send)):
-                buf = queue[0]
-                # see pydoc of socket.send
-                sent, bufsize = 0, len(buf)
-                membuf = memoryview(buf)
-                sent += send(membuf)
-                while sent < bufsize:
-                    sent += send(membuf[sent:])
-                queue.popleft()
+            # see pydoc of socket.send
+            sent = send(membuf)
+            while sent < bufsize:
+                sent += send(membuf[sent:])
         except socket_error as ex:
             if ex.errno == EWOULDBLOCK:
-                queue[0] = membuf[sent:]
+                self._send_queue.append(membuf[sent:].tobytes())
                 self.w_io.feed(WRITE, self._send)
                 self.fed_write = True
                 return
             if not self.is_closed:
                 self.close(ex, reset=True)
-        else:
-            if qsize > max_send:
-                self.w_io.feed(WRITE, self._send)
-                self.fed_write = True
-            else:
-                self.fed_write = False
 
     def _sendall(self):
         """ block current greenlet util all data sent"""
@@ -97,8 +88,8 @@ class Connection(object):
         assert w_gr != hub, 'could not call block func in main loop'
         queue = self._send_queue
         while 1:
-            self._send(len(queue))
-            if len(queue) == 0 or self.is_closed:
+            self._send()
+            if not queue or self.is_closed:
                 break
             w_io.start(w_gr.switch)
             try:
@@ -308,7 +299,7 @@ class Connection(object):
             async_result.set_exception(ex)
         self.transmissions.clear()
 
-        self._send_queue.clear()
+        del self._send_queue[:]
         self.w_io.stop()
         self.r_io.stop()
         if self.r_gr:
