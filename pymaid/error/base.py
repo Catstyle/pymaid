@@ -41,7 +41,7 @@ class Error(BaseEx):
 class Warning(BaseEx):
 
     def __unicode__(self):
-        return u'[WARNING][code|{}][message|{}]'.format(self.code, self.message)
+        return u'[WARN][code|{}][message|{}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
 
 
@@ -53,7 +53,7 @@ class Builder(object):
     def build_error(cls, name, code, message_format):
         error = type(
             name, (Error,),
-            {'code': cls.index+code, 'message_format': message_format}
+            {'code': cls.index + code, 'message_format': message_format}
         )
         setattr(cls, name, error)
         cls.register(error)
@@ -62,7 +62,7 @@ class Builder(object):
     def build_warning(cls, name, code, message_format):
         warning = type(
             name, (Warning,),
-            {'code': cls.index+code, 'message_format': message_format}
+            {'code': cls.index + code, 'message_format': message_format}
         )
         setattr(cls, name, warning)
         cls.register(warning)

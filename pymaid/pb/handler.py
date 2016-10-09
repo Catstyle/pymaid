@@ -28,7 +28,8 @@ class PBHandler(object):
     def run(self, conn):
         if not conn.oninit():
             return
-        header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
+        header_length = HEADER_LENGTH
+        max_packet_length = self.MAX_PACKET_LENGTH
         read, unpack = conn.read, self.unpack
         tasks_queue, handle_response = Queue(), self.handle_response
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
@@ -52,7 +53,7 @@ class PBHandler(object):
                     )
                     break
 
-                buf = read(packet_length+content_length)
+                buf = read(packet_length + content_length)
                 meta = unpack(buf[:packet_length], PBC)
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
@@ -93,6 +94,7 @@ class PBHandler(object):
             return
 
         method, request_class, response_class = rpc
+
         def send_response(response=None, **kwargs):
             if response_class is Void:
                 # do not send_response when response_class is Void

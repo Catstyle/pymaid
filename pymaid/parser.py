@@ -1,5 +1,3 @@
-__all__ = ['PBParser', 'JSONParser']
-
 try:
     import ujson as json
 except ImportError:
@@ -8,6 +6,8 @@ import struct
 from collections import Mapping
 
 from google.protobuf.message import Message
+
+__all__ = ['PBParser', 'JSONParser']
 
 HEADER = '!HH'
 HEADER_LENGTH = struct.calcsize(HEADER)

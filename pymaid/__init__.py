@@ -1,8 +1,3 @@
-__all__ = [
-    'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
-    'serve_forever'
-]
-
 import sys
 import os
 
@@ -14,6 +9,10 @@ from . import pool
 from . import error
 from . import utils
 
+__all__ = [
+    'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
+    'serve_forever'
+]
 
 __version__ = '0.3.3'
 VERSION = tuple(map(int, __version__.split('.')))
@@ -27,7 +26,7 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
     if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION') != 'cpp':
         sys.stdout.write(
             'C++ implementation protocol buffer has overall performance, see'
-            '`https://github.com/google/protobuf/blob/master/python/README.md#c-implementation`\n'
+            'https://github.com/google/protobuf/blob/master/python/README.md\n'
         )
 del os, sys
 

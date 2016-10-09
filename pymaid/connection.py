@@ -1,5 +1,3 @@
-__all__ = ['Connection']
-
 import struct
 from os import strerror
 from io import BytesIO
@@ -21,6 +19,8 @@ from gevent.core import READ, WRITE
 
 from pymaid.error import RpcError
 from pymaid.utils import timer, io, hub
+
+__all__ = ['Connection']
 
 invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
 connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
