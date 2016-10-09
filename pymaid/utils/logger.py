@@ -1,7 +1,3 @@
-__all__ = [
-    'create_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper',
-    'trace_service', 'trace_method'
-]
 import logging
 import logging.config
 
@@ -12,6 +8,10 @@ from types import MethodType
 from google.protobuf.service import Service
 
 from pymaid.error import Warning
+
+__all__ = [
+    'create_project_logger', 'logger_wrapper', 'trace_service', 'trace_method'
+]
 
 basic_logging = {
     'version': 1,
@@ -91,7 +91,7 @@ def update_record(record, level, msg, *args):
     record.args = args
     ct = time()
     record.created = ct
-    record.msecs = (ct - long(ct)) * 1000
+    record.msecs = (ct - int(ct)) * 1000
 
 
 def trace_service(level=logging.INFO):
@@ -119,8 +119,10 @@ def trace_method(level=logging.INFO, label='connid'):
 
         # name, level, fn, lno, msg, args, exc_info, func
         record = logging.LogRecord(
-            '', level, co.co_filename, co.co_firstlineno, '', (), None, full_name
+            '', level, co.co_filename, co.co_firstlineno, '', (), None,
+            full_name
         )
+
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
@@ -128,13 +130,15 @@ def trace_method(level=logging.INFO, label='connid'):
             if label == 'connid':
                 pk = '[conn|%d]' % controller.conn.connid
             else:
-                pk = getattr(controller.conn, label, 'invalid label %s' % label)
+                pk = getattr(controller.conn, label,
+                             'invalid label %s' % label)
             req = repr(str(request))
             record.name = self.logger.name
             update_record(
                 record, level, '%s [Enter|%s] [req|%s]', pk, full_name, req
             )
             self.logger.handle(record)
+
             def done_wrapper(resp=None, **kwargs):
                 update_record(
                     record, level, '%s [Leave|%s] [resp|%s]', pk, full_name,
@@ -168,5 +172,5 @@ def trace_method(level=logging.INFO, label='connid'):
         return wrapper
     else:
         assert callable(level), level
-        func, level, pk = level, logging.INFO, 'connid'
+        func, level, pk = level, logging.INFO, 'connid'  # noqa
         return wrapper(func)

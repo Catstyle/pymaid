@@ -1,5 +1,3 @@
-__all__ = ['ServerChannel', 'ClientChannel']
-
 import os
 from copy import weakref
 from _socket import socket as realsocket
@@ -14,6 +12,8 @@ from gevent.core import READ
 from pymaid.connection import Connection
 from pymaid.error.base import BaseEx
 from pymaid.utils import greenlet_pool, pymaid_logger_wrapper, io
+
+__all__ = ['ServerChannel', 'ClientChannel']
 
 
 @pymaid_logger_wrapper
@@ -88,7 +88,9 @@ class ServerChannel(BaseChannel):
 
     def __init__(self, handler, listener=None, connection_class=Connection,
                  **kwargs):
-        super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
+        super(ServerChannel, self).__init__(
+            handler, connection_class, **kwargs
+        )
         self.parser = kwargs.pop('parser', None)
         self.handler_kwargs.update({'listener': listener})
         self.accept_watchers = []
@@ -160,7 +162,9 @@ class ClientChannel(BaseChannel):
 
     def __init__(self, handler=lambda *args, **kwargs: '',
                  connection_class=Connection, **kwargs):
-        super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
+        super(ClientChannel, self).__init__(
+            handler, connection_class, **kwargs
+        )
         self.parser = kwargs.pop('parser', None)
 
     def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):

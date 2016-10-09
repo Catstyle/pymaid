@@ -40,13 +40,14 @@ class ServiceStub(object):
                 for conn in connections:
                     conn.send(conn.pack_meta(meta, request))
             else:
-                conn = conn or self.conn or self.connection_pool.get_connection()
+                conn = conn or self.conn or \
+                    self.connection_pool.get_connection()
                 assert conn, conn
                 if require_response:
                     meta.transmission_id = conn.transmission_id
                 conn.transmission_id += 1
                 conn.send(conn.pack_meta(meta, request))
-                
+
                 if hasattr(conn, 'release'):
                     conn.release()
                 if not require_response:

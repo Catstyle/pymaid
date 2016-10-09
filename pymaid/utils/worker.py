@@ -53,9 +53,11 @@ class Worker(object):
 
 def queue_worker(cls):
     original_init = cls.__init__
+
     def init(self, *args, **kwargs):
-        original_init(self, *args, **kwargs)
         self._worker = Worker()
+        original_init(self, *args, **kwargs)
+
     cls.__init__ = init
     return cls
 
