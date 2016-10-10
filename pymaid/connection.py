@@ -30,13 +30,14 @@ class Connection(object):
     CONNID = 1
     LINGER_PACK = struct.pack('ii', 1, 1)
 
-    MAX_RECV_SIZE = 512
+    MAX_RECV_SIZE = 8 * 1024
 
-    def __init__(self, sock):
+    def __init__(self, sock, client_side=False):
         self._socket = sock
         sock.setblocking(0)
         self._setsockopt(sock)
         self._socket = sock
+        self.client_side = client_side
 
         self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
@@ -202,7 +203,7 @@ class Connection(object):
         return buf.getvalue()
 
     @classmethod
-    def connect(cls, address, timeout=None, family=AF_INET,
+    def connect(cls, address, client_side=False, timeout=None, family=AF_INET,
                 type_=SOCK_STREAM, proto=0):
         assert getcurrent() != hub, 'could not call block func in main loop'
         sock = realsocket(family, type_, proto)
@@ -224,7 +225,7 @@ class Connection(object):
             errno = sock.connect_ex(address)
         if errno != 0 and errno != EISCONN:
             raise socket_error(errno, strerror(errno))
-        return cls(sock)
+        return cls(sock, client_side)
 
     def read(self, size, timeout=None):
         assert not self.r_gr, 'read conflict'
@@ -271,15 +272,14 @@ class Connection(object):
     write = send
 
     def oninit(self):
-        """
-        Called by handler once handler start on a greenlet.
+        '''Called by handler once handler start on a greenlet.
 
         return True to continue or False to terminate.
-        """
+        '''
         return True
 
     def add_close_cb(self, close_cb):
-        'last added close callback will be call first'
+        '''last added close callback will be call first'''
         assert close_cb not in self.close_callbacks
         assert callable(close_cb)
         self.close_callbacks.append(close_cb)

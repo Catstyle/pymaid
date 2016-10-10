@@ -169,7 +169,23 @@ class ClientChannel(BaseChannel):
 
     def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
         family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(address, timeout, family, type_)
+        conn = self.connection_class.connect(
+            address, True, timeout, family, type_
+        )
+        handler_kwargs = self.handler_kwargs.copy()
+        handler_kwargs.update(kwargs)
+        self._connection_attached(conn, **handler_kwargs)
+        return conn
+
+
+@pymaid_logger_wrapper
+class BidChannel(ServerChannel):
+
+    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
+        family = AF_UNIX if isinstance(address, string_types) else AF_INET
+        conn = self.connection_class.connect(
+            address, True, timeout, family, type_
+        )
         handler_kwargs = self.handler_kwargs.copy()
         handler_kwargs.update(kwargs)
         self._connection_attached(conn, **handler_kwargs)
