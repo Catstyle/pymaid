@@ -57,10 +57,10 @@ def parse_args():
     )
 
     args = parser.parse_args()
-    print (args)
-    print ()
+    print(args)
+    print()
     if not args.protoc:
-        print ('invalid protoc compiler')
+        print('invalid protoc compiler')
         exit(1)
 
     return args
@@ -72,7 +72,7 @@ def get_protos(path):
         for filename in filenames:
             if filename.endswith('.proto'):
                 protos.append(os.path.join(root, filename))
-    return protos 
+    return protos
 
 
 def pb2py(protoc, source, path, python_out, lua_out=None):
@@ -83,7 +83,7 @@ def pb2py(protoc, source, path, python_out, lua_out=None):
     if lua_out:
         command.insert(-1, '--lua_out')
         command.insert(-1, lua_out)
-    print ('protoc %s' % command)
+    print('protoc %s' % command)
     if subprocess.call(command) != 0:
         exit(1)
 
@@ -91,7 +91,7 @@ def pb2py(protoc, source, path, python_out, lua_out=None):
 def _pbjs(pbjs, source, path, extra_command):
     command = [pbjs, source, '-p', '.', '-p', path, '-p', extra_include]
     command.extend(extra_command)
-    print ('pbjs %s' % command)
+    print('pbjs %s' % command)
     with tempfile.SpooledTemporaryFile() as fp:
         proc = subprocess.Popen(command, stdout=fp.fileno())
         proc.wait()
@@ -111,9 +111,11 @@ def pb2js(pbjs, source, path, output_path, js_package):
     dirnames = os.path.splitext(relpath)[0].split('/')
     for dirname in dirnames[:-1]:
         nexts.append(
-            'var next = global["%s"] = global["%s"] || {};' % (dirname, dirname)
+            'var next = global["%s"] = global["%s"] || {};' % (
+                dirname, dirname)
         )
-    nexts.append('next["%s"] = %s;' % (dirnames[-1], content.replace('\n', '\n    ')))
+    nexts.append('next["%s"] = %s;' %
+                 (dirnames[-1], content.replace('\n', '\n    ')))
     content = JS_TEMPLATE.safe_substitute(
         package=js_package, nexts='\n    '.join(nexts)
     )
@@ -134,8 +136,8 @@ def xor(content, key):
     key = key.strip()
     assert key, 'invalid key'
     length = len(key)
-    print ('xor with key: %s, length: %d' % (key, length))
-    return ''.join(chr(ord(char) ^ ord(key[idx%length]))
+    print('xor with key: %s, length: %d' % (key, length))
+    return ''.join(chr(ord(char) ^ ord(key[idx % length]))
                    for idx, char in enumerate(content))
 
 
@@ -165,16 +167,16 @@ def generate(path, protoc=None, python_out='', py_init=False,
     protos = get_protos(path)
     for source in protos:
         if not os.path.exists(source):
-            print ('cannot find required file: %s\n' % source)
+            print('cannot find required file: %s\n' % source)
             exit(1)
-        print ('compiling %s' % source)
+        print('compiling %s' % source)
         if python_out:
             pb2py(protoc, source, path, python_out, lua_out)
         if js_out:
             pb2js(pbjs, source, path, js_out, js_package)
         if json_out:
             pb2json(pbjs, source, path, json_out, xor_key)
-        print ()
+        print()
 
     if python_out and py_init:
         for root, dirs, files in os.walk(python_out):

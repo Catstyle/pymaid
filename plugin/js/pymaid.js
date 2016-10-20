@@ -580,15 +580,20 @@
 
     HMPrototype.setCookies = function(cookies) {
         if (cookies) {
+            // e.g. 'token=xxx; Expires=Thu, 20-Oct-2016 19:58:45 GMT; Path=/, session=yyy; Expires=Fri, 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/'
+            // cookies.split(',') will return 4 elements:
+            // ['token=xxx; Expires=Thu', ' 20-Oct-2016 19:58:45 GMT; Path=/', ' session=yyy; Expires=Fri', ' 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/']
+            // but we know what we need will be in the first place
+            // so we just need element.trim().split(';')[0]
+            // !!!! IT IS A TRICKY HACKY !!!
             var cookies = cookies.split(',');
+            var list = [];
             for (var idx in cookies) {
                 var cookie = cookies[idx].trim().split(';')[0];
-                if (cookie.startsWith('sessionid')) {
-                    console.log('pymaid: HttpManager setCookies: ' + cookie);
-                    this._cookies = cookie;
-                    break;
-                }
+                list.push(cookie);
             }
+            this._cookies = list.join('; ');
+            console.log('pymaid: HttpManager setCookies: ' + this._cookies);
         }
     };
 
@@ -630,10 +635,7 @@
                 }
             } else if (status == 301 || status == 302) {
                 var location = req.getResponseHeader('Location').trim();
-                if (!location.endsWith('/')) {
-                    location += '/';
-                }
-                self.get(location, '', cb);
+                self.get(location, {}, cb);
                 return;
             } else if (status == 401 || status == 403) {
                 self.onNotAuthenticated();
