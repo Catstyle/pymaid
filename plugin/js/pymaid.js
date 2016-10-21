@@ -685,5 +685,34 @@
         return req;
     };
 
+    HMPrototype.put = function(url, data, cb) {
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        data = JSON.stringify(data) || '';
+        var req = this.newRequest('PUT', url, cb);
+        req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+        req.send(data);
+        return req;
+    };
+
+    HMPrototype.delete = function(url, data, cb) {
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        var attr, params = [];
+        if (data) {
+            for (attr in data) {
+                if (data.hasOwnProperty(attr)) {
+                    params.push(attr+'='+data[attr]);
+                }
+            }
+            if (params.length !== 0) {
+                url += '?' + params.join('&');
+            }
+        }
+        var req = this.newRequest('DELETE', url, cb);
+        req.send();
+        return req;
+    };
+
     return pymaid;
 });
