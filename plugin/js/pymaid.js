@@ -606,6 +606,7 @@
         var self = this;
 
         var req = new this._requestClass();
+        req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
         req.setRequestHeader('Cookie', this._cookies);
 
