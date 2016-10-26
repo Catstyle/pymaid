@@ -4,10 +4,11 @@ from .logger import (
     create_project_logger, pymaid_logger_wrapper, logger_wrapper,
     trace_service, trace_method
 )
+from .functional import ObjectManager
 
 __all__ = [
     'hub', 'timer', 'io', 'implall', 'greenlet_pool', 'greenlet_worker',
     'Worker', 'queue_worker', 'apply_worker', 'apply_delay_worker',
     'create_project_logger', 'pymaid_logger_wrapper', 'logger_wrapper',
-    'trace_service', 'trace_method'
+    'trace_service', 'trace_method', 'ObjectManager'
 ]
