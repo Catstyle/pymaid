@@ -56,7 +56,7 @@ class build_py(_build_py):
         errno = subprocess.call(
             ['python', 'compile.py', '.', '--python-out', '.'])
         if errno != 0:
-            print ('call `python compile.py` failed with errno: %d' % errno)
+            print('call `python compile.py` failed with errno: %d' % errno)
             exit(1)
         open('pymaid/pb/__init__.py', 'a').close()
         # _build_py is an old-style class, so super() doesn't work.

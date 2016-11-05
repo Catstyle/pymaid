@@ -94,18 +94,18 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO):
+def trace_service(level=logging.INFO, label='connid'):
     def wrapper(cls):
         assert level in levelnames, level
         for method in cls.DESCRIPTOR.methods:
             name = method.name
-            setattr(cls, name, trace_method(level)(getattr(cls, name)))
+            setattr(cls, name, trace_method(level, label)(getattr(cls, name)))
         return cls
     if isinstance(level, str):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level = level, 'INFO'
+        cls, level, label = level, 'INFO', 'connid'
         return wrapper(cls)
 
 
