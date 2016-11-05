@@ -14,7 +14,7 @@ __all__ = [
     'serve_forever'
 ]
 
-__version__ = '0.3.3'
+__version__ = '0.3.4'
 VERSION = tuple(map(int, __version__.split('.')))
 
 
