@@ -9,12 +9,14 @@ from pymaid.utils import greenlet_pool
 
 
 def wrapper(pid, n):
-    #conn = channel.connect(('localhost', 8888))
+    # conn = channel.connect(('localhost', 8888))
     channel.connect('/tmp/hello_pb.sock')
     sleep(5)
 
 
 channel = ClientChannel(PBHandler, parser=PBParser)
+
+
 def main():
     pool = Pool()
     for x in range(1000):
