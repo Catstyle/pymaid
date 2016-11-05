@@ -71,7 +71,7 @@ class Builder(object):
 class InvalidErrorMessage(Warning):
 
     code = 13500
-    message_format = '[code|{}] not such error message'
+    message_format = '[code|{}] no such error message'
 
 
 def get_ex_by_code(code):
