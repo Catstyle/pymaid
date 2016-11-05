@@ -10,6 +10,8 @@ from echo_pb2 import EchoService_Stub
 
 
 message = 'a' * 10000
+
+
 def wrapper(pid, n, message=message):
     conn = channel.connect()
     for x in range(n):
@@ -23,9 +25,11 @@ service = ServiceStub(EchoService_Stub(None))
 method = service.stub.DESCRIPTOR.FindMethodByName('echo')
 request_class = service.stub.GetRequestClass(method)
 request = request_class(message=message)
+
+
 def main():
     pool = Pool()
-    #pool.spawn(wrapper, 111111, 10000)
+    # pool.spawn(wrapper, 111111, 10000)
     for x in range(10):
         pool.spawn(wrapper, x, 10)
 
