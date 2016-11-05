@@ -101,7 +101,8 @@ class PBHandler(object):
                 return
             if response is None:
                 response = response_class(**kwargs)
-            assert isinstance(response, response_class)
+            assert isinstance(response, response_class), \
+                (type(response), response_class)
             conn.send(self.pack_meta(meta, response))
 
         request = self.unpack(content, request_class)

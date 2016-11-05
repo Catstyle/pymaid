@@ -1,6 +1,6 @@
 from .logger import logger_wrapper
 
-__all__ = ['ObjectManager']
+__all__ = ['ObjectManager', 'get_ipaddress']
 
 
 @logger_wrapper
@@ -12,7 +12,7 @@ class ObjectManager():
 
     def add(self, pk, obj):
         self.logger.info('[%s][add|%r][%s]', self.name, pk, obj)
-        assert pk not in self.objects, pk
+        assert pk not in self.objects, (pk, self.objects.keys())
         self.objects[pk] = obj
         obj._manager = self
 
@@ -25,7 +25,7 @@ class ObjectManager():
 
     def remove(self, pk):
         self.logger.info('[%s][remove|%r]', self.name, pk)
-        assert pk in self.objects
+        assert pk in self.objects, (pk, self.objects.keys())
         obj = self.objects.pop(pk)
         obj._manager = None
         return obj
@@ -41,3 +41,6 @@ def get_ipaddress(ifname):
             s.fileno(), 0x8915, struct.pack('256s', ifname[:15])
         )[20:24]
     )
+
+
+del logger_wrapper

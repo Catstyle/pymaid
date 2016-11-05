@@ -1,5 +1,3 @@
-__all__ = ['WebSocket']
-
 import struct
 import base64
 
@@ -12,6 +10,8 @@ from pymaid.utils import logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError, FrameTooLargeException
 from .utf8validator import Utf8Validator
+
+__all__ = ['WebSocket']
 
 
 @logger_wrapper
@@ -58,7 +58,7 @@ class WebSocket(Connection):
         return text.encode('utf-8')
 
     def _is_valid_close_code(self, code):
-        # code == 1000: not sure about this but the autobahn fuzzer requires it.
+        # code == 1000: not sure about this but the autobahn fuzzer requires it
         if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
                 code == 1100 or 2000 <= code <= 2999):
             return False
@@ -99,14 +99,14 @@ class WebSocket(Connection):
             self.close('not supported version: %r' % version)
             return False
 
-        resp_key = base64.b64encode(sha1(sec_key+self.GUID).digest())
+        resp_key = base64.b64encode(sha1(sec_key + self.GUID).digest())
         self._send_queue.append(self.HANDSHAKE_RESP.format(resp_key))
         self._send()
         return True
 
     def _write(self, packet_buffer, opcode):
         header = Header.encode_header(True, opcode, '', len(packet_buffer), 0)
-        self._send_queue.append(header+packet_buffer)
+        self._send_queue.append(header + packet_buffer)
         if not self.fed_write:
             self._send()
 
