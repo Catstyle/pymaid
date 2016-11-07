@@ -94,7 +94,7 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO, label='connid'):
+def trace_service(level=logging.INFO, label=None):
     def wrapper(cls):
         assert level in levelnames, level
         for method in cls.DESCRIPTOR.methods:
@@ -102,14 +102,17 @@ def trace_service(level=logging.INFO, label='connid'):
             setattr(cls, name, trace_method(level, label)(getattr(cls, name)))
         return cls
     if isinstance(level, str):
+        level = levelnames[level]
+        return wrapper
+    elif isinstance(level, int):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level, label = level, 'INFO', 'connid'
+        cls, level, label = level, 'INFO', None
         return wrapper(cls)
 
 
-def trace_method(level=logging.INFO, label='connid'):
+def trace_method(level=logging.INFO, label=None):
     def wrapper(func):
         assert level in levelnames, level
         co = func.func_code
@@ -122,16 +125,19 @@ def trace_method(level=logging.INFO, label='connid'):
             '', level, co.co_filename, co.co_firstlineno, '', (), None,
             full_name
         )
+        invalid_label = 'invalid label %s' % label
 
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
 
-            if label == 'connid':
+            if not label:
                 pk = '[conn|%d]' % controller.conn.connid
             else:
-                pk = getattr(controller.conn, label,
-                             'invalid label %s' % label)
+                pk = '[conn|%d][label|%s]' % (
+                    controller.conn.connid,
+                    getattr(controller.conn, label, invalid_label)
+                )
             req = repr(str(request))
             record.name = self.logger.name
             update_record(
