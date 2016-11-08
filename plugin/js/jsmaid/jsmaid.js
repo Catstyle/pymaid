@@ -3,7 +3,6 @@ var jsmaid = {
     initHttpManager: function(rootUrl, clientClass, webimpl) {
         this.webimpl = webimpl;
         var httpManager = this.httpManager = new pymaid.HttpManager(clientClass);
-        cc.log("rootUrl: ' rootUrl);
         httpManager.setRootUrl(rootUrl);
 
         for (var impl in this.webimpl) {
@@ -25,13 +24,28 @@ var jsmaid = {
 
         // init stubs
         var stubs = this.stubs = new pymaid.StubManager();
-        for (var pb in this.pbs) {
-            if (!this.pbs.hasOwnProperty(pb)) {
-                continue;
+
+        var getBuilder = function(pb_json, builders) {
+            if (typeof pb_json !== 'object') {
+                console.log('registerBuilder got argument is not json/object');
+                return;
             }
-            cc.log('pbs: ' + pb);
-            var builder = dcodeIO.ProtoBuf.loadJson(this.pbs[pb]);
-            stubs.registerBuilder(builder);
+            if (!pb_json.hasOwnProperty('syntax')) {
+                for (var attr in pb_json) {
+                    if (!pb_json.hasOwnProperty(attr)) {
+                        continue;
+                    }
+                    getBuilder(pb_json[attr], builders);
+                }
+                return;
+            }
+            builders.push(dcodeIO.ProtoBuf.loadJson(pb_json));
+        }
+
+        var builders = [], builder;
+        getBuilder(this.pbs, builders);
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            stubs.registerBuilder(builders[idx]);
         }
 
         // init listener
@@ -45,22 +59,16 @@ var jsmaid = {
         }
 
         var listenImpl = this.listenImpl;
-        for (var pb in this.pbs) {
-            if (!this.pbs.hasOwnProperty(pb)) {
-                continue;
-            }
-            var builder = dcodeIO.ProtoBuf.loadJson(this.pbs[pb]);
-            listener.registerBuilder(builder, function(name) {
+        builders = [];
+        getBuilder(this.pbs, builders);
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            listener.registerBuilder(builders[idx], function(name) {
                 return listenImpl.indexOf(name) != -1;
             });
         }
     },
 
-    isAlreadyConnected: function(schema, host, port) {
-        var address = host + ':' + port;
-        if (schema == 'ws') {
-            address = 'ws://' + address;
-        }
+    isAlreadyConnected: function(address) {
         var gameConn = this.gameConn;
         if (gameConn && gameConn.address === address && !gameConn.is_closed) {
             return true;
@@ -69,16 +77,15 @@ var jsmaid = {
     },
 
     connectGameServer: function(schema, host, port, callbacks) {
-        if (this.isAlreadyConnected(schema, host, port)) {
-            console.log('jsmaid: there is a conn already connected to address: '+address);
+        var address = this._combineAddress(schema, host, port);
+        if (this.isAlreadyConnected(address)) {
+            console.log(
+                'jsmaid: there is a conn already connected to address: ' + address
+            );
             return this.gameConn;
         }
         if (this.gameConn) {
             this.disconnectGameServer('connecting to another server');
-        }
-        var address = host + ':' + port;
-        if (schema == 'ws') {
-            address = 'ws://' + address;
         }
         var conn = this.gameConn = this.gameChannel.connect(address, callbacks);
         this.stubs.bindConnection(conn);
@@ -90,6 +97,14 @@ var jsmaid = {
             return;
         }
         this.gameConn.close(reason);
+    },
+
+    _combineAddress: function(schema, host, port) {
+        var address = host + ':' + port;
+        if (schema == 'ws') {
+            address = 'ws://' + address;
+        }
+        return address;
     },
 
 };
