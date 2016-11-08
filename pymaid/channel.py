@@ -11,7 +11,8 @@ from gevent.core import READ
 
 from pymaid.connection import Connection
 from pymaid.error.base import BaseEx
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper, io
+from pymaid.utils import greenlet_pool, io
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 __all__ = ['ServerChannel', 'ClientChannel']
 

@@ -1,6 +1,7 @@
 from functools import wraps
 
 from gevent import get_hub
+from gevent import signal
 from gevent.pool import Pool
 
 greenlet_pool = Pool()
@@ -56,3 +57,13 @@ def greenlet_worker(func):
     def wrapper(*args, **kwargs):
         return greenlet_pool.apply_async(func, args=args, kwds=kwargs)
     return wrapper
+
+
+def enable_autoreload(signum):
+    from .autoreload import ModuleReloader
+    reloader = ModuleReloader()
+    reloader.enabled = True
+
+    def autoreload(sig, frame):
+        reloader.check()
+    signal.signal(signum, autoreload)
