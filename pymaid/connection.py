@@ -331,9 +331,10 @@ class Connection(object):
             pass
 
     def __str__(self):
-        return '[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
+        return u'[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
             self.connid, self.sockname, self.peername, self.is_closed
         )
+    __unicode__ = __repr__ = __str__
 
 
 class DisconnectedConnection(Connection):
@@ -348,6 +349,7 @@ class DisconnectedConnection(Connection):
         self.is_closed = True
 
     def __str__(self):
-        return '[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
+        return u'[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
             self.connid, self.sockname, self.peername, self.is_closed
         )
+    __unicode__ = __repr__ = __str__
