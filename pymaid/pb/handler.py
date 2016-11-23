@@ -17,6 +17,7 @@ from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 class PBHandler(object):
 
     MAX_PACKET_LENGTH = 8 * 1024
+    MAX_TASKS = 64
 
     def __init__(self, conn, parser, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()
@@ -31,7 +32,8 @@ class PBHandler(object):
         header_length = HEADER_LENGTH
         max_packet_length = self.MAX_PACKET_LENGTH
         read, unpack = conn.read, self.unpack
-        tasks_queue, handle_response = Queue(), self.handle_response
+        tasks_queue = Queue(self.MAX_TASKS)
+        handle_response = self.handle_response
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
 
