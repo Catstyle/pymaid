@@ -1,8 +1,13 @@
+import logging
+from logging import LogRecord
+from sys import _getframe as getframe
 from gevent.event import AsyncResult
 
 from pymaid.pb.pymaid_pb2 import Void, Controller
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 
+@pymaid_logger_wrapper
 class ServiceStub(object):
 
     def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
@@ -28,15 +33,31 @@ class ServiceStub(object):
         StubManager.request_class[service_method] = response_class
         StubManager.response_class[service_method] = response_class
 
+        stub_name = service_method.split('.')[-1]
+        request_name = request_class.__name__
+
+        level = logging.DEBUG
+
         def rpc(request=None, conn=None, connections=None, timeout=None,
                 **kwargs):
+            local = {
+                'request': request, 'conn': conn, 'connections': connections,
+                'timeout': timeout
+            }
+            local.update(kwargs)
+            frame = getframe(1)
+            self.logger.handle(LogRecord(
+                self.logger.name, level, frame.f_code.co_filename,
+                frame.f_lineno, '[stub|%s][request|%s][kwargs|%s]',
+                (stub_name, request_name, local), None, stub_name
+            ))
             request = request or request_class(**kwargs)
 
             meta = self.meta
             meta.Clear()
             meta.service_method = service_method
             meta.packet_type = packet_type
-            if connections:
+            if connections is not None:
                 for conn in connections:
                     conn.send(conn.pack_meta(meta, request))
             else:
