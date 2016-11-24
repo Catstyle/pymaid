@@ -3,8 +3,8 @@ from _socket import error as socket_error
 from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
-from pymaid.error import BaseEx, Error, RpcError, InvalidErrorMessage
-from pymaid.error import get_ex_by_code
+from pymaid.error import BaseEx, Error, RpcError
+from pymaid.error import get_exception
 from pymaid.utils import greenlet_pool
 from pymaid.parser import HEADER_LENGTH, unpack_header
 
@@ -91,7 +91,7 @@ class PBHandler(object):
         if not rpc:
             meta.is_failed = True
             err = RpcError.RPCNotExist(service_method=service_method)
-            err = ErrorMessage(error_code=err.code, error_message=err.message)
+            err = ErrorMessage(code=err.code, message=err.message)
             conn.send(self.pack_meta(meta, err))
             return
 
@@ -112,7 +112,7 @@ class PBHandler(object):
             method(controller, request, send_response)
         except BaseEx as ex:
             meta.is_failed = True
-            err = ErrorMessage(error_code=ex.code, error_message=ex.message)
+            err = ErrorMessage(code=ex.code, message=ex.message)
             conn.send(self.pack_meta(meta, err))
             if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
@@ -142,10 +142,9 @@ class PBHandler(object):
 
         if meta.is_failed:
             try:
-                error_message = self.unpack(content, ErrorMessage)
-                ex = get_ex_by_code(error_message.error_code)()
-                ex.message = error_message.error_message
-            except (DecodeError, ValueError, InvalidErrorMessage) as ex:
+                message = self.unpack(content, ErrorMessage)
+                ex = get_exception(message.code, message.message)
+            except (DecodeError, ValueError) as ex:
                 ex = ex
             async_result.set_exception(ex)
         else:
