@@ -86,8 +86,8 @@ class WebSocket(Connection):
             line = raw_readline(1024).strip()
             if not line:
                 break
-            key, value = line.split(': ', 1)
-            headers[key] = value
+            key, value = line.split(':', 1)
+            headers[key] = value.strip()
 
         sec_key = headers.get('Sec-WebSocket-Key', '')
         if not sec_key:
