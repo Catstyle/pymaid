@@ -9,5 +9,6 @@ from pymaid.utils import logger_wrapper, implall, trace_service
 class MonitorServiceImpl(MonitorService):
 
     def NotifyHeartbeat(self, controller, request, done):
-        controller.conn.clear_heartbeat_counter()
+        if not controller.conn.is_closed:
+            controller.conn.clear_heartbeat_counter()
         done()
