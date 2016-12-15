@@ -18,6 +18,9 @@ message Controller {
     bool is_failed = 5;
 }
 
+message RpcAck {
+}
+
 message Void {
 }
 
