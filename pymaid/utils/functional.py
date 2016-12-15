@@ -4,7 +4,7 @@ __all__ = ['ObjectManager', 'get_ipaddress']
 
 
 @logger_wrapper
-class ObjectManager():
+class ObjectManager(object):
 
     def __init__(self, name):
         self.name = name
