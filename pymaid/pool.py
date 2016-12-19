@@ -15,8 +15,7 @@ class ConnectionPool(object):
 
     def __init__(self, name, size=50, init_count=0, channel=None,
                  **connection_kwargs):
-        """
-        Create a blocking connection pool.
+        """ Create a blocking connection pool.
 
         Use ``size`` to increase / decrease the pool size::
 
@@ -76,7 +75,7 @@ class ConnectionPool(object):
         if init_count > self.size:
             raise ValueError('init_count should not greater than pool size')
         if not self.channel:
-            raise AssertionError('calling initpool with channel is None')
+            raise ValueError('calling initpool with channel is None')
         self.init_count = init_count
         try:
             for _ in range(init_count):
@@ -115,10 +114,18 @@ class ConnectionPool(object):
         "Create a new connection"
         try:
             connection = self.channel.connect(**self.connection_kwargs)
+        except socket_error:
+            connection = None
+        else:
             connection.pid = os.getpid()
 
             def close(conn, reason=None, reset=None):
                 self._connections.remove(conn)
+                item = self.item_putter(conn)
+                if item in self.pool.queue:
+                    self.pool.queue.remove(item)
+                del connection.release
+                del connection.pid
 
             def release():
                 self.release(connection)
@@ -126,8 +133,6 @@ class ConnectionPool(object):
             connection.add_close_cb(close)
             connection.release = release
             self._connections.append(connection)
-        except socket_error:
-            connection = None
         return connection
 
     def release(self, connection):
