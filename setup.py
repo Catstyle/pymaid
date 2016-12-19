@@ -77,8 +77,8 @@ if __name__ == '__main__':
              ['pymaid/pb/pymaid.proto']),
         ],
         install_requires=[
-            'gevent>=1.0.2',
-            'protobuf>=3.0.0a3.dev0',
+            'gevent>=1.2a2',
+            'protobuf>=3.1.0',
         ],
         cmdclass={'clean': clean, 'build_py': build_py},
     )
