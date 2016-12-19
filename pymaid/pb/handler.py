@@ -3,8 +3,8 @@ from _socket import error as socket_error
 from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
-from pymaid.error import BaseEx, Error, RpcError, InvalidErrorMessage
-from pymaid.error import get_ex_by_code
+from pymaid.error import BaseEx, Error, RpcError
+from pymaid.error import get_exception
 from pymaid.utils import greenlet_pool
 from pymaid.parser import HEADER_LENGTH, unpack_header
 
@@ -17,6 +17,7 @@ from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 class PBHandler(object):
 
     MAX_PACKET_LENGTH = 8 * 1024
+    MAX_TASKS = 64
 
     def __init__(self, conn, parser, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()
@@ -28,9 +29,11 @@ class PBHandler(object):
     def run(self, conn):
         if not conn.oninit():
             return
-        header_length, max_packet_length = HEADER_LENGTH, self.MAX_PACKET_LENGTH
+        header_length = HEADER_LENGTH
+        max_packet_length = self.MAX_PACKET_LENGTH
         read, unpack = conn.read, self.unpack
-        tasks_queue, handle_response = Queue(), self.handle_response
+        tasks_queue = Queue(self.MAX_TASKS)
+        handle_response = self.handle_response
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
 
@@ -52,7 +55,7 @@ class PBHandler(object):
                     )
                     break
 
-                buf = read(packet_length+content_length)
+                buf = read(packet_length + content_length)
                 meta = unpack(buf[:packet_length], PBC)
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
@@ -88,18 +91,20 @@ class PBHandler(object):
         if not rpc:
             meta.is_failed = True
             err = RpcError.RPCNotExist(service_method=service_method)
-            err = ErrorMessage(error_code=err.code, error_message=err.message)
+            err = ErrorMessage(code=err.code, message=err.message)
             conn.send(self.pack_meta(meta, err))
             return
 
         method, request_class, response_class = rpc
+
         def send_response(response=None, **kwargs):
             if response_class is Void:
                 # do not send_response when response_class is Void
                 return
             if response is None:
                 response = response_class(**kwargs)
-            assert isinstance(response, response_class)
+            assert isinstance(response, response_class), \
+                (type(response), response_class)
             conn.send(self.pack_meta(meta, response))
 
         request = self.unpack(content, request_class)
@@ -107,7 +112,7 @@ class PBHandler(object):
             method(controller, request, send_response)
         except BaseEx as ex:
             meta.is_failed = True
-            err = ErrorMessage(error_code=ex.code, error_message=ex.message)
+            err = ErrorMessage(code=ex.code, message=ex.message)
             conn.send(self.pack_meta(meta, err))
             if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
@@ -137,10 +142,9 @@ class PBHandler(object):
 
         if meta.is_failed:
             try:
-                error_message = self.unpack(content, ErrorMessage)
-                ex = get_ex_by_code(error_message.error_code)()
-                ex.message = error_message.error_message
-            except (DecodeError, ValueError, InvalidErrorMessage) as ex:
+                message = self.unpack(content, ErrorMessage)
+                ex = get_exception(message.code, message.message)
+            except (DecodeError, ValueError) as ex:
                 ex = ex
             async_result.set_exception(ex)
         else:

@@ -4,21 +4,16 @@ import abc
 
 class ErrorMeta(type):
 
-    errors = {}
-    warnings = {}
+    classes = {}
 
     def __init__(cls, name, bases, attrs):
         super(ErrorMeta, cls).__init__(name, bases, attrs)
         if name in ['BaseEx', 'Error', 'Warning']:
             return
 
-        if issubclass(cls, Error):
-            assert cls.code not in ErrorMeta.errors
-            ErrorMeta.errors[cls.code] = cls
-        elif issubclass(cls, Warning):
-            assert cls.code not in ErrorMeta.warnings
-            ErrorMeta.warnings[cls.code] = cls
-        assert hasattr(cls, 'message_format')
+        assert cls.code not in ErrorMeta.classes, (cls.code, ErrorMeta.classes)
+        ErrorMeta.classes[cls.code] = cls
+        assert hasattr(cls, 'message')
 
 
 @six.add_metaclass(ErrorMeta)
@@ -26,9 +21,7 @@ class BaseEx(Exception):
 
     def __init__(self, *args, **kwargs):
         if args or kwargs:
-            self.message = self.message_format.format(*args, **kwargs)
-        else:
-            self.message = self.message_format
+            self.message = self.message.format(*args, **kwargs)
 
 
 class Error(BaseEx):
@@ -41,7 +34,7 @@ class Error(BaseEx):
 class Warning(BaseEx):
 
     def __unicode__(self):
-        return u'[WARNING][code|{}][message|{}]'.format(self.code, self.message)
+        return u'[WARN][code|{}][message|{}]'.format(self.code, self.message)
     __repr__ = __str__ = __unicode__
 
 
@@ -50,37 +43,33 @@ class Builder(object):
     index = 0
 
     @classmethod
-    def build_error(cls, name, code, message_format):
+    def build_error(cls, name, code, message):
         error = type(
-            name, (Error,),
-            {'code': cls.index+code, 'message_format': message_format}
+            name, (Error,), {'code': cls.index + code, 'message': message}
         )
         setattr(cls, name, error)
         cls.register(error)
 
     @classmethod
-    def build_warning(cls, name, code, message_format):
+    def build_warning(cls, name, code, message):
         warning = type(
-            name, (Warning,),
-            {'code': cls.index+code, 'message_format': message_format}
+            name, (Warning,), {'code': cls.index + code, 'message': message}
         )
         setattr(cls, name, warning)
         cls.register(warning)
 
 
-class InvalidErrorMessage(Warning):
-
-    code = 13500
-    message_format = '[code|{}] not such error message'
-
-
-def get_ex_by_code(code):
-    if code in ErrorMeta.errors:
-        return ErrorMeta.errors[code]
-    elif code in ErrorMeta.warnings:
-        return ErrorMeta.warnings[code]
+def get_exception(code, message):
+    if code in ErrorMeta.classes:
+        cls = ErrorMeta.classes[code]
     else:
-        raise InvalidErrorMessage(code)
+        cls = type(
+            'RemoteEx%s' % code, (Warning,), {'code': code, 'message': message}
+        )
+        ErrorMeta.classes[code] = cls
+    ins = cls()
+    ins.message = message
+    return ins
 
 
 def create_manager(name, index):

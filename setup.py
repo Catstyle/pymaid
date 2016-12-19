@@ -53,9 +53,10 @@ class clean(_clean):
 class build_py(_build_py):
 
     def run(self):
-        errno = subprocess.call(['python', 'compile.py', '.', '--python-out', '.'])
+        errno = subprocess.call(
+            ['python', 'compile.py', '.', '--python-out', '.'])
         if errno != 0:
-            print ('call `python compile.py` failed with errno: %d' % errno)
+            print('call `python compile.py` failed with errno: %d' % errno)
             exit(1)
         open('pymaid/pb/__init__.py', 'a').close()
         # _build_py is an old-style class, so super() doesn't work.
@@ -71,13 +72,13 @@ if __name__ == '__main__':
         license="MIT",
         packages=get_packages(),
         zip_safe=False,
-        data_files = [
+        data_files=[
             (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
              ['pymaid/pb/pymaid.proto']),
         ],
         install_requires=[
-            'gevent>=1.0.2',
-            'protobuf>=3.0.0a3.dev0',
+            'gevent>=1.2a2',
+            'protobuf>=3.1.0',
         ],
-        cmdclass = {'clean': clean, 'build_py': build_py},
+        cmdclass={'clean': clean, 'build_py': build_py},
     )

@@ -10,7 +10,7 @@ from hello_pb2 import HelloService_Stub
 
 
 def wrapper(pid, n):
-    #conn = channel.connect(('localhost', 8888))
+    # conn = channel.connect(('localhost', 8888))
     conn = channel.connect('/tmp/hello_pb.sock')
     for x in range(n):
         response = service.hello(conn=conn)
@@ -20,6 +20,8 @@ def wrapper(pid, n):
 
 channel = ClientChannel(PBHandler, parser=PBParser)
 service = ServiceStub(HelloService_Stub(None))
+
+
 def main():
     pool = Pool()
     for x in range(1000):

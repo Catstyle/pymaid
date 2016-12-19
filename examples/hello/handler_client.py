@@ -7,6 +7,8 @@ from pymaid.utils import greenlet_pool
 
 req = '1234567890' * 100 + '\n'
 req_size = len(req)
+
+
 def handler(conn, n):
     read, write = conn.readline, conn.write
     for x in range(n):

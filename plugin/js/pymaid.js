@@ -346,21 +346,20 @@
 
                 var requireResponse = responseType.name !== 'Void';
                 var illegalResponse = {
-                    error_code: 1,
+                    error_code: 101,
                     error_message: "Illegal response received in: " + methodName
                 };
 
                 this[method.name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
-                    if (!conn || conn.is_closed) {
-                        throw Error(
-                            'pymaid: rpc conn is null/closed: '+method.name
-                        );
-                    }
                     if (!cb || cb.constructor.name != 'Function') {
                         throw Error(
                             'pymaid: rpc cb is not function: ' + method.name
                         );
+                    }
+                    if (!conn || conn.is_closed) {
+                        cb({error_code: 102, error_message: 'pymaid: rpc conn is null/closed'}, null);
+                        return;
                     }
 
                     var controller = new pb.Controller({
@@ -580,20 +579,21 @@
 
     HMPrototype.setCookies = function(cookies) {
         if (cookies) {
+            // e.g. 'token=xxx; Expires=Thu, 20-Oct-2016 19:58:45 GMT; Path=/, session=yyy; Expires=Fri, 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/'
+            // cookies.split(',') will return 4 elements:
+            // ['token=xxx; Expires=Thu', ' 20-Oct-2016 19:58:45 GMT; Path=/', ' session=yyy; Expires=Fri', ' 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/']
+            // but we know what we need will be in the first place
+            // so we just need element.trim().split(';')[0]
+            // !!!! IT IS A TRICKY HACKY !!!
             var cookies = cookies.split(',');
+            var list = [];
             for (var idx in cookies) {
                 var cookie = cookies[idx].trim().split(';')[0];
-                if (cookie.startsWith('sessionid')) {
-                    console.log('pymaid: HttpManager setCookies: ' + cookie);
-                    this._cookies = cookie;
-                    break;
-                }
+                list.push(cookie);
             }
+            this._cookies = list.join('; ');
+            console.log('pymaid: HttpManager setCookies: ' + this._cookies);
         }
-    };
-
-    HMPrototype.onNotAuthenticated = function() {
-        console.log('pymaid: HttpManager became not authenticated');
     };
 
     HMPrototype.newRequest = function(type, url, cb, async) {
@@ -601,6 +601,7 @@
         var self = this;
 
         var req = new this._requestClass();
+        req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
         req.setRequestHeader('Cookie', this._cookies);
 
@@ -630,13 +631,7 @@
                 }
             } else if (status == 301 || status == 302) {
                 var location = req.getResponseHeader('Location').trim();
-                if (!location.endsWith('/')) {
-                    location += '/';
-                }
-                self.get(location, '', cb);
-                return;
-            } else if (status == 401 || status == 403) {
-                self.onNotAuthenticated();
+                self.get(location, {}, cb);
                 return;
             } else {
                 err = {
@@ -680,6 +675,35 @@
         var req = this.newRequest('POST', url, cb);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
         req.send(data);
+        return req;
+    };
+
+    HMPrototype.put = function(url, data, cb) {
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        data = JSON.stringify(data) || '';
+        var req = this.newRequest('PUT', url, cb);
+        req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
+        req.send(data);
+        return req;
+    };
+
+    HMPrototype.delete = function(url, data, cb) {
+        var args = args4Method(arguments);
+        var url = args[0], data = args[1], cb = args[2];
+        var attr, params = [];
+        if (data) {
+            for (attr in data) {
+                if (data.hasOwnProperty(attr)) {
+                    params.push(attr+'='+data[attr]);
+                }
+            }
+            if (params.length !== 0) {
+                url += '?' + params.join('&');
+            }
+        }
+        var req = this.newRequest('DELETE', url, cb);
+        req.send();
         return req;
     };
 

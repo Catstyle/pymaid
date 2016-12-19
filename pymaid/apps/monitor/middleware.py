@@ -15,6 +15,7 @@ class MonitorMiddleware(BaseMiddleware):
 
         def clear_heartbeat_counter():
             conn.heartbeat_count = 0
+            heartbeat_timer.again(heartbeat_timeout)
 
         def heartbeat_timeout():
             conn.heartbeat_count += 1

@@ -24,6 +24,8 @@ def wrapper(pid, n):
 cnt = 0
 channel = ClientChannel(PBHandler, parser=PBParser)
 service = ServiceStub(RemoteError_Stub(None))
+
+
 def main():
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
