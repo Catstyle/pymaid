@@ -163,7 +163,7 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         assert level in levelnames, level
 
         @wraps(rpc)
-        def _(request, *args, **kwargs):
+        def _(request=None, *args, **kwargs):
             frame = getframe(1)
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
