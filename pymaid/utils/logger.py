@@ -1,48 +1,21 @@
 import logging
 import logging.config
+from logging import LogRecord
 
 from time import time
 from functools import wraps
 from types import MethodType
+from sys import _getframe as getframe
 
 from google.protobuf.service import Service
 
 from pymaid.error import Warning
 
 __all__ = [
-    'create_project_logger', 'logger_wrapper', 'trace_service', 'trace_method'
+    'create_project_logger', 'logger_wrapper', 'trace_service', 'trace_method',
+    'trace_stub'
 ]
 
-basic_logging = {
-    'version': 1,
-    'formatters': {
-        'standard': {
-            'format': ('[%(asctime)s.%(msecs).03d] [%(levelname)s] '
-                       '[pid|%(process)d] [%(name)s:%(lineno)d] %(message)s'),
-            'datefmt': '%m-%d %H:%M:%S'
-        }
-    },
-    'handlers': {
-        'console': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-        },
-    },
-    'loggers': {
-        'root': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-        'pymaid': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
-    },
-}
-logging.config.dictConfig(basic_logging)
 levelnames = logging._levelNames
 
 root_logger = logging.getLogger('root')
@@ -180,3 +153,31 @@ def trace_method(level=logging.INFO, label=None):
         assert callable(level), level
         func, level, pk = level, logging.INFO, 'connid'  # noqa
         return wrapper(func)
+
+
+def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
+    def wrapper(rpc):
+        from pymaid.conf import settings
+        if not settings.DEBUG:
+            return rpc
+        assert level in levelnames, level
+
+        @wraps(rpc)
+        def _(request, *args, **kwargs):
+            frame = getframe(1)
+            stub.logger.handle(LogRecord(
+                stub.logger.name, level, frame.f_code.co_filename,
+                frame.f_lineno, '[stub|%s][request|%s][kwargs|%s]',
+                (stub_name, request, kwargs), None, stub_name
+            ))
+            return rpc(request, *args, **kwargs)
+        return _
+    if isinstance(level, str):
+        level = levelnames[level]
+        return wrapper
+    elif isinstance(level, int):
+        return wrapper
+    else:
+        assert callable(level), level
+        rpc, level, pk = level, logging.DEBUG, 'connid'  # noqa
+        return wrapper(rpc)
