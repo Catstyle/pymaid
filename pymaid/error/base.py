@@ -1,5 +1,6 @@
 import six
 import abc
+from sys import _getframe as getframe
 
 
 class ErrorMeta(type):
@@ -44,16 +45,22 @@ class Builder(object):
 
     @classmethod
     def build_error(cls, name, code, message):
+        frame = getframe(1)  # get caller frame
         error = type(
-            name, (Error,), {'code': cls.index + code, 'message': message}
+            name, (Error,),
+            {'code': cls.index + code, 'message': message,
+             '__module__': frame.f_locals.get('__package__', '')}
         )
         setattr(cls, name, error)
         cls.register(error)
 
     @classmethod
     def build_warning(cls, name, code, message):
+        frame = getframe(1)  # get caller frame
         warning = type(
-            name, (Warning,), {'code': cls.index + code, 'message': message}
+            name, (Warning,),
+            {'code': cls.index + code, 'message': message,
+             '__module__': frame.f_locals.get('__package__', '')}
         )
         setattr(cls, name, warning)
         cls.register(warning)
@@ -73,7 +80,10 @@ def get_exception(code, message):
 
 
 def create_manager(name, index):
-    manager = type(name, (Builder,), dict(Builder.__dict__))
+    frame = getframe(1)  # get caller frame
+    kwargs = dict(Builder.__dict__)
+    kwargs['__module__'] = frame.f_locals.get('__name__', '')
+    manager = type(name, (Builder,), kwargs)
     manager = six.add_metaclass(abc.ABCMeta)(manager)
     manager.index = index
     return manager
