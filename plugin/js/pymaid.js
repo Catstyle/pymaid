@@ -346,21 +346,20 @@
 
                 var requireResponse = responseType.name !== 'Void';
                 var illegalResponse = {
-                    error_code: 1,
+                    error_code: 101,
                     error_message: "Illegal response received in: " + methodName
                 };
 
                 this[method.name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
-                    if (!conn || conn.is_closed) {
-                        throw Error(
-                            'pymaid: rpc conn is null/closed: '+method.name
-                        );
-                    }
                     if (!cb || cb.constructor.name != 'Function') {
                         throw Error(
                             'pymaid: rpc cb is not function: ' + method.name
                         );
+                    }
+                    if (!conn || conn.is_closed) {
+                        cb({error_code: 102, error_message: 'pymaid: rpc conn is null/closed'}, null);
+                        return;
                     }
 
                     var controller = new pb.Controller({
@@ -597,10 +596,6 @@
         }
     };
 
-    HMPrototype.onNotAuthenticated = function() {
-        console.log('pymaid: HttpManager became not authenticated');
-    };
-
     HMPrototype.newRequest = function(type, url, cb, async) {
         var async = async || true;
         var self = this;
@@ -637,9 +632,6 @@
             } else if (status == 301 || status == 302) {
                 var location = req.getResponseHeader('Location').trim();
                 self.get(location, {}, cb);
-                return;
-            } else if (status == 401 || status == 403) {
-                self.onNotAuthenticated();
                 return;
             } else {
                 err = {
