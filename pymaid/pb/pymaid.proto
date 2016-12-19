@@ -18,10 +18,13 @@ message Controller {
     bool is_failed = 5;
 }
 
+message RpcAck {
+}
+
 message Void {
 }
 
 message ErrorMessage {
-    uint32 error_code = 1;
-    string error_message = 2;
+    uint32 code = 1;
+    string message = 2;
 }

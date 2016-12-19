@@ -15,8 +15,7 @@ class ConnectionPool(object):
 
     def __init__(self, name, size=50, init_count=0, channel=None,
                  **connection_kwargs):
-        """
-        Create a blocking connection pool.
+        """ Create a blocking connection pool.
 
         Use ``size`` to increase / decrease the pool size::
 
@@ -24,9 +23,9 @@ class ConnectionPool(object):
 
         Any additional keyword arguments are passed to the channel.connect.
         """
-        size = size or 2 ** 31
-        if not isinstance(size, (int, long)) or size < 0:
-            raise ValueError('"size" must be a positive integer')
+        size = size or 1000
+        if not isinstance(size, int) or size < 0 or size > 1000:
+            raise ValueError('"size" must be 0 < size <= 1000')
 
         self.name = name
         self.size = size
@@ -76,7 +75,7 @@ class ConnectionPool(object):
         if init_count > self.size:
             raise ValueError('init_count should not greater than pool size')
         if not self.channel:
-            raise AssertionError('calling initpool with channel is None')
+            raise ValueError('calling initpool with channel is None')
         self.init_count = init_count
         try:
             for _ in range(init_count):
@@ -115,16 +114,25 @@ class ConnectionPool(object):
         "Create a new connection"
         try:
             connection = self.channel.connect(**self.connection_kwargs)
-            connection.pid = os.getpid()
-            def close(conn, reason=None, reset=None):
-                self._connections.remove(conn)
-            connection.add_close_cb(close)
-            def release():
-                self.release(connection)
-            connection.release = release
-            self._connections.append(connection)
         except socket_error:
             connection = None
+        else:
+            connection.pid = os.getpid()
+
+            def close(conn, reason=None, reset=None):
+                self._connections.remove(conn)
+                item = self.item_putter(conn)
+                if item in self.pool.queue:
+                    self.pool.queue.remove(item)
+                del connection.release
+                del connection.pid
+
+            def release():
+                self.release(connection)
+
+            connection.add_close_cb(close)
+            connection.release = release
+            self._connections.append(connection)
         return connection
 
     def release(self, connection):
@@ -156,7 +164,8 @@ class ConnectionPool(object):
 
     def __repr__(self):
         return "[ConnectionPool|%s][connect_kwargs|%s][max|%d][created|%d]" % (
-            self.name, self.connection_kwargs, self.size, len(self._connections)
+            self.name, self.connection_kwargs, self.size,
+            len(self._connections)
         )
     __str__ = __repr__
 

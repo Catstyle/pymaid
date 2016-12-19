@@ -1,0 +1,7 @@
+-   repo: git://github.com/pre-commit/pre-commit-hooks
+    sha: v0.6.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: autopep8-wrapper
+    -   id: flake8
+    -   id: check-added-large-files

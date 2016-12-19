@@ -1,9 +1,9 @@
-__all__ = ['ServerChannel', 'ClientChannel']
-
 import os
 from copy import weakref
 from _socket import socket as realsocket
-from _socket import AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
+from _socket import (
+    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_REUSEPORT
+)
 
 from six import itervalues, string_types
 from gevent.socket import error as socket_error, EWOULDBLOCK
@@ -11,7 +11,10 @@ from gevent.core import READ
 
 from pymaid.connection import Connection
 from pymaid.error.base import BaseEx
-from pymaid.utils import greenlet_pool, pymaid_logger_wrapper, io
+from pymaid.utils import greenlet_pool, io
+from pymaid.utils.logger import pymaid_logger_wrapper
+
+__all__ = ['ServerChannel', 'ClientChannel']
 
 
 @pymaid_logger_wrapper
@@ -47,7 +50,7 @@ class BaseChannel(object):
     def _connection_detached(self, conn, reason=None, reset=False):
         log = self.logger.info
         if reason:
-            if reset or isinstance(reason, (BaseEx, string_types)):
+            if reset or isinstance(reason, (BaseEx, string_types, int)):
                 log = self.logger.error
             else:
                 log = self.logger.exception
@@ -86,7 +89,9 @@ class ServerChannel(BaseChannel):
 
     def __init__(self, handler, listener=None, connection_class=Connection,
                  **kwargs):
-        super(ServerChannel, self).__init__(handler, connection_class, **kwargs)
+        super(ServerChannel, self).__init__(
+            handler, connection_class, **kwargs
+        )
         self.parser = kwargs.pop('parser', None)
         self.handler_kwargs.update({'listener': listener})
         self.accept_watchers = []
@@ -132,6 +137,7 @@ class ServerChannel(BaseChannel):
         )
         sock = realsocket(family, type_)
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
@@ -157,12 +163,30 @@ class ClientChannel(BaseChannel):
 
     def __init__(self, handler=lambda *args, **kwargs: '',
                  connection_class=Connection, **kwargs):
-        super(ClientChannel, self).__init__(handler, connection_class, **kwargs)
+        super(ClientChannel, self).__init__(
+            handler, connection_class, **kwargs
+        )
         self.parser = kwargs.pop('parser', None)
 
     def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
         family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(address, timeout, family, type_)
+        conn = self.connection_class.connect(
+            address, True, timeout, family, type_
+        )
+        handler_kwargs = self.handler_kwargs.copy()
+        handler_kwargs.update(kwargs)
+        self._connection_attached(conn, **handler_kwargs)
+        return conn
+
+
+@pymaid_logger_wrapper
+class BidChannel(ServerChannel):
+
+    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
+        family = AF_UNIX if isinstance(address, string_types) else AF_INET
+        conn = self.connection_class.connect(
+            address, True, timeout, family, type_
+        )
         handler_kwargs = self.handler_kwargs.copy()
         handler_kwargs.update(kwargs)
         self._connection_attached(conn, **handler_kwargs)

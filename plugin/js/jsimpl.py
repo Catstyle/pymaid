@@ -85,10 +85,10 @@ def extra_message(message, indent='    '):
         text = '%s%s: %s ' % (indent, field.name, LABELS[field.label])
         if field.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             fields.append(text + field.message_type.name)
-            fields.extend(extra_message(field.message_type, indent+'    '))
+            fields.extend(extra_message(field.message_type, indent + '    '))
         else:
             fields.append(text + TYPES[field.type])
-    #print (fields)
+    # print (fields)
     return fields
 
 

@@ -18,4 +18,4 @@ class Listener(object):
             )
             service_methods[full_name] = tuples
             # js/lua pb lib will format as '.service.method'
-            service_methods['.'+full_name] = tuples
+            service_methods['.' + full_name] = tuples

@@ -1,8 +1,10 @@
 from gevent.event import AsyncResult
 
 from pymaid.pb.pymaid_pb2 import Void, Controller
+from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
 
 
+@pymaid_logger_wrapper
 class ServiceStub(object):
 
     def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
@@ -28,6 +30,8 @@ class ServiceStub(object):
         StubManager.request_class[service_method] = response_class
         StubManager.response_class[service_method] = response_class
 
+        @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
+                    request_name=request_class.__name__)
         def rpc(request=None, conn=None, connections=None, timeout=None,
                 **kwargs):
             request = request or request_class(**kwargs)
@@ -36,17 +40,18 @@ class ServiceStub(object):
             meta.Clear()
             meta.service_method = service_method
             meta.packet_type = packet_type
-            if connections:
+            if connections is not None:
                 for conn in connections:
                     conn.send(conn.pack_meta(meta, request))
             else:
-                conn = conn or self.conn or self.connection_pool.get_connection()
+                conn = conn or self.conn or \
+                    self.connection_pool.get_connection()
                 assert conn, conn
                 if require_response:
                     meta.transmission_id = conn.transmission_id
                 conn.transmission_id += 1
                 conn.send(conn.pack_meta(meta, request))
-                
+
                 if hasattr(conn, 'release'):
                     conn.release()
                 if not require_response:
