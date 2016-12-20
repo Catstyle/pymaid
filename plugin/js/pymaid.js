@@ -252,12 +252,16 @@
             '[reason|'+reason+'] closed'
         );
         this.ws.close();
+        this.cleanup(reason);
+    };
+
+    WSConnectionPrototype.cleanup = function(reason) {
         for (var idx in this.transmissions) {
             var cb = this.transmissions[idx];
-            cb();
+            cb({error_code: 100, error_message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
             delete this.transmissions[idx];
         }
-    };
+    }
 
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
@@ -285,14 +289,15 @@
     };
 
     WSConnectionPrototype.onopen = function(evt) {
-        console.log('pymaid: [WSConnection|' + this.connid + '] onopen');
+        console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onopen');
         this._onopen();
     };
 
     WSConnectionPrototype.onclose = function(evt) {
-        console.log('pymaid: [WSConnection|' + this.connid + '] onclose');
+        console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onclose');
         this.is_closed = true;
         this.channel.connection_closed(this);
+        this.cleanup(evt);
         this._onclose(evt);
         // onclose is after onerror, cleanup from here
         this._onopen = null;
@@ -301,7 +306,7 @@
     };
 
     WSConnectionPrototype.onerror = function(evt) {
-        console.log('pymaid: [WSConnection|' + this.connid + '] onerror');
+        console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onerror');
         this._onerror(evt);
     };
 
