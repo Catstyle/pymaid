@@ -94,6 +94,22 @@
     pb.Void = builder.pb.Void;
     pb.ErrorMessage = builder.pb.ErrorMessage;
 
+    getBuilder = function(pb_json, builders) {
+        if (typeof pb_json !== 'object') {
+            console.log('registerBuilder got argument is not json/object');
+            return;
+        }
+        if (!pb_json.hasOwnProperty('syntax')) {
+            for (var attr in pb_json) {
+                if (!pb_json.hasOwnProperty(attr)) {
+                    continue;
+                }
+                getBuilder(pb_json[attr], builders);
+            }
+            return;
+        }
+        builders.push(dcodeIO.ProtoBuf.loadJson(pb_json));
+    }
 
     /**
      * Parser, encode/decode packet
@@ -162,48 +178,105 @@
      * Channel, implement rpc pack/unpack
      *
     **/
-    var Channel = function(connectionClass, parser) {
-        this.connectionClass = connectionClass;
+    var Channel = function(protos, pbimpl, broadcasts, parser) {
+        this.conn = null;
+        this.parser = parser || PBParser;
+        this.is_closed = true;
 
-        this.connections = {};
-        this.listener = null;
-        this.parser = parser;
+        var builders = [];
+        getBuilder(protos, builders);
+        this.init_stubs(builders);
+        this.init_listener(builders, pbimpl, broadcasts);
     };
 
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
     pymaid.Channel = Channel;
 
-    ChannelPrototype.bindListener = function(listener) {
-        if (this.listener) {
-            console.log(
-                'pymaid: channel already bound listener: ' + this.listener
-            );
-            return;
+    ChannelPrototype._combineAddress = function(schema, host, port) {
+        var address = host + ':' + port;
+        if (schema === 'ws' || schema === 'wss') {
+            address = schema + '://' + address;
         }
-        this.listener = listener;
-    };
+        return address;
+    },
 
-    ChannelPrototype.connect = function(address, callbacks) {
-        var conn = new this.connectionClass(address, this, callbacks);
-        this.connections[conn.conn_id] = conn;
-        return conn;
+    ChannelPrototype.isAlreadyConnected = function(address) {
+        var conn = this.conn;
+        if (conn && conn.address === address && !conn.is_closed) {
+            return true;
+        }
+        return false;
+    },
+
+    ChannelPrototype.connect = function(schema, host, port, callbacks) {
+        var address = this._combineAddress(schema, host, port);
+        if (this.isAlreadyConnected(address)) {
+            console.log(
+                'pymaid: channel already connected to address: ' + address
+            );
+            return this.conn;
+        }
+
+        var self = this;
+        channel_callbacks = {
+            onopen: function(conn) {
+                self.connection_made(conn);
+                callbacks.onopen && callbacks.onopen(conn);
+            },
+
+            onclose: function(conn, evt) {
+                self.connection_closed(conn, evt);
+                callbacks.onclose && callbacks.onclose(conn, evt);
+            },
+
+            onerror: callbacks.onerror | function() {},
+        };
+        // now we support websocket only
+        return new WSConnection(address, this, channel_callbacks);
     };
 
     ChannelPrototype.close = function(reason) {
-        console.log('pymaid: channel closing with reason ' + reason);
-        for (var connid in this.connections) {
-            var conn = this.connections[connid];
-            conn.close(reason);
+        if (this.is_closed) {
+            return;
         }
+        console.log('pymaid: channel closing with [reason|' + reason + ']');
+        this.is_closed = true;
+        this.conn.close(reason);
+        this.conn.channel = null;
+        this.conn = null;
+    };
+
+    ChannelPrototype.connection_made = function(conn) {
+        this.conn = conn;
+        this.is_closed = false;
+        this.stubs.bindConnection(conn);
     };
 
     ChannelPrototype.connection_closed = function(conn) {
-        delete this.connections[conn.connid];
-        for (var idx = 0; idx < StubManager._managers.length; idx++) {
-            var manager = StubManager._managers[idx];
-            if (manager.conn.connid == conn.connid) {
-                manager.conn = null;
+        this.close('connection closed');
+        this.stubs.conn = null;
+    };
+
+    ChannelPrototype.init_stubs = function(builders) {
+        var stubs = this.stubs = new pymaid.StubManager();
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            stubs.registerBuilder(builders[idx]);
+        }
+    };
+
+    ChannelPrototype.init_listener = function(builders, pbimpl, broadcasts) {
+        var listener = this.listener = new pymaid.Listener();
+        for (var impl in pbimpl) {
+            if (!pbimpl.hasOwnProperty(impl)) {
+                continue;
             }
+            listener.registerImpl(pbimpl[impl]);
+        }
+
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            listener.registerBuilder(builders[idx], function(name) {
+                return broadcasts.indexOf(name) != -1;
+            });
         }
     };
 
@@ -225,26 +298,22 @@
         this.transmissions = {};
 
         var callbacks = callbacks || {};
-        this._onopen = callbacks.onopen || function() {};
-        this._onerror = callbacks.onerror || function() {};
-        this._onclose = callbacks.onclose || function() {};
+        this.onopen_callback = callbacks.onopen || function() {};
+        this.onerror_callback = callbacks.onerror || function() {};
+        this.onclose_callback = callbacks.onclose || function() {};
 
         this.ws.onopen = this.onopen.bind(this);
         this.ws.onclose = this.onclose.bind(this);
         this.ws.onmessage = this.onmessage.bind(this);
         this.ws.onerror = this.onerror.bind(this);
 
-        this.is_closed = false;
+        this.send = this.ws.send.bind(this.ws);
     };
     WSConnection.CONNID = 0;
 
     var WSConnectionPrototype = Object.create(WSConnection.prototype);
     WSConnection.prototype = WSConnectionPrototype;
     pymaid.WSConnection = WSConnection;
-
-    WSConnectionPrototype.send = function(buf) {
-        this.ws.send(buf);
-    };
 
     WSConnectionPrototype.close = function(reason) {
         console.log(
@@ -266,10 +335,7 @@
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
         var controller = packet.controller, content = packet.content;
-        console.log(
-            'pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+
-            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+content+']'
-        );
+
         if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
             var tid = controller.transmission_id;
             var cb = this.transmissions[tid];
@@ -290,24 +356,25 @@
 
     WSConnectionPrototype.onopen = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onopen');
-        this._onopen();
+        this.is_closed = false;
+        this.onopen_callback(this);
     };
 
     WSConnectionPrototype.onclose = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onclose');
         this.is_closed = true;
-        this.channel.connection_closed(this);
+        this.onclose_callback(this, evt);
         this.cleanup(evt);
-        this._onclose(evt);
         // onclose is after onerror, cleanup from here
-        this._onopen = null;
-        this._onerror = null;
-        this._onclose = null;
+        this.onopen_callback = null;
+        this.onerror_callback = null;
+        this.onclose_callback = null;
+        this.channel = null;
     };
 
     WSConnectionPrototype.onerror = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onerror');
-        this._onerror(evt);
+        this.onerror_callback(this, evt);
     };
 
     var getBuilderServices = function(result, filter) {
@@ -403,6 +470,10 @@
                                     err = illegalResponse;
                                 }
                             }
+                            console.log(
+                                'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
+                                '[onmessage][controller|'+controller.encodeJSON()+'][content|'+JSON.stringify(resp)+']'
+                            );
                             cb(err, resp);
                         };
                     }
@@ -418,14 +489,11 @@
      */
     var StubManager = function() {
         this.conn = null;
-        StubManager._managers.push(this);
     };
 
     var StubManagerPrototype = Object.create(StubManager.prototype);
     StubManager.prototype = StubManagerPrototype;
     pymaid.StubManager = StubManager;
-
-    StubManager._managers = [];
 
     StubManagerPrototype._registerStub = function(stub) {
         var name = stub.name;
@@ -511,6 +579,10 @@
         }
         var clazz = this.classes[serviceMethod];
         var req = clazz.req.clazz.decode(content), resp = clazz.resp;
+        console.log(
+            'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
+            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+req.encodeJSON()+']'
+        );
         impl[methodName](controller, req, function(err, content) {
             if (resp.name == 'Void') {
                 // when handle notification
@@ -541,13 +613,23 @@
      * HttpManager, used to handle cookies/redirect things
      *
     **/
-    var HttpManager = function(requestClass) {
-        this._rootUrl = '';
+    var HttpManager = function(rootUrl, webimpl, requestClass) {
+        this.setRootUrl(rootUrl)
         this._cookies = '';
+        requestClass = requestClass || XMLHttpRequest;
         if (!requestClass) {
             throw Error('invalid requestClass for HttpManager');
         }
         this._requestClass = requestClass;
+
+        for (var impl in webimpl) {
+            if (!webimpl.hasOwnProperty(impl)) {
+                continue;
+            }
+            cc.log(impl + ' is binding httpManager');
+            webimpl[impl].bindHttpManager(this);
+        }
+        this.webimpl = webimpl;
     };
 
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
