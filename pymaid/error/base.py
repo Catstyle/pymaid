@@ -49,7 +49,7 @@ class Builder(object):
         error = type(
             name, (Error,),
             {'code': cls.index + code, 'message': message,
-             '__module__': frame.f_locals.get('__package__', '')}
+             '__module__': frame.f_locals.get('__name__', '')}
         )
         setattr(cls, name, error)
         cls.register(error)
@@ -60,7 +60,7 @@ class Builder(object):
         warning = type(
             name, (Warning,),
             {'code': cls.index + code, 'message': message,
-             '__module__': frame.f_locals.get('__package__', '')}
+             '__module__': frame.f_locals.get('__name__', '')}
         )
         setattr(cls, name, warning)
         cls.register(warning)
