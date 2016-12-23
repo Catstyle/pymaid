@@ -67,12 +67,13 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO, label=None):
+def trace_service(level=logging.INFO, debug_info_func=None):
     def wrapper(cls):
         assert level in levelnames, level
         for method in cls.DESCRIPTOR.methods:
             name = method.name
-            setattr(cls, name, trace_method(level, label)(getattr(cls, name)))
+            setattr(cls, name,
+                    trace_method(level, debug_info_func)(getattr(cls, name)))
         return cls
     if isinstance(level, str):
         level = levelnames[level]
@@ -81,11 +82,11 @@ def trace_service(level=logging.INFO, label=None):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level, label = level, 'INFO', None
+        cls, level, debug_info_func = level, 'INFO', None
         return wrapper(cls)
 
 
-def trace_method(level=logging.INFO, label=None):
+def trace_method(level=logging.INFO, debug_info_func=None):
     def wrapper(func):
         assert level in levelnames, level
         co = func.func_code
@@ -98,32 +99,30 @@ def trace_method(level=logging.INFO, label=None):
             '', level, co.co_filename, co.co_firstlineno, '', (), None,
             full_name
         )
-        invalid_label = 'invalid label %s' % label
 
         @wraps(func)
         def _(self, controller, request, done):
             assert isinstance(self, Service)
 
-            if not label:
-                pk = '[conn|%d]' % controller.conn.connid
+            if debug_info_func:
+                debug_info = debug_info_func(controller)
             else:
-                pk = '[conn|%d][label|%s]' % (
-                    controller.conn.connid,
-                    getattr(controller.conn, label, invalid_label)
-                )
+                debug_info = '[conn|%d]' % controller.conn.connid
+            logger = self.logger
+            record.name = logger.name
             req = repr(str(request))
-            record.name = self.logger.name
             update_record(
-                record, level, '%s [Enter|%s] [req|%s]', pk, full_name, req
+                record, level, '%s [Enter|%s] [req|%s]', debug_info, full_name,
+                req
             )
-            self.logger.handle(record)
+            logger.handle(record)
 
             def done_wrapper(resp=None, **kwargs):
                 update_record(
-                    record, level, '%s [Leave|%s] [resp|%s]', pk, full_name,
-                    kwargs or repr(str(resp))
+                    record, level, '%s [Leave|%s] [resp|%s]', debug_info,
+                    full_name, kwargs or repr(str(resp))
                 )
-                self.logger.handle(record)
+                logger.handle(record)
                 done(resp, **kwargs)
             try:
                 return func(self, controller, request, done_wrapper)
@@ -132,16 +131,15 @@ def trace_method(level=logging.INFO, label=None):
                     update_record(
                         record, logging.WARN,
                         '%s [Leave|%s][req|%s] [warning|%s]',
-                        pk, full_name, req, ex
+                        debug_info, full_name, req, ex
                     )
-                    self.logger.handle(record)
                 else:
                     update_record(
                         record, logging.ERROR,
                         '%s [Leave|%s][req|%s] [exception|%s]',
-                        pk, full_name, req, ex
+                        debug_info, full_name, req, ex
                     )
-                    self.logger.handle(record)
+                logger.handle(record)
                 raise
         return _
     if isinstance(level, str):
@@ -151,7 +149,7 @@ def trace_method(level=logging.INFO, label=None):
         return wrapper
     else:
         assert callable(level), level
-        func, level, pk = level, logging.INFO, 'connid'  # noqa
+        func, level, debug_info_func = level, logging.INFO, None
         return wrapper(func)
 
 
@@ -179,5 +177,5 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         return wrapper
     else:
         assert callable(level), level
-        rpc, level, pk = level, logging.DEBUG, 'connid'  # noqa
+        rpc, level = level, logging.DEBUG
         return wrapper(rpc)
