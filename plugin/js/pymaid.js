@@ -724,6 +724,13 @@
                 err = {
                     error_code: 2, error_message: req.statusText, status: status
                 };
+                try {
+                    response = JSON.parse(response);
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) {
+                        throw e;
+                    }
+                }
             }
             cb(err, response);
         };
