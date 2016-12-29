@@ -71,18 +71,22 @@
                 "fields": []
             },
             {
+                "name": "RpcAck",
+                "fields": []
+            },
+            {
                 "name": "ErrorMessage",
                 "fields": [
                     {
                         "rule": "optional",
                         "type": "uint32",
-                        "name": "error_code",
+                        "name": "code",
                         "id": 1
                     },
                     {
                         "rule": "optional",
                         "type": "string",
-                        "name": "error_message",
+                        "name": "message",
                         "id": 2
                     }
                 ]
@@ -327,7 +331,7 @@
     WSConnectionPrototype.cleanup = function(reason) {
         for (var idx in this.transmissions) {
             var cb = this.transmissions[idx];
-            cb({error_code: 100, error_message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
+            cb({message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
             delete this.transmissions[idx];
         }
     }
@@ -417,10 +421,7 @@
                 var responseType = method.resolvedResponseType;
 
                 var requireResponse = responseType.name !== 'Void';
-                var illegalResponse = {
-                    error_code: 101,
-                    error_message: "Illegal response received in: " + methodName
-                };
+                var illegalResponse = {message: "Illegal response received in: " + methodName};
 
                 this[method.name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
@@ -430,7 +431,7 @@
                         );
                     }
                     if (!conn || conn.is_closed) {
-                        cb({error_code: 102, error_message: 'pymaid: rpc conn is null/closed'}, null);
+                        cb({message: 'pymaid: rpc conn is null/closed'}, null);
                         return;
                     }
 
@@ -456,23 +457,24 @@
                         setTimeout(cb.bind(this, null, null), 0);
                     } else {
                         conn.transmissions[tid] = function(controller, resp) {
-                            var err = null;
+                            var err = null, content;
                             if (!controller) {
-                                err = illegalResponse;
+                                err = content = illegalResponse;
                             } else if (controller.is_failed) {
-                                err = pb.ErrorMessage.decode(resp);
+                                err = content = pb.ErrorMessage.decode(resp);
                             } else {
                                 try {
-                                    resp = responseType.clazz.decode(resp);
+                                    resp = content = responseType.clazz.decode(resp);
                                 } catch (notABuffer) {
                                 }
                                 if (!(resp instanceof responseType.clazz)) {
-                                    err = illegalResponse;
+                                    err = content = illegalResponse;
                                 }
                             }
                             console.log(
                                 'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-                                '[onmessage][controller|'+controller.encodeJSON()+'][content|'+JSON.stringify(resp)+']'
+                                '[onmessage][controller|'+controller.encodeJSON()+']'+
+                                '[content|'+JSON.stringify(content)+']'
                             );
                             cb(err, resp);
                         };
@@ -707,37 +709,31 @@
                     response = JSON.parse(response);
                 } catch (e) {
                     if (e instanceof SyntaxError) {
-                        err = {
-                            error_code: 1,
-                            error_message: 'invalide json response',
-                            status: status
-                        };
+                        err = {message: 'invalid json response', status: status};
                     } else {
                         throw e;
                     }
                 }
             } else if (status == 301 || status == 302) {
-                var location = req.getResponseHeader('Location').trim();
-                self.get(location, {}, cb);
+                self.get(req.getResponseHeader('Location').trim(), {}, cb);
                 return;
-            } else {
-                err = {
-                    error_code: 2, error_message: req.statusText, status: status
-                };
+            } else if (status == 400) {
                 try {
-                    response = JSON.parse(response);
+                    err = JSON.parse(response);
                 } catch (e) {
                     if (!(e instanceof SyntaxError)) {
                         throw e;
                     }
+                    err = {message: response, status: status};
                 }
+            } else {
+                err = {message: response, status: status};
             }
             cb(err, response);
         };
 
         req.onerror = function() {
-            cb({error_code: 3, error_message: 'http request onerror',
-                status: req.status});
+            cb({message: 'http request onerror', status: req.status});
         };
 
         return req;
