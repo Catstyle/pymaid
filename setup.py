@@ -1,56 +1,48 @@
 from __future__ import print_function
 
 import re
-import os
 import sys
 import shutil
 import subprocess
 
-from setuptools import setup
-from distutils.command.clean import clean as _clean
-if sys.version_info[0] >= 3:
-    # Python 3
-    from distutils.command.build_py import build_py_2to3 as _build_py
-else:
-    # Python 2
-    from distutils.command.build_py import build_py as _build_py
+from os import path, walk, remove
+from codecs import open
 
+from setuptools import setup, find_packages
+from setuptools.command.build_py import build_py
+from distutils.command.clean import clean
+
+pwd = path.abspath(path.dirname(__file__))
 __version__ = re.search(
     "__version__\s*=\s*'(.*)'", open('pymaid/__init__.py').read(), re.M
 ).group(1)
 assert __version__
 
-
-def get_packages():
-    # setuptools can't do the job :(
-    packages = []
-    for root, dirnames, filenames in os.walk('pymaid'):
-        if '__init__.py' in filenames:
-            packages.append(".".join(os.path.split(root)).strip("."))
-    return packages
+# Get the long description from the README file
+with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
+    long_description = f.read()
 
 
-class clean(_clean):
+class MyClean(clean):
 
     def run(self):
         # Delete generated files in the code tree.
-        for (dirpath, dirnames, filenames) in os.walk("."):
+        for (dirpath, dirnames, filenames) in walk("."):
             for filename in filenames:
-                filepath = os.path.join(dirpath, filename)
+                filepath = path.join(dirpath, filename)
                 if (filepath.endswith("_pb2.py") or
                         filepath.endswith(".pyc") or
                         filepath.endswith(".pb.js") or
                         filepath.endswith(".so") or
                         filepath.endswith(".o")):
-                    os.remove(filepath)
+                    remove(filepath)
             for dirname in dirnames:
                 if dirname in ('build', 'dist', 'pymaid.egg-info', 'protos'):
-                    shutil.rmtree(os.path.join(dirpath, dirname))
-        # _clean is an old-style class, so super() doesn't work.
-        _clean.run(self)
+                    shutil.rmtree(path.join(dirpath, dirname))
+        clean.run(self)
 
 
-class build_py(_build_py):
+class MyBuildPy(build_py):
 
     def run(self):
         errno = subprocess.call(
@@ -58,27 +50,54 @@ class build_py(_build_py):
         if errno != 0:
             print('call `python compile.py` failed with errno: %d' % errno)
             exit(1)
-        open('pymaid/pb/__init__.py', 'a').close()
-        # _build_py is an old-style class, so super() doesn't work.
-        _build_py.run(self)
+        build_py.run(self)
 
 
 if __name__ == '__main__':
     setup(
         name="pymaid",
-        version=__version__,
+        description='A rpc framework based on gevent/protobuf',
+        long_description=long_description,
         author="Catstyle",
         author_email="Catstyle.Lee@gmail.com",
+
+        utl="https://github.com/catstyle/pymaid",
+        version=__version__,
         license="MIT",
-        packages=get_packages(),
-        zip_safe=False,
+
+        keywords='rpc gevent protobuf',
+        classifiers=[
+            # How mature is this project? Common values are
+            #   3 - Alpha
+            #   4 - Beta
+            #   5 - Production/Stable
+            'Development Status :: 3 - Alpha',
+
+            # Indicate who your project is intended for
+            'Intended Audience :: Developers',
+            'Topic :: Software Development :: Build Tools',
+
+            # Pick your license as you wish (should match "license" above)
+            'License :: OSI Approved :: MIT License',
+
+            # Specify the Python versions you support here.
+            # In particular, ensure that you indicate whether you support
+            # Python 2, Python 3 or both.
+            'Programming Language :: Python :: 2.7',
+        ],
+
+        packages=find_packages(),
         data_files=[
-            (os.path.join(sys.prefix, 'include', 'pymaid', 'pb'),
+            (path.join(sys.prefix, 'include', 'pymaid', 'pb'),
              ['pymaid/pb/pymaid.proto']),
         ],
         install_requires=[
-            'gevent>=1.2a2',
+            'gevent>=1.2',
             'protobuf>=3.1.0',
+            'six',
+            'gevent-websocket',
+            'ujson',
+            'wsaccel',
         ],
-        cmdclass={'clean': clean, 'build_py': build_py},
+        cmdclass={'build_py': MyBuildPy, 'clean': MyClean},
     )
