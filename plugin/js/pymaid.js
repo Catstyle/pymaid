@@ -473,7 +473,7 @@
                             }
                             console.log(
                                 'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-                                '[onmessage][controller|'+controller.encodeJSON()+']'+
+                                '[onmessage][controller|'+JSON.stringify(controller)+']'+
                                 '[content|'+JSON.stringify(content)+']'
                             );
                             cb(err, resp);
