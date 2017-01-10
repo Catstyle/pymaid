@@ -615,7 +615,7 @@
      * HttpManager, used to handle cookies/redirect things
      *
     **/
-    var HttpManager = function(rootUrl, webimpl, requestClass) {
+    var HttpManager = function(rootUrl, webimpl, requestClass, timeout) {
         this.setRootUrl(rootUrl)
         this._cookies = '';
         requestClass = requestClass || XMLHttpRequest;
@@ -632,21 +632,22 @@
             webimpl[impl].bindHttpManager(this);
         }
         this.webimpl = webimpl;
+        this.timeout = timeout || 30000;
     };
 
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
     pymaid.HttpManager = HttpManager;
 
-    var args4Method = function(args) {
-        var url = args[0];
-        var data = '', cb = null;
-        if (args.length == 2) {
-            cb = args[1];
-        } else if (args.length == 3) {
-            data = args[1];
-            cb = args[2];
+    var getParams = function(data) {
+        var params = [], attr;
+        if (data) {
+            for (attr in data) {
+                if (data.hasOwnProperty(attr)) {
+                    params.push(attr+'='+data[attr]);
+                }
+            }
         }
-        return [url, data, cb];
+        return params.join('&');
     };
 
     HMPrototype._realUrl = function(url) {
@@ -685,19 +686,17 @@
         }
     };
 
-    HMPrototype.newRequest = function(type, url, cb, async) {
-        var async = async || true;
+    HMPrototype.newRequest = function(type, url, cb, timeout, async) {
+        async = async || true;
         var self = this;
 
         var req = new this._requestClass();
         req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
         req.setRequestHeader('Cookie', this._cookies);
+        req.timeout = timeout || this.timeout;
 
-        req.onreadystatechange = function() {
-            if (req.readyState != 4) {
-                return;
-            }
+        req.onload = function() {
             self.setCookies(req.getResponseHeader('Set-Cookie'));
 
             var status = req.status;
@@ -732,6 +731,10 @@
             cb(err, response);
         };
 
+        req.ontimeout = function() {
+            cb({message: 'http request timeout'});
+        };
+
         req.onerror = function() {
             cb({message: 'http request onerror', status: req.status});
         };
@@ -739,60 +742,30 @@
         return req;
     };
 
-    HMPrototype.get = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1] || {}, cb = args[2];
-        var attr, params = [];
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
-                }
-            }
-            if (params.length !== 0) {
-                url += '?' + params.join('&');
-            }
-        }
-        var req = this.newRequest('GET', url, cb);
+    HMPrototype.get = function(url, data, cb, timeout) {
+        var params = getParams(data);
+        var req = this.newRequest('GET', url+'?'+params, cb, timeout);
         req.send();
         return req;
     };
 
-    HMPrototype.post = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        data = JSON.stringify(data) || '';
-        var req = this.newRequest('POST', url, cb);
+    HMPrototype.post = function(url, data, cb, timeout) {
+        var req = this.newRequest('POST', url, cb, timeout);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
-        req.send(data);
+        req.send(data ? JSON.stringify(data) : '');
         return req;
     };
 
-    HMPrototype.put = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        data = JSON.stringify(data) || '';
-        var req = this.newRequest('PUT', url, cb);
+    HMPrototype.put = function(url, data, cb, timeout) {
+        var req = this.newRequest('PUT', url, cb, timeout);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
-        req.send(data);
+        req.send(data ? JSON.stringify(data) : '');
         return req;
     };
 
-    HMPrototype.delete = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        var attr, params = [];
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
-                }
-            }
-            if (params.length !== 0) {
-                url += '?' + params.join('&');
-            }
-        }
-        var req = this.newRequest('DELETE', url, cb);
+    HMPrototype.delete = function(url, data, cb, timeout) {
+        var params = getParams(data);
+        var req = this.newRequest('DELETE', url+'?'+params, cb, timeout);
         req.send();
         return req;
     };
