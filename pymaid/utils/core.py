@@ -17,14 +17,22 @@ class Timer(object):
         if use_greenlet:
             self.start = self._start_async
             self.again = self._again_async
+            self.stop = self._stop_async
 
-    def _start_async(self, callback, *args):
+    def _async_handler(self, callback, args, kwargs):
         # proto: apply_async(func, args=None, kwds=None, callback=None)
-        self.realtimer.start(greenlet_pool.apply_async, callback, args)
+        self.worker = greenlet_pool.apply_async(callback, args, kwargs)
 
-    def _again_async(self, callback, *args):
-        # proto: apply_async(func, args=None, kwds=None, callback=None)
-        self.realtimer.again(greenlet_pool.apply_async, callback, args)
+    def _start_async(self, callback, *args, **kwargs):
+        self.realtimer.start(self._async_handler, callback, args, kwargs)
+
+    def _again_async(self, callback, *args, **kwargs):
+        self.realtimer.again(self._async_handler, callback, args, kwargs)
+
+    def _stop_async(self):
+        self.realtimer.stop()
+        if hasattr(self, 'worker'):
+            self.worker.kill(block=False)
 
     def __getattr__(self, name):
         return getattr(self.realtimer, name)
