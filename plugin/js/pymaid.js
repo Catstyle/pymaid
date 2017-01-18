@@ -732,7 +732,7 @@
         };
 
         req.ontimeout = function() {
-            cb({message: 'http request timeout'});
+            cb({status: 444, message: 'http request timeout'});
         };
 
         req.onerror = function() {
