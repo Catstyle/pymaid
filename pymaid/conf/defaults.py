@@ -4,7 +4,7 @@ PYMAID_LOGGING = {
     'version': 1,
     'formatters': {
         'standard': {
-            'format': ('[%(asctime)s.%(msecs).03d] [pid|%(process)d] '
+            'format': (u'[%(asctime)s.%(msecs).03d] [pid|%(process)d] '
                        '[%(name)s:%(lineno)d] [%(levelname)s] %(message)s'),
             'datefmt': '%m-%d %H:%M:%S'
         }
