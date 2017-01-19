@@ -8,10 +8,11 @@ from . import pb
 from . import pool
 from . import error
 from . import utils
+from . import conf
 
 __all__ = [
     'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
-    'serve_forever'
+    'conf', 'serve_forever'
 ]
 
 __version__ = '0.3.5.post2'
