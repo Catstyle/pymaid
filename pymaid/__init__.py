@@ -8,15 +8,14 @@ from . import pb
 from . import pool
 from . import error
 from . import utils
+from . import conf
 
 __all__ = [
     'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
-    'serve_forever'
+    'conf', 'serve_forever'
 ]
 
-__version__ = '0.3.5'
-VERSION = tuple(map(int, __version__.split('.')))
-
+__version__ = '0.3.6.beta1'
 
 if 'linux' in sys.platform or 'darwin' in sys.platform:
     if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):

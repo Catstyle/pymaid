@@ -71,18 +71,22 @@
                 "fields": []
             },
             {
+                "name": "RpcAck",
+                "fields": []
+            },
+            {
                 "name": "ErrorMessage",
                 "fields": [
                     {
                         "rule": "optional",
                         "type": "uint32",
-                        "name": "error_code",
+                        "name": "code",
                         "id": 1
                     },
                     {
                         "rule": "optional",
                         "type": "string",
-                        "name": "error_message",
+                        "name": "message",
                         "id": 2
                     }
                 ]
@@ -94,6 +98,22 @@
     pb.Void = builder.pb.Void;
     pb.ErrorMessage = builder.pb.ErrorMessage;
 
+    getBuilder = function(pb_json, builders) {
+        if (typeof pb_json !== 'object') {
+            console.log('registerBuilder got argument is not json/object');
+            return;
+        }
+        if (!pb_json.hasOwnProperty('syntax')) {
+            for (var attr in pb_json) {
+                if (!pb_json.hasOwnProperty(attr)) {
+                    continue;
+                }
+                getBuilder(pb_json[attr], builders);
+            }
+            return;
+        }
+        builders.push(dcodeIO.ProtoBuf.loadJson(pb_json));
+    }
 
     /**
      * Parser, encode/decode packet
@@ -162,48 +182,105 @@
      * Channel, implement rpc pack/unpack
      *
     **/
-    var Channel = function(connectionClass, parser) {
-        this.connectionClass = connectionClass;
+    var Channel = function(protos, pbimpl, broadcasts, parser) {
+        this.conn = null;
+        this.parser = parser || PBParser;
+        this.is_closed = true;
 
-        this.connections = {};
-        this.listener = null;
-        this.parser = parser;
+        var builders = [];
+        getBuilder(protos, builders);
+        this.init_stubs(builders);
+        this.init_listener(builders, pbimpl, broadcasts);
     };
 
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
     pymaid.Channel = Channel;
 
-    ChannelPrototype.bindListener = function(listener) {
-        if (this.listener) {
-            console.log(
-                'pymaid: channel already bound listener: ' + this.listener
-            );
-            return;
+    ChannelPrototype._combineAddress = function(schema, host, port) {
+        var address = host + ':' + port;
+        if (schema === 'ws' || schema === 'wss') {
+            address = schema + '://' + address;
         }
-        this.listener = listener;
-    };
+        return address;
+    },
 
-    ChannelPrototype.connect = function(address, callbacks) {
-        var conn = new this.connectionClass(address, this, callbacks);
-        this.connections[conn.conn_id] = conn;
-        return conn;
+    ChannelPrototype.isAlreadyConnected = function(address) {
+        var conn = this.conn;
+        if (conn && conn.address === address && !conn.is_closed) {
+            return true;
+        }
+        return false;
+    },
+
+    ChannelPrototype.connect = function(schema, host, port, callbacks) {
+        var address = this._combineAddress(schema, host, port);
+        if (this.isAlreadyConnected(address)) {
+            console.log(
+                'pymaid: channel already connected to address: ' + address
+            );
+            return this.conn;
+        }
+
+        var self = this;
+        channel_callbacks = {
+            onopen: function(conn) {
+                self.connection_made(conn);
+                callbacks.onopen && callbacks.onopen(conn);
+            },
+
+            onclose: function(conn, evt) {
+                self.connection_closed(conn, evt);
+                callbacks.onclose && callbacks.onclose(conn, evt);
+            },
+
+            onerror: callbacks.onerror | function() {},
+        };
+        // now we support websocket only
+        return new WSConnection(address, this, channel_callbacks);
     };
 
     ChannelPrototype.close = function(reason) {
-        console.log('pymaid: channel closing with reason ' + reason);
-        for (var connid in this.connections) {
-            var conn = this.connections[connid];
-            conn.close(reason);
+        if (this.is_closed) {
+            return;
         }
+        console.log('pymaid: channel closing with [reason|' + reason + ']');
+        this.is_closed = true;
+        this.conn.close(reason);
+        this.conn.channel = null;
+        this.conn = null;
+    };
+
+    ChannelPrototype.connection_made = function(conn) {
+        this.conn = conn;
+        this.is_closed = false;
+        this.stubs.bindConnection(conn);
     };
 
     ChannelPrototype.connection_closed = function(conn) {
-        delete this.connections[conn.connid];
-        for (var idx = 0; idx < StubManager._managers.length; idx++) {
-            var manager = StubManager._managers[idx];
-            if (manager.conn.connid == conn.connid) {
-                manager.conn = null;
+        this.close('connection closed');
+        this.stubs.conn = null;
+    };
+
+    ChannelPrototype.init_stubs = function(builders) {
+        var stubs = this.stubs = new pymaid.StubManager();
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            stubs.registerBuilder(builders[idx]);
+        }
+    };
+
+    ChannelPrototype.init_listener = function(builders, pbimpl, broadcasts) {
+        var listener = this.listener = new pymaid.Listener();
+        for (var impl in pbimpl) {
+            if (!pbimpl.hasOwnProperty(impl)) {
+                continue;
             }
+            listener.registerImpl(pbimpl[impl]);
+        }
+
+        for (var idx = 0, length = builders.length; idx < length; idx++) {
+            listener.registerBuilder(builders[idx], function(name) {
+                return broadcasts.indexOf(name) != -1;
+            });
         }
     };
 
@@ -225,26 +302,22 @@
         this.transmissions = {};
 
         var callbacks = callbacks || {};
-        this._onopen = callbacks.onopen || function() {};
-        this._onerror = callbacks.onerror || function() {};
-        this._onclose = callbacks.onclose || function() {};
+        this.onopen_callback = callbacks.onopen || function() {};
+        this.onerror_callback = callbacks.onerror || function() {};
+        this.onclose_callback = callbacks.onclose || function() {};
 
         this.ws.onopen = this.onopen.bind(this);
         this.ws.onclose = this.onclose.bind(this);
         this.ws.onmessage = this.onmessage.bind(this);
         this.ws.onerror = this.onerror.bind(this);
 
-        this.is_closed = false;
+        this.send = this.ws.send.bind(this.ws);
     };
     WSConnection.CONNID = 0;
 
     var WSConnectionPrototype = Object.create(WSConnection.prototype);
     WSConnection.prototype = WSConnectionPrototype;
     pymaid.WSConnection = WSConnection;
-
-    WSConnectionPrototype.send = function(buf) {
-        this.ws.send(buf);
-    };
 
     WSConnectionPrototype.close = function(reason) {
         console.log(
@@ -258,7 +331,7 @@
     WSConnectionPrototype.cleanup = function(reason) {
         for (var idx in this.transmissions) {
             var cb = this.transmissions[idx];
-            cb({error_code: 100, error_message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
+            cb({message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
             delete this.transmissions[idx];
         }
     }
@@ -266,10 +339,7 @@
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
         var controller = packet.controller, content = packet.content;
-        console.log(
-            'pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+
-            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+content+']'
-        );
+
         if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
             var tid = controller.transmission_id;
             var cb = this.transmissions[tid];
@@ -290,24 +360,25 @@
 
     WSConnectionPrototype.onopen = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onopen');
-        this._onopen();
+        this.is_closed = false;
+        this.onopen_callback(this);
     };
 
     WSConnectionPrototype.onclose = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onclose');
         this.is_closed = true;
-        this.channel.connection_closed(this);
+        this.onclose_callback(this, evt);
         this.cleanup(evt);
-        this._onclose(evt);
         // onclose is after onerror, cleanup from here
-        this._onopen = null;
-        this._onerror = null;
-        this._onclose = null;
+        this.onopen_callback = null;
+        this.onerror_callback = null;
+        this.onclose_callback = null;
+        this.channel = null;
     };
 
     WSConnectionPrototype.onerror = function(evt) {
         console.log('pymaid: [WSConnection|'+this.connid+'][address|'+this.address+']'+ 'onerror');
-        this._onerror(evt);
+        this.onerror_callback(this, evt);
     };
 
     var getBuilderServices = function(result, filter) {
@@ -350,10 +421,7 @@
                 var responseType = method.resolvedResponseType;
 
                 var requireResponse = responseType.name !== 'Void';
-                var illegalResponse = {
-                    error_code: 101,
-                    error_message: "Illegal response received in: " + methodName
-                };
+                var illegalResponse = {message: "Illegal response received in: " + methodName};
 
                 this[method.name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
@@ -363,7 +431,7 @@
                         );
                     }
                     if (!conn || conn.is_closed) {
-                        cb({error_code: 102, error_message: 'pymaid: rpc conn is null/closed'}, null);
+                        cb({message: 'pymaid: rpc conn is null/closed'}, null);
                         return;
                     }
 
@@ -389,20 +457,25 @@
                         setTimeout(cb.bind(this, null, null), 0);
                     } else {
                         conn.transmissions[tid] = function(controller, resp) {
-                            var err = null;
+                            var err = null, content;
                             if (!controller) {
-                                err = illegalResponse;
+                                err = content = illegalResponse;
                             } else if (controller.is_failed) {
-                                err = pb.ErrorMessage.decode(resp);
+                                err = content = pb.ErrorMessage.decode(resp);
                             } else {
                                 try {
-                                    resp = responseType.clazz.decode(resp);
+                                    resp = content = responseType.clazz.decode(resp);
                                 } catch (notABuffer) {
                                 }
                                 if (!(resp instanceof responseType.clazz)) {
-                                    err = illegalResponse;
+                                    err = content = illegalResponse;
                                 }
                             }
+                            console.log(
+                                'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
+                                '[onmessage][controller|'+JSON.stringify(controller)+']'+
+                                '[content|'+JSON.stringify(content)+']'
+                            );
                             cb(err, resp);
                         };
                     }
@@ -418,14 +491,11 @@
      */
     var StubManager = function() {
         this.conn = null;
-        StubManager._managers.push(this);
     };
 
     var StubManagerPrototype = Object.create(StubManager.prototype);
     StubManager.prototype = StubManagerPrototype;
     pymaid.StubManager = StubManager;
-
-    StubManager._managers = [];
 
     StubManagerPrototype._registerStub = function(stub) {
         var name = stub.name;
@@ -511,6 +581,10 @@
         }
         var clazz = this.classes[serviceMethod];
         var req = clazz.req.clazz.decode(content), resp = clazz.resp;
+        console.log(
+            'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
+            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+req.encodeJSON()+']'
+        );
         impl[methodName](controller, req, function(err, content) {
             if (resp.name == 'Void') {
                 // when handle notification
@@ -541,28 +615,39 @@
      * HttpManager, used to handle cookies/redirect things
      *
     **/
-    var HttpManager = function(requestClass) {
-        this._rootUrl = '';
+    var HttpManager = function(rootUrl, webimpl, requestClass, timeout) {
+        this.setRootUrl(rootUrl)
         this._cookies = '';
+        requestClass = requestClass || XMLHttpRequest;
         if (!requestClass) {
             throw Error('invalid requestClass for HttpManager');
         }
         this._requestClass = requestClass;
+
+        for (var impl in webimpl) {
+            if (!webimpl.hasOwnProperty(impl)) {
+                continue;
+            }
+            cc.log(impl + ' is binding httpManager');
+            webimpl[impl].bindHttpManager(this);
+        }
+        this.webimpl = webimpl;
+        this.timeout = timeout || 30000;
     };
 
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
     pymaid.HttpManager = HttpManager;
 
-    var args4Method = function(args) {
-        var url = args[0];
-        var data = '', cb = null;
-        if (args.length == 2) {
-            cb = args[1];
-        } else if (args.length == 3) {
-            data = args[1];
-            cb = args[2];
+    var getParams = function(data) {
+        var params = [], attr;
+        if (data) {
+            for (attr in data) {
+                if (data.hasOwnProperty(attr)) {
+                    params.push(attr+'='+data[attr]);
+                }
+            }
         }
-        return [url, data, cb];
+        return params.join('&');
     };
 
     HMPrototype._realUrl = function(url) {
@@ -601,19 +686,17 @@
         }
     };
 
-    HMPrototype.newRequest = function(type, url, cb, async) {
-        var async = async || true;
+    HMPrototype.newRequest = function(type, url, cb, timeout, async) {
+        async = async || true;
         var self = this;
 
         var req = new this._requestClass();
         req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
         req.setRequestHeader('Cookie', this._cookies);
+        req.timeout = timeout || this.timeout;
 
-        req.onreadystatechange = function() {
-            if (req.readyState != 4) {
-                return;
-            }
+        req.onload = function() {
             self.setCookies(req.getResponseHeader('Set-Cookie'));
 
             var status = req.status;
@@ -625,89 +708,64 @@
                     response = JSON.parse(response);
                 } catch (e) {
                     if (e instanceof SyntaxError) {
-                        err = {
-                            error_code: 1,
-                            error_message: 'invalide json response',
-                            status: status
-                        };
+                        err = {message: 'invalid json response', status: status};
                     } else {
                         throw e;
                     }
                 }
             } else if (status == 301 || status == 302) {
-                var location = req.getResponseHeader('Location').trim();
-                self.get(location, {}, cb);
+                self.get(req.getResponseHeader('Location').trim(), {}, cb);
                 return;
+            } else if (status == 400) {
+                try {
+                    err = JSON.parse(response);
+                } catch (e) {
+                    if (!(e instanceof SyntaxError)) {
+                        throw e;
+                    }
+                    err = {message: response, status: status};
+                }
             } else {
-                err = {
-                    error_code: 2, error_message: req.statusText, status: status
-                };
+                err = {message: response, status: status};
             }
             cb(err, response);
         };
 
+        req.ontimeout = function() {
+            cb({status: 444, message: 'http request timeout'});
+        };
+
         req.onerror = function() {
-            cb({error_code: 3, error_message: 'http request onerror',
-                status: req.status});
+            cb({message: 'http request onerror', status: req.status});
         };
 
         return req;
     };
 
-    HMPrototype.get = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1] || {}, cb = args[2];
-        var attr, params = [];
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
-                }
-            }
-            if (params.length !== 0) {
-                url += '?' + params.join('&');
-            }
-        }
-        var req = this.newRequest('GET', url, cb);
+    HMPrototype.get = function(url, data, cb, timeout) {
+        var params = getParams(data);
+        var req = this.newRequest('GET', url+'?'+params, cb, timeout);
         req.send();
         return req;
     };
 
-    HMPrototype.post = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        data = JSON.stringify(data) || '';
-        var req = this.newRequest('POST', url, cb);
+    HMPrototype.post = function(url, data, cb, timeout) {
+        var req = this.newRequest('POST', url, cb, timeout);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
-        req.send(data);
+        req.send(data ? JSON.stringify(data) : '');
         return req;
     };
 
-    HMPrototype.put = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        data = JSON.stringify(data) || '';
-        var req = this.newRequest('PUT', url, cb);
+    HMPrototype.put = function(url, data, cb, timeout) {
+        var req = this.newRequest('PUT', url, cb, timeout);
         req.setRequestHeader("Content-Type", "application/json; charset=UTF-8");
-        req.send(data);
+        req.send(data ? JSON.stringify(data) : '');
         return req;
     };
 
-    HMPrototype.delete = function(url, data, cb) {
-        var args = args4Method(arguments);
-        var url = args[0], data = args[1], cb = args[2];
-        var attr, params = [];
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
-                }
-            }
-            if (params.length !== 0) {
-                url += '?' + params.join('&');
-            }
-        }
-        var req = this.newRequest('DELETE', url, cb);
+    HMPrototype.delete = function(url, data, cb, timeout) {
+        var params = getParams(data);
+        var req = this.newRequest('DELETE', url+'?'+params, cb, timeout);
         req.send();
         return req;
     };

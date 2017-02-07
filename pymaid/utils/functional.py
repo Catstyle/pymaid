@@ -12,7 +12,7 @@ class ObjectManager(object):
 
     def add(self, pk, obj):
         self.logger.info('[%s][add|%r][%s]', self.name, pk, obj)
-        assert pk not in self.objects, (pk, self.objects.keys())
+        assert pk not in self.objects, pk
         self.objects[pk] = obj
         obj._manager = self
 
@@ -20,12 +20,12 @@ class ObjectManager(object):
         return pk in self.objects
 
     def get(self, pk):
-        assert pk in self.objects
+        assert pk in self.objects, pk
         return self.objects[pk]
 
     def remove(self, pk):
         self.logger.info('[%s][remove|%r]', self.name, pk)
-        assert pk in self.objects, (pk, self.objects.keys())
+        assert pk in self.objects, pk
         obj = self.objects.pop(pk)
         obj._manager = None
         return obj

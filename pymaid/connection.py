@@ -64,6 +64,7 @@ class Connection(object):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
             return
+        self.fed_write = False
 
         send = self._socket.send
         membuf = memoryview(''.join(self._send_queue))

@@ -1,5 +1,3 @@
-gevent>=1.0.1
-protobuf>=3
 six
 gevent-websocket
 ujson

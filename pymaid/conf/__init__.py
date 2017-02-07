@@ -12,7 +12,7 @@ from . import defaults
 class Settings(object):
 
     def __init__(self):
-        self.load_settings_from_module(defaults)
+        self.load_from_object(defaults)
 
     def _configure_logging(self):
         """
@@ -35,7 +35,7 @@ class Settings(object):
         if hasattr(self, 'LOGGING'):
             logging.config.dictConfig(self.LOGGING)
 
-    def load_module_name(self, module_name):
+    def load_from_module(self, module_name):
         """Load the settings module pointed to by the module_name.
 
         This is used the first time we need any settings at all,
@@ -51,9 +51,9 @@ class Settings(object):
                     module_name, e
                 )
             )
-        self.load_settings_from_module(mod)
+        self.load_from_object(mod)
 
-    def load_settings_from_module(self, mod):
+    def load_from_object(self, mod):
         for setting in dir(mod):
             if setting == setting.upper():
                 setattr(self, setting, getattr(mod, setting))
