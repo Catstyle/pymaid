@@ -1,4 +1,5 @@
 from gevent.event import AsyncResult
+from gevent.timeout import Timeout
 
 from pymaid.pb.pymaid_pb2 import Void, Controller
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
@@ -59,7 +60,11 @@ class ServiceStub(object):
 
                 async_result = AsyncResult()
                 conn.transmissions[meta.transmission_id] = async_result
-                return async_result.get(timeout=timeout or self.timeout)
+                try:
+                    return async_result.get(timeout=timeout or self.timeout)
+                except Timeout:
+                    del conn.transmissions[meta.transmission_id]
+                    raise
         return rpc
 
     def close(self):
