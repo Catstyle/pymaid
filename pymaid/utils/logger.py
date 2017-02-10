@@ -27,26 +27,40 @@ project_logger = None
 
 def create_project_logger(name):
     global project_logger
-    global pymaid_logger
     assert not project_logger
     project_logger = logging.getLogger(name)
-    for cls in pymaid_logger.wrappers + root_logger.wrappers:
+    for cls in root_logger.wrappers:
         cls.logger = project_logger.getChild(cls.__name__)
-    pymaid_logger = project_logger
     return project_logger
 
 
-def pymaid_logger_wrapper(cls):
-    cls.logger = pymaid_logger.getChild(cls.__name__)
-    pymaid_logger.wrappers.append(cls)
-    return cls
+def pymaid_logger_wrapper(name=''):
+
+    def _(cls):
+        cls.logger = pymaid_logger.getChild(name)
+        pymaid_logger.wrappers.append(cls)
+        return cls
+
+    if isinstance(name, type):
+        cls, name = name, name.__name__
+        return _(cls)
+    else:
+        return _
 
 
-def logger_wrapper(cls):
-    cls.logger = get_logger(cls.__name__)
-    if cls.logger.parent is root_logger:
-        root_logger.wrappers.append(cls)
-    return cls
+def logger_wrapper(name=''):
+
+    def _(cls):
+        cls.logger = get_logger(name)
+        if cls.logger.parent is root_logger:
+            root_logger.wrappers.append(cls)
+        return cls
+
+    if isinstance(name, type):
+        cls, name = name, name.__name__
+        return _(cls)
+    else:
+        return _
 
 
 def get_logger(name):
