@@ -17,7 +17,7 @@ from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 class PBHandler(object):
 
     MAX_PACKET_LENGTH = 8 * 1024
-    MAX_TASKS = 64
+    MAX_TASKS = 32
 
     def __init__(self, conn, parser, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()

@@ -1,10 +1,8 @@
+from pymaid.utils import implall
+
 from .monitor_pb2 import MonitorService
 
-from pymaid.utils import logger_wrapper, implall, trace_service
 
-
-@trace_service
-@logger_wrapper
 @implall
 class MonitorServiceImpl(MonitorService):
 

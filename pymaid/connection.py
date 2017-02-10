@@ -6,16 +6,16 @@ from errno import (
     EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY,
     EINPROGRESS, EBADF
 )
-from _socket import socket as realsocket, error as socket_error
-from _socket import (
+from socket import socket as realsocket, error as socket_error
+from socket import (
     SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
 )
-from _socket import AF_INET, SOCK_STREAM
+from socket import AF_INET, SOCK_STREAM
 
 from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
-from gevent.core import READ, WRITE
 
+from pymaid.const import READ, WRITE
 from pymaid.error import RpcError
 from pymaid.utils import timer, io, hub
 

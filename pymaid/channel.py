@@ -1,20 +1,20 @@
 import os
 from copy import weakref
-from _socket import socket as realsocket
-from _socket import (
+from socket import socket as realsocket, error as socket_error
+from socket import (
     AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_REUSEPORT
 )
+from errno import EWOULDBLOCK
 
 from six import itervalues, string_types
-from gevent.socket import error as socket_error, EWOULDBLOCK
-from gevent.core import READ
 
 from pymaid.connection import Connection
 from pymaid.error.base import BaseEx
+from pymaid.const import READ
 from pymaid.utils import greenlet_pool, io
 from pymaid.utils.logger import pymaid_logger_wrapper
 
-__all__ = ['ServerChannel', 'ClientChannel']
+__all__ = ['ServerChannel', 'ClientChannel', 'BidChannel']
 
 
 @pymaid_logger_wrapper

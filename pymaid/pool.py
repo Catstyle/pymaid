@@ -2,7 +2,7 @@ import os
 import sys
 import threading
 from contextlib import contextmanager
-from _socket import error as socket_error
+from socket import error as socket_error
 
 from gevent.queue import LifoQueue, PriorityQueue, Full, Empty
 
@@ -23,9 +23,9 @@ class ConnectionPool(object):
 
         Any additional keyword arguments are passed to the channel.connect.
         """
-        size = size or 1000
-        if not isinstance(size, int) or size < 0 or size > 1000:
-            raise ValueError('"size" must be 0 < size <= 1000')
+        size = size or 30
+        if not isinstance(size, int) or size < 0 or size > 100:
+            raise ValueError('"size" must be 0 < size <= 100')
 
         self.name = name
         self.size = size

@@ -53,8 +53,8 @@ class WebSocket(Connection):
         if isinstance(text, str):
             return text
 
-        if not isinstance(text, unicode):
-            text = unicode(text or '')
+        if not isinstance(text, unicode):  # noqa
+            text = unicode(text or '')  # noqa
         return text.encode('utf-8')
 
     def _is_valid_close_code(self, code):
@@ -111,8 +111,7 @@ class WebSocket(Connection):
             self._send()
 
     def handle_close(self, header, payload):
-        """
-        Called when a close frame has been decoded from the stream.
+        """Called when a close frame has been decoded from the stream.
 
         :param header: The decoded `Header`.
         :param payload: The bytestring payload associated with the close frame.
@@ -157,8 +156,7 @@ class WebSocket(Connection):
             )
 
     def read_frame(self):
-        """
-        Block until a full frame has been read from the socket.
+        """Block until a full frame has been read from the socket.
 
         This is an internal method as calling this will not cleanup correctly
         if an exception is called. Use `receive` instead.
@@ -184,8 +182,7 @@ class WebSocket(Connection):
         return header, payload
 
     def read_message(self):
-        """
-        Return the next text or binary message from the socket.
+        """Return the next text or binary message from the socket.
 
         This is an internal method as calling this will not cleanup correctly
         if an exception is called. Use `receive` instead.
@@ -237,9 +234,9 @@ class WebSocket(Connection):
             return bytearray(message)
 
     def receive(self):
-        """
-        Read and return a message from the stream. If `None` is returned, then
-        the socket is considered closed/errored.
+        """Read and return a message from the stream.
+
+        If `None` is returned, then the socket is considered closed/errored.
         """
 
         try:
@@ -282,9 +279,7 @@ class WebSocket(Connection):
         raise RuntimeError('websocket cannot readline')
 
     def send_frame(self, message, opcode):
-        """
-        Send a frame over the websocket with message as its payload
-        """
+        """Send a frame over the websocket with message as its payload."""
         if opcode == self.OPCODE_TEXT:
             message = self._encode_bytes(message)
         elif opcode == self.OPCODE_BINARY:
@@ -292,13 +287,12 @@ class WebSocket(Connection):
         self._write(message, opcode)
 
     def send(self, message, binary=True):
-        """
-        Send a frame over the websocket with message as its payload
+        """Send a frame over the websocket with message as its payload.
 
         pymaid need binary = True
         """
         if binary is None:
-            binary = not isinstance(message, (str, unicode))
+            binary = not isinstance(message, (str, unicode))  # noqa
         opcode = self.OPCODE_BINARY if binary else self.OPCODE_TEXT
         self.send_frame(message, opcode)
 
@@ -353,7 +347,7 @@ class Header(object):
         payload = bytearray(payload)
         mask = bytearray(self.mask)
 
-        for i in xrange(self.length):
+        for i in xrange(self.length):  # noqa
             payload[i] ^= mask[i % 4]
 
         return str(payload)
@@ -368,8 +362,7 @@ class Header(object):
 
     @classmethod
     def decode_header(cls, raw_read):
-        """
-        Decode a WebSocket header.
+        """Decode a WebSocket header.
 
         :param stream: A file like object that can be 'read' from.
         :returns: A `Header` instance.
@@ -424,8 +417,7 @@ class Header(object):
 
     @classmethod
     def encode_header(cls, fin, opcode, mask, length, flags):
-        """
-        Encodes a WebSocket header.
+        """Encodes a WebSocket header.
 
         :param fin: Whether this is the final frame for this opcode.
         :param opcode: The opcode of the payload, see `OPCODE_*`
