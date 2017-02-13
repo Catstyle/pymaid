@@ -125,16 +125,11 @@ def trace_method(level=logging.INFO, debug_info_func=None):
             logger = self.logger
             record.name = logger.name
             req = repr(str(request))
-            update_record(
-                record, level, '%s [Enter|%s] [req|%s]', debug_info, full_name,
-                req
-            )
-            logger.handle(record)
 
             def done_wrapper(resp=None, **kwargs):
                 update_record(
-                    record, level, '%s [Leave|%s] [resp|%s]', debug_info,
-                    full_name, kwargs or repr(str(resp))
+                    record, level, '%s [rpc|%s] [req|%s] [resp|%s]',
+                    debug_info, full_name, req, kwargs or repr(str(resp))
                 )
                 logger.handle(record)
                 done(resp, **kwargs)
@@ -144,13 +139,13 @@ def trace_method(level=logging.INFO, debug_info_func=None):
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [Leave|%s][req|%s] [warning|%s]',
+                        '%s [rpc|%s] [req|%s] [warning|%s]',
                         debug_info, full_name, req, ex
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [Leave|%s][req|%s] [exception|%s]',
+                        '%s [rpc|%s] [req|%s] [exception|%s]',
                         debug_info, full_name, req, ex
                     )
                 logger.handle(record)
