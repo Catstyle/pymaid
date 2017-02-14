@@ -431,7 +431,7 @@
                         );
                     }
                     if (!conn || conn.is_closed) {
-                        cb({message: 'pymaid: rpc conn is null/closed'}, null);
+                        setTimeout(cb.bind(this, {message: 'pymaid: rpc conn is null/closed'}, null), 0);
                         return;
                     }
 
