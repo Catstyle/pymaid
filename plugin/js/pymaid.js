@@ -146,10 +146,10 @@
 
         var ctrlLimit = this._headerSize + ctrlSize;
         var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
-        var controller = pb.Controller.decode(controllerBuf);
-
-        var contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
-        return {controller: controller, content: contentBuf};
+        return {
+            controller: pb.Controller.decode(controllerBuf),
+            content: bb.slice(ctrlLimit, ctrlLimit + contentSize)
+        };
     };
 
     JSONParser.pack = function(controller, content) {
@@ -171,10 +171,10 @@
         var contentSize = bb.readUint16();
 
         var controllerBuf = bb.readString(ctrlSize);
-        var controller = pb.Controller.decode(JSON.parse(controllerBuf));
-
-        var contentBuf = bb.readString(contentSize);
-        return {controller: controller, content: JSON.parse(contentBuf)};
+        return {
+            controller: pb.Controller.decode(JSON.parse(controllerBuf)),
+            content: JSON.parse(bb.readString(contentSize))
+        };
     };
 
 
@@ -233,7 +233,7 @@
                 callbacks.onclose && callbacks.onclose(conn, evt);
             },
 
-            onerror: callbacks.onerror | function() {},
+            onerror: callbacks.onerror || function() {},
         };
         // now we support websocket only
         return new WSConnection(address, this, channel_callbacks);
@@ -373,7 +373,8 @@
         this.onopen_callback = null;
         this.onerror_callback = null;
         this.onclose_callback = null;
-        this.channel = null;
+        // TODO: unset channel will cause TypeError in onmessage, dealing with it
+        // this.channel = null;
     };
 
     WSConnectionPrototype.onerror = function(evt) {
@@ -669,20 +670,7 @@
 
     HMPrototype.setCookies = function(cookies) {
         if (cookies) {
-            // e.g. 'token=xxx; Expires=Thu, 20-Oct-2016 19:58:45 GMT; Path=/, session=yyy; Expires=Fri, 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/'
-            // cookies.split(',') will return 4 elements:
-            // ['token=xxx; Expires=Thu', ' 20-Oct-2016 19:58:45 GMT; Path=/', ' session=yyy; Expires=Fri', ' 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/']
-            // but we know what we need will be in the first place
-            // so we just need element.trim().split(';')[0]
-            // !!!! IT IS A TRICKY HACKY !!!
-            var cookies = cookies.split(',');
-            var list = [];
-            for (var idx in cookies) {
-                var cookie = cookies[idx].trim().split(';')[0];
-                list.push(cookie);
-            }
-            this._cookies = list.join('; ');
-            console.log('pymaid: HttpManager setCookies: ' + this._cookies);
+            this._cookies = cookies;
         }
     };
 
@@ -744,7 +732,10 @@
 
     HMPrototype.get = function(url, data, cb, timeout) {
         var params = getParams(data);
-        var req = this.newRequest('GET', url+'?'+params, cb, timeout);
+        if (params) {
+            url += '?' + params;
+        }
+        var req = this.newRequest('GET', url, cb, timeout);
         req.send();
         return req;
     };
@@ -765,7 +756,10 @@
 
     HMPrototype.delete = function(url, data, cb, timeout) {
         var params = getParams(data);
-        var req = this.newRequest('DELETE', url+'?'+params, cb, timeout);
+        if (params) {
+            url += '?' + params;
+        }
+        var req = this.newRequest('DELETE', url, cb, timeout);
         req.send();
         return req;
     };
