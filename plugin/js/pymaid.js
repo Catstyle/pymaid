@@ -246,7 +246,6 @@
         console.log('pymaid: channel closing with [reason|' + reason + ']');
         this.is_closed = true;
         this.conn.close(reason);
-        this.conn.channel = null;
         this.conn = null;
     };
 
@@ -354,7 +353,7 @@
             delete this.transmissions[tid];
             cb(controller, content);
         } else {
-            this.channel.listener.onmessage(controller, content, this);
+            this.channel && this.channel.listener.onmessage(controller, content, this);
         }
     };
 
@@ -373,8 +372,7 @@
         this.onopen_callback = null;
         this.onerror_callback = null;
         this.onclose_callback = null;
-        // TODO: unset channel will cause TypeError in onmessage, dealing with it
-        // this.channel = null;
+        this.channel = null;
     };
 
     WSConnectionPrototype.onerror = function(evt) {
