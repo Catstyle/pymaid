@@ -717,6 +717,7 @@
                 }
             } else if (status == 401) {
                 self.onNotAuthenticated();
+                return;
             } else {
                 err = {message: response, status: status};
             }
