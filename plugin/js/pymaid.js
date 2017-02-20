@@ -672,6 +672,10 @@
         }
     };
 
+    HMPrototype.onNotAuthenticated = function() {
+        console.log('pymaid HttpManager became not authenticated');
+    };
+
     HMPrototype.newRequest = function(type, url, cb, timeout, async) {
         async = async || true;
         var self = this;
@@ -711,6 +715,8 @@
                     }
                     err = {message: response, status: status};
                 }
+            } else if (status == 401) {
+                self.onNotAuthenticated();
             } else {
                 err = {message: response, status: status};
             }
