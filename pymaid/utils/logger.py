@@ -81,7 +81,8 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO, debug_info_func=None):
+def trace_service(level=logging.INFO,
+                  debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(cls):
         assert level in levelnames, level
         for method in cls.DESCRIPTOR.methods:
@@ -96,11 +97,12 @@ def trace_service(level=logging.INFO, debug_info_func=None):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level, debug_info_func = level, 'INFO', None
+        cls, level = level, 'INFO'
         return wrapper(cls)
 
 
-def trace_method(level=logging.INFO, debug_info_func=None):
+def trace_method(level=logging.INFO,
+                 debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(func):
         assert level in levelnames, level
         co = func.func_code
@@ -118,18 +120,18 @@ def trace_method(level=logging.INFO, debug_info_func=None):
         def _(self, controller, request, done):
             assert isinstance(self, Service)
 
-            if debug_info_func:
-                debug_info = debug_info_func(controller)
-            else:
-                debug_info = '[conn|%d]' % controller.conn.connid
+            start_time = time()
+            debug_info = debug_info_func(controller)
             logger = self.logger
             record.name = logger.name
             req = repr(str(request))
 
             def done_wrapper(resp=None, **kwargs):
                 update_record(
-                    record, level, '%s [rpc|%s] [req|%s] [resp|%s]',
-                    debug_info, full_name, req, kwargs or repr(str(resp))
+                    record, level,
+                    '%s [rpc|%s] [req|%s] [resp|%s] [time|%.6f]',
+                    debug_info, full_name, req, kwargs or repr(str(resp)),
+                    time() - start_time
                 )
                 logger.handle(record)
                 done(resp, **kwargs)
@@ -139,14 +141,14 @@ def trace_method(level=logging.INFO, debug_info_func=None):
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [rpc|%s] [req|%s] [warning|%s]',
-                        debug_info, full_name, req, ex
+                        '%s [rpc|%s] [req|%s] [warning|%s] [time|%.6f]',
+                        debug_info, full_name, req, ex, time() - start_time
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [rpc|%s] [req|%s] [exception|%s]',
-                        debug_info, full_name, req, ex
+                        '%s [rpc|%s] [req|%s] [exception|%s] [time|%.6f]',
+                        debug_info, full_name, req, ex, time() - start_time
                     )
                 logger.handle(record)
                 raise
@@ -158,7 +160,7 @@ def trace_method(level=logging.INFO, debug_info_func=None):
         return wrapper
     else:
         assert callable(level), level
-        func, level, debug_info_func = level, logging.INFO, None
+        func, level = level, logging.INFO
         return wrapper(func)
 
 
@@ -170,14 +172,15 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         assert level in levelnames, level
 
         @wraps(rpc)
-        def _(request=None, *args, **kwargs):
+        def _(request=None, conn=None, connections=None, timeout=None,
+              **kwargs):
             frame = getframe(1)
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
                 frame.f_lineno, '[stub|%s][request|%s][kwargs|%s]',
                 (stub_name, request, kwargs), None, stub_name
             ))
-            return rpc(request, *args, **kwargs)
+            return rpc(request, conn, connections, timeout, **kwargs)
         return _
     if isinstance(level, str):
         level = levelnames[level]
