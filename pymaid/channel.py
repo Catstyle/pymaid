@@ -2,7 +2,7 @@ import os
 from copy import weakref
 from socket import socket as realsocket, error as socket_error
 from socket import (
-    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_REUSEPORT
+    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 )
 from errno import EWOULDBLOCK
 
@@ -137,7 +137,8 @@ class ServerChannel(BaseChannel):
         )
         sock = realsocket(family, type_)
         sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
+        # should explicitly set SO_REUSEPORT
+        # sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
