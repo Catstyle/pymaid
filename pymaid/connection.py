@@ -8,13 +8,15 @@ from errno import (
 )
 from socket import socket as realsocket, error as socket_error
 from socket import (
-    SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP,
+    SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP, SO_KEEPALIVE,
+    TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT
 )
 from socket import AF_INET, SOCK_STREAM
 
 from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
 
+from pymaid.conf import settings
 from pymaid.const import READ, WRITE
 from pymaid.error import RpcError
 from pymaid.utils import timer, io, hub
@@ -58,6 +60,11 @@ class Connection(object):
         if sock.family == AF_INET:
             setsockopt(SOL_TCP, TCP_NODELAY, 1)
             setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
+            if settings.PM_KEEPALIVE:
+                setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)
+                setsockopt(SOL_TCP, TCP_KEEPIDLE, settings.PM_KEEPIDLE)
+                setsockopt(SOL_TCP, TCP_KEEPINTVL, settings.PM_KEEPINTVL)
+                setsockopt(SOL_TCP, TCP_KEEPCNT, settings.PM_KEEPCNT)
         setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
 
     def _send(self):

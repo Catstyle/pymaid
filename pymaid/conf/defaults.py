@@ -31,3 +31,8 @@ PYMAID_LOGGING = {
         },
     },
 }
+
+PM_KEEPALIVE = True
+PM_KEEPIDLE = 30
+PM_KEEPINTVL = 10
+PM_KEEPCNT = 3
