@@ -4,7 +4,7 @@ from socket import socket as realsocket, error as socket_error
 from socket import (
     AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
 )
-from errno import EWOULDBLOCK
+from errno import EWOULDBLOCK, ECONNABORTED
 
 from six import itervalues, string_types
 
@@ -83,9 +83,9 @@ class ServerChannel(BaseChannel):
     # on a single wake up. High values give higher priority to high connection
     # rates, while lower values give higher priority to already established
     # connections.
-    # Default is 256. Note, that in case of multiple working processes on the
+    # Default is 32. Note, that in case of multiple working processes on the
     # same listening value, it should be set to a lower value.
-    MAX_ACCEPT = 256
+    MAX_ACCEPT = 32
 
     def __init__(self, handler, listener=None, connection_class=Connection,
                  **kwargs):
@@ -110,6 +110,8 @@ class ServerChannel(BaseChannel):
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
                     break
+                if ex.errno == ECONNABORTED:
+                    continue
                 self.logger.exception(ex)
                 raise
             attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
@@ -124,7 +126,7 @@ class ServerChannel(BaseChannel):
         for middleware in self.middlewares:
             middleware.on_close(conn)
 
-    def listen(self, address, backlog=1024, type_=SOCK_STREAM):
+    def listen(self, address, backlog=32, type_=SOCK_STREAM):
         # not support ipv6 yet
         if isinstance(address, string_types):
             family = AF_UNIX
