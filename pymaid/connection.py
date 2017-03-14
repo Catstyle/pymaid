@@ -332,11 +332,7 @@ class Connection(object):
         self.close(reason, reset)
 
     def __del__(self):
-        try:
-            self.close()
-        except:
-            # close() may fail if __init__ didn't complete
-            pass
+        self.close()
 
     def __str__(self):
         return u'[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
