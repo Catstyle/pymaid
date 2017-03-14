@@ -38,7 +38,6 @@ class Connection(object):
         self._socket = sock
         sock.setblocking(0)
         self._setsockopt(sock)
-        self._socket = sock
         self.client_side = client_side
 
         self.buf = BytesIO()
@@ -47,7 +46,11 @@ class Connection(object):
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
-        self.peername = sock.getpeername()
+        try:
+            self.peername = sock.getpeername()
+        except socket_error as ex:
+            if ex.errno == ENOTCONN:
+                self.peername = str(ex)
         self.sockname = sock.getsockname()
         fd = self.fd = sock.fileno()
 

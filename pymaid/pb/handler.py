@@ -29,22 +29,27 @@ class PBHandler(object):
     def run(self, conn):
         if not conn.oninit():
             return
+        self.conn = conn
+        self.is_closed = False
+
         header_length = HEADER_LENGTH
         max_packet_length = self.MAX_PACKET_LENGTH
-        read, unpack = conn.read, self.unpack
+        unpack = self.unpack
+
         tasks_queue = Queue(self.MAX_TASKS)
-        handle_response = self.handle_response
+        new_task = tasks_queue.put
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
 
+        handle_response = self.handle_response
+        response = PBC.RESPONSE
         callbacks = {
             PBC.REQUEST: self.handle_request,
             PBC.NOTIFICATION: self.handle_notification,
         }
-        response, new_task = PBC.RESPONSE, tasks_queue.put
         try:
             while 1:
-                header = read(header_length)
+                header = conn.read(header_length)
                 if not header:
                     conn.close(reset=True)
                     break
@@ -55,7 +60,7 @@ class PBHandler(object):
                     )
                     break
 
-                buf = read(packet_length + content_length)
+                buf = conn.read(packet_length + content_length)
                 meta = unpack(buf[:packet_length], PBC)
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
@@ -69,14 +74,16 @@ class PBHandler(object):
         except Exception as ex:
             conn.close(ex)
         finally:
+            self.is_closed = True
             tasks_queue.queue.clear()
             new_task(None)
+            gr.kill(block=False)
 
     def sequential_worker(self, tasks_queue):
         get_task = tasks_queue.get
         while 1:
             task = get_task()
-            if not task:
+            if self.is_closed or not task:
                 break
             callback, controller, content = task
             callback(controller, content)
