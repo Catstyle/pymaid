@@ -9,6 +9,7 @@ from errno import EWOULDBLOCK, ECONNABORTED
 from six import itervalues, string_types
 
 from pymaid.connection import Connection
+from pymaid.conf import settings
 from pymaid.error.base import BaseEx
 from pymaid.const import READ
 from pymaid.utils import greenlet_pool, io
@@ -79,14 +80,6 @@ class BaseChannel(object):
 @pymaid_logger_wrapper
 class ServerChannel(BaseChannel):
 
-    # Sets the maximum number of consecutive accepts that a process may perform
-    # on a single wake up. High values give higher priority to high connection
-    # rates, while lower values give higher priority to already established
-    # connections.
-    # Default is 32. Note, that in case of multiple working processes on the
-    # same listening value, it should be set to a lower value.
-    MAX_ACCEPT = 32
-
     def __init__(self, handler, listener=None, connection_class=Connection,
                  **kwargs):
         super(ServerChannel, self).__init__(
@@ -97,12 +90,12 @@ class ServerChannel(BaseChannel):
         self.accept_watchers = []
         self.middlewares = []
 
-    def _do_accept(self, sock, max_accept):
+    def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
         cnt, handler_kwargs = 0, self.handler_kwargs
         while 1:
-            if cnt >= max_accept or self.is_full:
+            if cnt >= settings.MAX_ACCEPT or self.is_full:
                 break
             cnt += 1
             try:
@@ -113,7 +106,7 @@ class ServerChannel(BaseChannel):
                 if ex.errno == ECONNABORTED:
                     continue
                 self.logger.exception(ex)
-                raise
+                break
             attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
 
     def _connection_attached(self, conn, **handler_kwargs):
@@ -126,7 +119,7 @@ class ServerChannel(BaseChannel):
         for middleware in self.middlewares:
             middleware.on_close(conn)
 
-    def listen(self, address, backlog=32, type_=SOCK_STREAM):
+    def listen(self, address, backlog=256, type_=SOCK_STREAM):
         # not support ipv6 yet
         if isinstance(address, string_types):
             family = AF_UNIX
@@ -152,7 +145,7 @@ class ServerChannel(BaseChannel):
     def start(self):
         for watcher, sock in self.accept_watchers:
             if not watcher.active:
-                watcher.start(self._do_accept, sock, self.MAX_ACCEPT)
+                watcher.start(self._do_accept, sock)
 
     def stop(self, reason='ServerChannel calls stop'):
         for watcher, sock in self.accept_watchers:
