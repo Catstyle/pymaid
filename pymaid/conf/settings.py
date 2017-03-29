@@ -84,7 +84,7 @@ class Settings(object):
             )
 
 
-class BaseBackend(object):
+class SettingsBackend(object):
 
     def __iter__(self):
         raise NotImplementedError
@@ -95,7 +95,7 @@ class BaseBackend(object):
 
 
 @pymaid_logger_wrapper
-class RedisBackend(BaseBackend):
+class RedisBackend(SettingsBackend):
 
     def __init__(self, rdb, channel):
         subscriber = rdb.pubsub()
@@ -110,7 +110,7 @@ class RedisBackend(BaseBackend):
 
 
 @pymaid_logger_wrapper
-class ZooKeeperBackend(BaseBackend):
+class ZooKeeperBackend(SettingsBackend):
 
     def __init__(self, zk, path):
         self.zk = zk

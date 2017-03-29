@@ -25,46 +25,83 @@ class HashNode(object):
         return self.hashed_key
 
 
-class HashRing(object):
+class BaseHashManager(object):
 
-    def __init__(self, hash_func=md5_hash_func, virtual_entry_count=16):
-        self.nodes = {}
-        self.sorted_keys = []
+    def __init__(self, hash_func=md5_hash_func):
+        self.nodes = []
         self.hash_func = hash_func
-        self.virtual_entry_count = virtual_entry_count
 
     def add_node(self, node):
-        key = node.key
-        hash_func = self.hash_func
-        for idx in range(self.virtual_entry_count):
-            virtual_key = hash_func('%s-%s' % (key, idx))
-            if virtual_key in self.nodes:
-                # TODO: what to do?
-                continue
-            self.nodes[virtual_key] = node
-        self.sorted_keys = sorted(self.nodes.keys())
+        if node in self.nodes:
+            return
+        self.nodes.append(node)
+        self.rehash()
 
     def add_nodes(self, nodes):
         for node in nodes:
-            self.add_node(node)
+            if node not in self.nodes:
+                self.nodes.append(node)
+        self.rehash()
+
+    def remove_node(self, node):
+        if node not in self.nodes:
+            return
+        self.nodes.remove(node)
+        self.rehash()
+
+    def reset(self):
+        nodes = self.nodes
+        for node in nodes[:]:
+            nodes.remove(node)
+
+    def rehash(self):
+        raise NotImplementedError
+
+    def get_node_by_key(self, key):
+        raise NotImplementedError
+
+
+class HashRing(BaseHashManager):
+
+    def __init__(self, hash_func=md5_hash_func, virtual_entry_count=16):
+        super(HashRing, self).__init__(hash_func)
+        self.lookup_table = {}
+        self.virtual_entry_count = virtual_entry_count
+        self.sorted_keys = []
+
+    def rehash(self):
+        if not self.nodes:
+            return
+
+        hash_func = self.hash_func
+        virtual_entry_count = self.virtual_entry_count
+        lookup_table = self.lookup_table
+        for node in self.nodes:
+            key = node.key
+            for idx in range(virtual_entry_count):
+                virtual_key = hash_func('%s-%s' % (key, idx))
+                if virtual_key in lookup_table:
+                    # TODO: what to do?
+                    continue
+                lookup_table[virtual_key] = node
+        self.sorted_keys = sorted(lookup_table.keys())
 
     def get_node_by_key(self, key):
         if not self.nodes:
             return
+
         virtual_key = self.hash_func(key)
         skeys = self.sorted_keys
         pos = bisect(skeys, virtual_key)
-        return self.nodes[skeys[pos if pos < len(skeys) else 0]]
+        return self.lookup_table[skeys[pos if pos < len(skeys) else 0]]
 
 
-class MaglevHash(object):
+class MaglevHash(BaseHashManager):
 
-    def __init__(self, nodes, lookup_table_size, hash_func=md5_hash_func):
-        self.nodes = nodes
-        self.lookup_table = []
+    def __init__(self, lookup_table_size, hash_func=md5_hash_func):
+        super(HashRing, self).__init__(hash_func)
         self.lookup_table_size = lookup_table_size
-        self.hash_func = hash_func
-        self.rehash()
+        self.lookup_table = {}
 
     def rehash(self):
         if not self.nodes:
@@ -98,25 +135,6 @@ class MaglevHash(object):
 
                 if n == lookup_table_size:
                     return
-
-    def add_node(self, node):
-        if node in self.nodes:
-            return
-        self.nodes.append(node)
-        self.rehash()
-
-    def add_nodes(self, nodes):
-        for node in nodes:
-            if node not in self.nodes:
-                self.nodes.append(node)
-        self.rehash()
-
-    def remove_node(self, node):
-        if node not in self.nodes:
-            return
-
-        self.nodes.remove(node)
-        self.rehash()
 
     def get_node_by_key(self, key):
         if not self.lookup_table:
