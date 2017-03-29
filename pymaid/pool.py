@@ -126,7 +126,10 @@ class ConnectionPool(object):
                     self.pool.queue.remove(item)
                 del connection.release
                 del connection.pid
-                self.pool.put_nowait(self.empty_item)
+                try:
+                    self.pool.put_nowait(self.empty_item)
+                except Full:
+                    pass
 
             def release():
                 self.release(connection)
