@@ -15,7 +15,7 @@ __all__ = [
     'conf', 'serve_forever'
 ]
 
-__version__ = '0.3.6.beta1'
+__version__ = '0.3.6.beta2'
 
 if 'linux' in sys.platform or 'darwin' in sys.platform:
     if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
