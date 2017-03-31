@@ -18,10 +18,10 @@ __all__ = [
 __version__ = '0.3.6.beta2'
 
 if 'linux' in sys.platform or 'darwin' in sys.platform:
-    if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
-        sys.stdout.write(
-            'ares-resolver is better, just `export GEVENT_RESOLVER=ares`\n'
-        )
+    # if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
+    #     sys.stdout.write(
+    #         'ares-resolver is better, just `export GEVENT_RESOLVER=ares`\n'
+    #     )
     if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION') != 'cpp':
         sys.stdout.write(
             'C++ implementation protocol buffer has overall performance, see'

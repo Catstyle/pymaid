@@ -106,7 +106,8 @@ class RedisBackend(SettingsBackend):
         # first resp is subscribe info
         self.generator.next()
         for resp in self.generator:
-            yield json.loads(resp['data'])
+            if resp['data']:
+                yield json.loads(resp['data'])
 
 
 @pymaid_logger_wrapper
@@ -121,7 +122,8 @@ class ZooKeeperBackend(SettingsBackend):
 
         @self.zk.DataWatch(self.path)
         def watcher(data, stat):
-            result.set(data)
+            if data:
+                result.set(data)
 
         while 1:
             yield json.loads(result.get())
