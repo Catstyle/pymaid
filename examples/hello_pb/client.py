@@ -18,14 +18,14 @@ def wrapper(pid, n):
     conn.close()
 
 
-channel = ClientChannel(PBHandler, parser=PBParser)
+channel = ClientChannel(PBHandler(PBParser))
 service = ServiceStub(HelloService_Stub(None))
 
 
 def main():
     pool = Pool()
-    for x in range(1000):
-        pool.spawn(wrapper, x, 1000)
+    for x in range(100):
+        pool.spawn(wrapper, x, 10000)
 
     try:
         pool.join()

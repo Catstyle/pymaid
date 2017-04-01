@@ -32,8 +32,6 @@ class Connection(object):
     CONNID = 1
     LINGER_PACK = struct.pack('ii', 1, 1)
 
-    MAX_RECV_SIZE = 8 * 1024
-
     def __init__(self, sock, client_side=False):
         self._socket = sock
         sock.setblocking(0)
@@ -56,7 +54,6 @@ class Connection(object):
 
         self._send_queue = []
         self.r_io, self.w_io = io(fd, READ), io(fd, WRITE)
-        self.r_gr, self.fed_write = None, False
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
@@ -74,24 +71,20 @@ class Connection(object):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
             return
-        self.fed_write = False
 
         send = self._socket.send
         membuf = memoryview(''.join(self._send_queue))
-        del self._send_queue[:]
-        bufsize = len(membuf)
         try:
             # see pydoc of socket.send
             sent = send(membuf)
-            while sent < bufsize:
-                sent += send(membuf[sent:])
+            del self._send_queue[:]
+            if sent < len(membuf):
+                self._send_queue.append(membuf[sent:].tobytes())
+                self.w_io.start(self._send)
         except socket_error as ex:
             if ex.errno == EWOULDBLOCK:
-                self._send_queue.append(membuf[sent:].tobytes())
-                self.w_io.feed(WRITE, self._send)
-                self.fed_write = True
-                return
-            if not self.is_closed:
+                self.w_io.start(self._send)
+            elif not self.is_closed:
                 self.close(ex, reset=True)
 
     def _sendall(self):
@@ -120,16 +113,17 @@ class Connection(object):
             self.buf.write(buf.read())
             return data
 
-        recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        recvsize = self.MAX_RECV_SIZE
+        recv, r_io = self._socket.recv, self.r_io
+        recvsize = settings.MAX_RECV_SIZE
         while 1:
             try:
                 data = recv(recvsize)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
-                    r_io.start(r_gr.switch)
+                    gr = getcurrent()
+                    r_io.start(gr.switch)
                     try:
-                        r_gr.parent.switch()
+                        gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
@@ -169,16 +163,17 @@ class Connection(object):
             del bline
             buf.seek(0, 2)
 
-        recv, r_gr, r_io = self._socket.recv, self.r_gr, self.r_io
-        recvsize = self.MAX_RECV_SIZE
+        recv, r_io = self._socket.recv, self.r_io
+        recvsize = settings.MAX_RECV_SIZE
         while 1:
             try:
                 data = recv(recvsize)
             except socket_error as ex:
                 if ex.errno == EWOULDBLOCK:
-                    r_io.start(r_gr.switch)
+                    gr = getcurrent()
+                    r_io.start(gr.switch)
                     try:
-                        r_gr.parent.switch()
+                        gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
@@ -239,47 +234,36 @@ class Connection(object):
         return cls(sock, client_side)
 
     def read(self, size, timeout=None):
-        assert not self.r_gr, 'read conflict'
         assert getcurrent() != hub, 'could not call block func in main loop'
-        self.r_gr = getcurrent()
         if not timeout:
-            try:
-                return self._read(size)
-            finally:
-                self.r_gr = None
+            return self._read(size)
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(self.r_gr.throw, Timeout)
+            self.r_timer.start(getcurrent().throw, Timeout)
             try:
                 return self._read(size)
             finally:
                 self.r_timer.stop()
-                self.r_gr = self.r_timer = None
+                self.r_timer = None
 
     def readline(self, size, timeout=None):
-        assert not self.r_gr, 'read conflict'
         assert getcurrent() != hub, 'could not call block func in main loop'
-        self.r_gr = getcurrent()
         if not timeout:
-            try:
-                return self._readline(size)
-            finally:
-                self.r_gr = None
+            return self._readline(size)
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(self.r_gr.throw, Timeout)
+            self.r_timer.start(getcurrent().throw, Timeout)
             try:
                 return self._readline(size)
             finally:
                 self.r_timer.stop()
-                self.r_gr = self.r_timer = None
+                self.r_timer = None
 
     def send(self, packet_buffer):
         self._send_queue.append(packet_buffer)
-        if not self.fed_write:
-            self._send()
+        self._send()
     write = send
 
     def oninit(self):
@@ -313,8 +297,6 @@ class Connection(object):
         del self._send_queue[:]
         self.w_io.stop()
         self.r_io.stop()
-        if self.r_gr:
-            self.r_gr.kill(block=False)
         self.buf = BytesIO()
         self._socket.close()
 
@@ -334,9 +316,6 @@ class Connection(object):
         self.is_closed = False
         self.close(reason, reset)
 
-    def __del__(self):
-        self.close()
-
     def __str__(self):
         return u'[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
             self.connid, self.sockname, self.peername, self.is_closed
@@ -354,9 +333,3 @@ class DisconnectedConnection(Connection):
         self.transmission_id = 0
         self.sockname = self.peername = 'disconnected'
         self.is_closed = True
-
-    def __str__(self):
-        return u'[conn|%d][host|%s][peer|%s][is_closed|%s]' % (
-            self.connid, self.sockname, self.peername, self.is_closed
-        )
-    __unicode__ = __repr__ = __str__

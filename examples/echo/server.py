@@ -21,8 +21,8 @@ class EchoServiceImpl(EchoService):
 def main():
     listener = Listener()
     listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
-    channel.listen(("127.0.0.1", 8888))
+    channel = ServerChannel(PBHandler(PBParser, listener))
+    channel.listen('/tmp/pymaid_echo.sock')
     channel.start()
     try:
         pymaid.serve_forever()

@@ -20,7 +20,7 @@ class ChatBroadcastImpl(ChatBroadcast):
 
 
 def prepare():
-    conn = channel.connect(("127.0.0.1", 8888))
+    conn = channel.connect('/tmp/pymaid_chat.sock')
     conn.count = 0
     service.Join(conn=conn)
     connections.append(conn)
@@ -36,12 +36,12 @@ def wrapper(conn, n, total, message=message):
     for x in range(n):
         service.Publish(request, conn=conn)
     while conn.count != total:
-        sleep(0.001)
+        sleep(0.1)
 
 
 listener = Listener()
 listener.append_service(ChatBroadcastImpl())
-channel = BidChannel(PBHandler, listener, parser=PBParser)
+channel = BidChannel(PBHandler(PBParser, listener))
 connections = []
 
 service = ServiceStub(ChatService_Stub(None))

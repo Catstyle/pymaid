@@ -20,7 +20,7 @@ class EchoServiceImpl(EchoService):
 def main():
     listener = Listener()
     listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
+    channel = ServerChannel(PBHandler(PBParser, listener))
     channel.listen(("", 8888))
     channel.start()
     try:
