@@ -44,3 +44,6 @@ PM_KEEPCNT = 3
 # Default is 64. Note, that in case of multiple working processes on the
 # same listening value, it should be set to a lower value.
 MAX_ACCEPT = 64
+MAX_PACKET_LENGTH = 8 * 1024
+MAX_TASKS = 32
+MAX_RECV_SIZE = 8 * 1024

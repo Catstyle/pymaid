@@ -7,14 +7,12 @@ from pymaid.parser import PBParser
 from pymaid.pb import PBHandler
 from pymaid.utils import greenlet_pool
 
+channel = ClientChannel(PBHandler(PBParser))
+
 
 def wrapper(pid, n):
-    # conn = channel.connect(('localhost', 8888))
     channel.connect('/tmp/hello_pb.sock')
     sleep(5)
-
-
-channel = ClientChannel(PBHandler, parser=PBParser)
 
 
 def main():

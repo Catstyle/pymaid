@@ -13,8 +13,7 @@ from pymaid.apps.monitor.middleware import MonitorMiddleware
 def main():
     listener = Listener()
     listener.append_service(MonitorServiceImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
-    #channel.listen(('localhost', 8888))
+    channel = ServerChannel(PBHandler(PBParser, listener))
     channel.listen('/tmp/hello_pb.sock')
     channel.append_middleware(MonitorMiddleware(1, 3))
     channel.start()

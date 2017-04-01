@@ -41,8 +41,8 @@ class ChatServiceImpl(ChatService):
 def main():
     listener = Listener()
     listener.append_service(ChatServiceImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
-    channel.listen(("127.0.0.1", 8888))
+    channel = ServerChannel(PBHandler(PBParser, listener))
+    channel.listen('/tmp/pymaid_chat.sock')
     channel.start()
     try:
         pymaid.serve_forever()

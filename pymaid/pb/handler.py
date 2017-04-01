@@ -3,6 +3,7 @@ from _socket import error as socket_error
 from gevent.queue import Queue
 from google.protobuf.message import DecodeError
 
+from pymaid.conf import settings
 from pymaid.error import BaseEx, Error, RpcError
 from pymaid.error import get_exception
 from pymaid.utils import greenlet_pool
@@ -16,37 +17,31 @@ from pymaid.pb.pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
 class PBHandler(object):
 
-    MAX_PACKET_LENGTH = 8 * 1024
-    MAX_TASKS = 32
-
-    def __init__(self, conn, parser, listener=None, close_conn_onerror=True):
+    def __init__(self, parser, listener=None, close_conn_onerror=True):
+        self.parser = parser
         self.listener = listener or Listener()
         self.close_conn_onerror = close_conn_onerror
         self.pack_meta, self.unpack = parser.pack_meta, parser.unpack
         self._get_rpc = self.listener.service_methods.get
-        self.run(conn)
 
-    def run(self, conn):
+    def __call__(self, conn):
         if not conn.oninit():
             return
-        self.conn = conn
-        self.is_closed = False
 
         header_length = HEADER_LENGTH
-        max_packet_length = self.MAX_PACKET_LENGTH
         unpack = self.unpack
 
-        tasks_queue = Queue(self.MAX_TASKS)
+        tasks_queue = Queue(settings.MAX_TASKS)
         new_task = tasks_queue.put
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
 
-        handle_response = self.handle_response
-        response = PBC.RESPONSE
+        RESPONSE = PBC.RESPONSE
         callbacks = {
             PBC.REQUEST: self.handle_request,
             PBC.NOTIFICATION: self.handle_notification,
         }
+        handle_response = self.handle_response
         try:
             while 1:
                 header = conn.read(header_length)
@@ -54,10 +49,10 @@ class PBHandler(object):
                     conn.close(reset=True)
                     break
                 packet_length, content_length = unpack_header(header)
-                if packet_length > max_packet_length:
-                    conn.close(
-                        RpcError.PacketTooLarge(packet_length=packet_length)
-                    )
+                if packet_length + content_length > settings.MAX_PACKET_LENGTH:
+                    conn.close(RpcError.PacketTooLarge(
+                        packet_length=packet_length + content_length
+                    ))
                     break
 
                 buf = conn.read(packet_length + content_length)
@@ -65,7 +60,7 @@ class PBHandler(object):
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
                 packet_type = meta.packet_type
-                if packet_type == response:
+                if packet_type == RESPONSE:
                     handle_response(controller, content)
                 else:
                     new_task((callbacks[packet_type], controller, content))
@@ -74,7 +69,6 @@ class PBHandler(object):
         except Exception as ex:
             conn.close(ex)
         finally:
-            self.is_closed = True
             tasks_queue.queue.clear()
             new_task(None)
             gr.kill(block=False)
@@ -83,7 +77,7 @@ class PBHandler(object):
         get_task = tasks_queue.get
         while 1:
             task = get_task()
-            if self.is_closed or not task:
+            if not task:
                 break
             callback, controller, content = task
             callback(controller, content)
@@ -98,8 +92,9 @@ class PBHandler(object):
         if not rpc:
             meta.is_failed = True
             err = RpcError.RPCNotExist(service_method=service_method)
-            err = ErrorMessage(code=err.code, message=err.message)
-            conn.send(self.pack_meta(meta, err))
+            conn.send(self.pack_meta(
+                meta, ErrorMessage(code=err.code, message=err.message)
+            ))
             return
 
         method, request_class, response_class = rpc
@@ -119,8 +114,9 @@ class PBHandler(object):
             method(controller, request, send_response)
         except BaseEx as ex:
             meta.is_failed = True
-            err = ErrorMessage(code=ex.code, message=ex.message)
-            conn.send(self.pack_meta(meta, err))
+            conn.send(self.pack_meta(
+                meta, ErrorMessage(code=ex.code, message=ex.message)
+            ))
             if isinstance(ex, Error) and self.close_conn_onerror:
                 conn.delay_close(ex)
 

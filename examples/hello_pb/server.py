@@ -21,8 +21,8 @@ class HelloServiceImpl(HelloService):
 def main():
     listener = Listener()
     listener.append_service(HelloServiceImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
-    #channel.listen(('localhost', 8888))
+    channel = ServerChannel(PBHandler(PBParser, listener))
+    # channel.listen(('localhost', 8888))
     channel.listen('/tmp/hello_pb.sock')
     channel.start()
     try:

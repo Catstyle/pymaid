@@ -28,7 +28,7 @@ class ServiceStub(object):
             packet_type, require_response = Controller.REQUEST, True
         else:
             packet_type, require_response = Controller.NOTIFICATION, False
-        StubManager.request_class[service_method] = response_class
+        StubManager.request_class[service_method] = request_class
         StubManager.response_class[service_method] = response_class
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
@@ -49,7 +49,7 @@ class ServiceStub(object):
                     self.connection_pool.get_connection()
                 assert conn, conn
                 if require_response:
-                    meta.transmission_id = conn.transmission_id
+                    tid = meta.transmission_id = conn.transmission_id
                 conn.transmission_id += 1
                 conn.send(conn.pack_meta(meta, request))
 
@@ -59,17 +59,16 @@ class ServiceStub(object):
                     return
 
                 async_result = AsyncResult()
-                conn.transmissions[meta.transmission_id] = async_result
+                conn.transmissions[tid] = async_result
                 try:
                     return async_result.get(timeout=timeout or self.timeout)
                 except Timeout:
-                    del conn.transmissions[meta.transmission_id]
+                    del conn.transmissions[tid]
                     raise
         return rpc
 
     def close(self):
-        self.stub = self.meta = None
-        self.conn = self.connection_pool = None
+        self.stub = self.meta = self.conn = self.connection_pool = None
 
 
 class StubManager(object):

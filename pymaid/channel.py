@@ -1,5 +1,4 @@
 import os
-from copy import weakref
 from socket import socket as realsocket, error as socket_error
 from socket import (
     AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
@@ -23,14 +22,12 @@ class BaseChannel(object):
 
     MAX_CONCURRENCY = 50000
 
-    def __init__(self, handler, connection_class=Connection, **kwargs):
-        self.parser = None
+    def __init__(self, handler, connection_class=Connection):
         self.handler = handler
-        self.handler_kwargs = kwargs
         self.connection_class = connection_class
-        self.connections = weakref.WeakValueDictionary()
+        self.connections = {}
 
-    def _connection_attached(self, conn, **handler_kwargs):
+    def _connection_attached(self, conn):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.connid, conn.sockname, conn.peername
@@ -38,13 +35,10 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
-        if self.parser:
-            # used by stub
-            conn.pack_meta = self.parser.pack_meta
-            conn.unpack = self.parser.unpack
-        conn.worker_gr = greenlet_pool.spawn(
-            self.handler, conn, **handler_kwargs
-        )
+        if hasattr(self.handler, 'parser'):
+            conn.pack_meta = self.handler.parser.pack_meta
+            conn.unpack = self.handler.parser.unpack
+        conn.worker_gr = greenlet_pool.spawn(self.handler, conn)
         conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
 
@@ -80,20 +74,15 @@ class BaseChannel(object):
 @pymaid_logger_wrapper
 class ServerChannel(BaseChannel):
 
-    def __init__(self, handler, listener=None, connection_class=Connection,
-                 **kwargs):
-        super(ServerChannel, self).__init__(
-            handler, connection_class, **kwargs
-        )
-        self.parser = kwargs.pop('parser', None)
-        self.handler_kwargs.update({'listener': listener})
+    def __init__(self, handler, connection_class=Connection):
+        super(ServerChannel, self).__init__(handler, connection_class)
         self.accept_watchers = []
         self.middlewares = []
 
     def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
-        cnt, handler_kwargs = 0, self.handler_kwargs
+        cnt = 0
         while 1:
             if cnt >= settings.MAX_ACCEPT or self.is_full:
                 break
@@ -107,10 +96,10 @@ class ServerChannel(BaseChannel):
                     continue
                 self.logger.exception(ex)
                 break
-            attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
+            attach_connection(ConnectionClass(peer_socket))
 
-    def _connection_attached(self, conn, **handler_kwargs):
-        super(ServerChannel, self)._connection_attached(conn, **handler_kwargs)
+    def _connection_attached(self, conn):
+        super(ServerChannel, self)._connection_attached(conn)
         for middleware in self.middlewares:
             middleware.on_connect(conn)
 
@@ -158,32 +147,18 @@ class ServerChannel(BaseChannel):
 class ClientChannel(BaseChannel):
 
     def __init__(self, handler=lambda *args, **kwargs: '',
-                 connection_class=Connection, **kwargs):
-        super(ClientChannel, self).__init__(
-            handler, connection_class, **kwargs
-        )
-        self.parser = kwargs.pop('parser', None)
+                 connection_class=Connection):
+        super(ClientChannel, self).__init__(handler, connection_class)
 
-    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
+    def connect(self, address, type_=SOCK_STREAM, timeout=None):
         family = AF_UNIX if isinstance(address, string_types) else AF_INET
         conn = self.connection_class.connect(
             address, True, timeout, family, type_
         )
-        handler_kwargs = self.handler_kwargs.copy()
-        handler_kwargs.update(kwargs)
-        self._connection_attached(conn, **handler_kwargs)
+        self._connection_attached(conn)
         return conn
 
 
 @pymaid_logger_wrapper
-class BidChannel(ServerChannel):
-
-    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
-        family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(
-            address, True, timeout, family, type_
-        )
-        handler_kwargs = self.handler_kwargs.copy()
-        handler_kwargs.update(kwargs)
-        self._connection_attached(conn, **handler_kwargs)
-        return conn
+class BidChannel(ServerChannel, ClientChannel):
+    pass

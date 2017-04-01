@@ -22,7 +22,7 @@ def wrapper(pid, n):
 
 
 cnt = 0
-channel = ClientChannel(PBHandler, parser=PBParser)
+channel = ClientChannel(PBHandler(PBParser))
 service = ServiceStub(RemoteError_Stub(None))
 
 

@@ -16,7 +16,7 @@ class RemoteErrorImpl(RemoteError):
 def main():
     listener = Listener()
     listener.append_service(RemoteErrorImpl())
-    channel = ServerChannel(PBHandler, listener, parser=PBParser)
+    channel = ServerChannel(PBHandler(PBParser, listener))
     channel.listen(("127.0.0.1", 8888))
     channel.start()
     pymaid.serve_forever()
