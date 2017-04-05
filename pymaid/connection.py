@@ -19,11 +19,6 @@ from pymaid.utils import timer, io, hub
 
 __all__ = ['Connection']
 
-invalid_conn = (errno.ECONNRESET, errno.ENOTCONN, errno.ESHUTDOWN, errno.EBADF)
-connecting_error = (
-    errno.EALREADY, errno.EINPROGRESS, errno.EISCONN, errno.EWOULDBLOCK
-)
-
 
 class Connection(object):
 
@@ -37,6 +32,8 @@ class Connection(object):
         self.client_side = client_side
 
         self.buf = BytesIO()
+        # self.buf = bytearray(settings.MAX_RECV_SIZE)
+        # self.buf_length = 0
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_callbacks = False, []
 
@@ -114,7 +111,7 @@ class Connection(object):
             self.buf.write(buf.read())
             return data
 
-        recv, r_io = self._socket.recv, self.r_io
+        recv = self._socket.recv
         recvsize = settings.MAX_RECV_SIZE
         while 1:
             try:
@@ -122,17 +119,18 @@ class Connection(object):
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     gr = getcurrent()
-                    r_io.start(gr.switch)
+                    self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
                     finally:
-                        r_io.stop()
+                        self.r_io.stop()
                     continue
                 self.close(ex, reset=True)
-                if ex.errno in invalid_conn:
+                # 9: EBADF, 104: ECONNRESET
+                if ex.errno in {9, 104}:
                     return buf.getvalue()
                 raise
             if not data:
@@ -164,7 +162,7 @@ class Connection(object):
             del bline
             buf.seek(0, 2)
 
-        recv, r_io = self._socket.recv, self.r_io
+        recv = self._socket.recv
         recvsize = settings.MAX_RECV_SIZE
         while 1:
             try:
@@ -172,17 +170,18 @@ class Connection(object):
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     gr = getcurrent()
-                    r_io.start(gr.switch)
+                    self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
                     except Timeout:
                         self.buf = buf
                         raise
                     finally:
-                        r_io.stop()
+                        self.r_io.stop()
                     continue
                 self.close(ex, reset=True)
-                if ex.errno in invalid_conn:
+                # 9: EBADF, 104: ECONNRESET
+                if ex.errno in {9, 104}:
                     return buf.getvalue()
                 raise
             if not data:
@@ -217,7 +216,8 @@ class Connection(object):
             AF_UNIX if isinstance(address, string_types) else AF_INET, type_
         )
         errno = sock.connect_ex(address)
-        if errno in connecting_error:
+        # 11: EWOULDBLOCK, 115: EINPROGRESS
+        if errno in {11, 115}:
             rw_io = io(sock.fileno(), READ | WRITE)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
