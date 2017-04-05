@@ -1,9 +1,7 @@
 import os
+import errno
+import socket
 from socket import socket as realsocket, error as socket_error
-from socket import (
-    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR
-)
-from errno import EWOULDBLOCK, ECONNABORTED
 
 from six import itervalues, string_types
 
@@ -90,9 +88,9 @@ class ServerChannel(BaseChannel):
             try:
                 peer_socket, address = accept()
             except socket_error as ex:
-                if ex.errno == EWOULDBLOCK:
+                if ex.errno == errno.EWOULDBLOCK:
                     break
-                if ex.errno == ECONNABORTED:
+                if ex.errno == socket.ECONNABORTED:
                     continue
                 self.logger.exception(ex)
                 break
@@ -108,19 +106,19 @@ class ServerChannel(BaseChannel):
         for middleware in self.middlewares:
             middleware.on_close(conn)
 
-    def listen(self, address, backlog=256, type_=SOCK_STREAM):
+    def listen(self, address, backlog=256, type_=socket.SOCK_STREAM):
         # not support ipv6 yet
         if isinstance(address, string_types):
-            family = AF_UNIX
+            family = socket.AF_UNIX
             if os.path.exists(address):
                 os.unlink(address)
         else:
-            family = AF_INET
+            family = socket.AF_INET
         self.logger.info(
             '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
         )
         sock = realsocket(family, type_)
-        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # should explicitly set SO_REUSEPORT
         # sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
@@ -150,11 +148,8 @@ class ClientChannel(BaseChannel):
                  connection_class=Connection):
         super(ClientChannel, self).__init__(handler, connection_class)
 
-    def connect(self, address, type_=SOCK_STREAM, timeout=None):
-        family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(
-            address, True, timeout, family, type_
-        )
+    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None):
+        conn = self.connection_class.connect(address, True, timeout, type_)
         self._connection_attached(conn)
         return conn
 

@@ -2,16 +2,12 @@ import struct
 from os import strerror
 from io import BytesIO
 
-from errno import (
-    EWOULDBLOCK, ECONNRESET, ENOTCONN, ESHUTDOWN, EISCONN, EALREADY,
-    EINPROGRESS, EBADF
-)
+import errno
+import socket
 from socket import socket as realsocket, error as socket_error
-from socket import (
-    SOL_TCP, SOL_SOCKET, SO_LINGER, TCP_NODELAY, IPPROTO_TCP, SO_KEEPALIVE,
-    TCP_KEEPIDLE, TCP_KEEPINTVL, TCP_KEEPCNT
-)
-from socket import AF_INET, SOCK_STREAM
+from socket import AF_INET, AF_UNIX
+
+from six import string_types
 
 from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
@@ -23,8 +19,10 @@ from pymaid.utils import timer, io, hub
 
 __all__ = ['Connection']
 
-invalid_conn = (ECONNRESET, ENOTCONN, ESHUTDOWN, EBADF)
-connecting_error = (EALREADY, EINPROGRESS, EISCONN, EWOULDBLOCK)
+invalid_conn = (errno.ECONNRESET, errno.ENOTCONN, errno.ESHUTDOWN, errno.EBADF)
+connecting_error = (
+    errno.EALREADY, errno.EINPROGRESS, errno.EISCONN, errno.EWOULDBLOCK
+)
 
 
 class Connection(object):
@@ -47,7 +45,7 @@ class Connection(object):
         try:
             self.peername = sock.getpeername()
         except socket_error as ex:
-            if ex.errno == ENOTCONN:
+            if ex.errno == errno.ENOTCONN:
                 self.peername = str(ex)
         self.sockname = sock.getsockname()
         fd = self.fd = sock.fileno()
@@ -57,15 +55,18 @@ class Connection(object):
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
-        if sock.family == AF_INET:
-            setsockopt(SOL_TCP, TCP_NODELAY, 1)
-            setsockopt(IPPROTO_TCP, TCP_NODELAY, 1)
+        if sock.family == socket.AF_INET:
+            SOL_TCP = socket.SOL_TCP
+            setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+            setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             if settings.PM_KEEPALIVE:
-                setsockopt(SOL_SOCKET, SO_KEEPALIVE, 1)
-                setsockopt(SOL_TCP, TCP_KEEPIDLE, settings.PM_KEEPIDLE)
-                setsockopt(SOL_TCP, TCP_KEEPINTVL, settings.PM_KEEPINTVL)
-                setsockopt(SOL_TCP, TCP_KEEPCNT, settings.PM_KEEPCNT)
-        setsockopt(SOL_SOCKET, SO_LINGER, self.LINGER_PACK)
+                setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+                setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
+                setsockopt(
+                    SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
+                )
+                setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
+        setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
     def _send(self):
         '''try to send all packets to reduce system call'''
@@ -82,7 +83,7 @@ class Connection(object):
                 self._send_queue.append(membuf[sent:].tobytes())
                 self.w_io.start(self._send)
         except socket_error as ex:
-            if ex.errno == EWOULDBLOCK:
+            if ex.errno == errno.EWOULDBLOCK:
                 self.w_io.start(self._send)
             elif not self.is_closed:
                 self.close(ex, reset=True)
@@ -119,7 +120,7 @@ class Connection(object):
             try:
                 data = recv(recvsize)
             except socket_error as ex:
-                if ex.errno == EWOULDBLOCK:
+                if ex.errno == errno.EWOULDBLOCK:
                     gr = getcurrent()
                     r_io.start(gr.switch)
                     try:
@@ -169,7 +170,7 @@ class Connection(object):
             try:
                 data = recv(recvsize)
             except socket_error as ex:
-                if ex.errno == EWOULDBLOCK:
+                if ex.errno == errno.EWOULDBLOCK:
                     gr = getcurrent()
                     r_io.start(gr.switch)
                     try:
@@ -209,10 +210,12 @@ class Connection(object):
         return buf.getvalue()
 
     @classmethod
-    def connect(cls, address, client_side=False, timeout=None, family=AF_INET,
-                type_=SOCK_STREAM, proto=0):
+    def connect(cls, address, client_side=False, timeout=None,
+                type_=socket.SOCK_STREAM):
         assert getcurrent() != hub, 'could not call block func in main loop'
-        sock = realsocket(family, type_, proto)
+        sock = realsocket(
+            AF_UNIX if isinstance(address, string_types) else AF_INET, type_
+        )
         errno = sock.connect_ex(address)
         if errno in connecting_error:
             rw_io = io(sock.fileno(), READ | WRITE)
@@ -229,7 +232,7 @@ class Connection(object):
                 rw_io.stop()
                 rw_timer = rw_io = None
             errno = sock.connect_ex(address)
-        if errno != 0 and errno != EISCONN:
+        if errno != 0 and errno != errno.EISCONN:
             raise socket_error(errno, strerror(errno))
         return cls(sock, client_side)
 
