@@ -4,7 +4,6 @@ import six
 
 import pymaid
 from pymaid.channel import ServerChannel
-from pymaid.parser import PBParser
 from pymaid.utils import greenlet_pool
 from pymaid.pb import Listener, PBHandler, ServiceStub
 
@@ -41,7 +40,7 @@ class ChatServiceImpl(ChatService):
 def main():
     listener = Listener()
     listener.append_service(ChatServiceImpl())
-    channel = ServerChannel(PBHandler(PBParser, listener))
+    channel = ServerChannel(PBHandler(listener))
     channel.listen('/tmp/pymaid_chat.sock')
     channel.start()
     try:

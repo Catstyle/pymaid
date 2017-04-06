@@ -2,7 +2,6 @@ from __future__ import print_function
 
 from pymaid import serve_forever
 from pymaid.channel import ServerChannel
-from pymaid.parser import PBParser
 from pymaid.pb import Listener, PBHandler
 from pymaid.utils import greenlet_pool
 
@@ -13,8 +12,8 @@ from pymaid.apps.monitor.middleware import MonitorMiddleware
 def main():
     listener = Listener()
     listener.append_service(MonitorServiceImpl())
-    channel = ServerChannel(PBHandler(PBParser, listener))
-    channel.listen('/tmp/hello_pb.sock')
+    channel = ServerChannel(PBHandler(listener))
+    channel.listen('/tmp/pymaid_heartbeat.sock')
     channel.append_middleware(MonitorMiddleware(1, 3))
     channel.start()
     try:
