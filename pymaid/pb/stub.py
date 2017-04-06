@@ -1,12 +1,17 @@
+import struct
+
 from gevent.event import AsyncResult
 from gevent.timeout import Timeout
 
-from pymaid.pb.pymaid_pb2 import Void, Controller
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
+
+from .pymaid_pb2 import Void, Controller
 
 
 @pymaid_logger_wrapper
 class ServiceStub(object):
+
+    pack_header = struct.Struct('!HH').pack
 
     def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
         self.stub, self.meta = stub, Controller()
@@ -42,8 +47,12 @@ class ServiceStub(object):
             meta.service_method = service_method
             meta.packet_type = packet_type
             if connections is not None:
+                content = b'{}{}{}'.format(
+                    self.pack_header(meta.ByteSize(), request.ByteSize()),
+                    meta.SerializeToString(), request.SerializeToString()
+                )
                 for conn in connections:
-                    conn.send(conn.pack_meta(meta, request))
+                    conn.send(content)
             else:
                 conn = conn or self.conn or \
                     self.connection_pool.get_connection()
@@ -51,7 +60,10 @@ class ServiceStub(object):
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
                 conn.transmission_id += 1
-                conn.send(conn.pack_meta(meta, request))
+                conn.send(b'{}{}{}'.format(
+                    self.pack_header(meta.ByteSize(), request.ByteSize()),
+                    meta.SerializeToString(), request.SerializeToString()
+                ))
 
                 if hasattr(conn, 'release'):
                     conn.release()
