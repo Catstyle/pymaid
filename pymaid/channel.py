@@ -33,9 +33,6 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
-        if hasattr(self.handler, 'parser'):
-            conn.pack_meta = self.handler.parser.pack_meta
-            conn.unpack = self.handler.parser.unpack
         conn.worker_gr = greenlet_pool.spawn(self.handler, conn)
         conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
@@ -144,8 +141,7 @@ class ServerChannel(BaseChannel):
 @pymaid_logger_wrapper
 class ClientChannel(BaseChannel):
 
-    def __init__(self, handler=lambda *args, **kwargs: '',
-                 connection_class=Connection):
+    def __init__(self, handler=lambda conn: '', connection_class=Connection):
         super(ClientChannel, self).__init__(handler, connection_class)
 
     def connect(self, address, type_=socket.SOCK_STREAM, timeout=None):
