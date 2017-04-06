@@ -8,7 +8,6 @@ from six import itervalues, string_types
 from pymaid.connection import Connection
 from pymaid.conf import settings
 from pymaid.error.base import BaseEx
-from pymaid.const import READ
 from pymaid.utils import greenlet_pool, io
 from pymaid.utils.logger import pymaid_logger_wrapper
 
@@ -121,7 +120,7 @@ class ServerChannel(BaseChannel):
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), READ), sock))
+        self.accept_watchers.append((io(sock.fileno(), 1), sock))
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
