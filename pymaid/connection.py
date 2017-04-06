@@ -215,9 +215,9 @@ class Connection(object):
         sock = realsocket(
             AF_UNIX if isinstance(address, string_types) else AF_INET, type_
         )
-        errno = sock.connect_ex(address)
+        err = sock.connect_ex(address)
         # 11: EWOULDBLOCK, 115: EINPROGRESS
-        if errno in {11, 115}:
+        if err in {11, 115}:
             rw_io = io(sock.fileno(), READ | WRITE)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
@@ -231,9 +231,9 @@ class Connection(object):
                     rw_timer.stop()
                 rw_io.stop()
                 rw_timer = rw_io = None
-            errno = sock.connect_ex(address)
-        if errno != 0 and errno != errno.EISCONN:
-            raise socket_error(errno, strerror(errno))
+            err = sock.connect_ex(address)
+        if err != 0 and err != errno.EISCONN:
+            raise socket_error(err, strerror(err))
         return cls(sock, client_side)
 
     def read(self, size, timeout=None):
