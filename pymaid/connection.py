@@ -13,7 +13,6 @@ from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
 
 from pymaid.conf import settings
-from pymaid.const import READ, WRITE
 from pymaid.error import RpcError
 from pymaid.utils import timer, io, hub
 
@@ -48,7 +47,8 @@ class Connection(object):
         fd = self.fd = sock.fileno()
 
         self._send_queue = []
-        self.r_io, self.w_io = io(fd, READ), io(fd, WRITE)
+        # 1: READ, 2: WRITE
+        self.r_io, self.w_io = io(fd, 1), io(fd, 2)
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
@@ -218,7 +218,8 @@ class Connection(object):
         err = sock.connect_ex(address)
         # 11: EWOULDBLOCK, 115: EINPROGRESS
         if err in {11, 115}:
-            rw_io = io(sock.fileno(), READ | WRITE)
+            # 1: READ, 2: WRITE
+            rw_io = io(sock.fileno(), 1 | 2)
             rw_gr = getcurrent()
             rw_io.start(rw_gr.switch)
             if timeout:
