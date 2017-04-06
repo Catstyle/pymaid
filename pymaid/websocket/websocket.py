@@ -107,8 +107,7 @@ class WebSocket(Connection):
     def _write(self, packet_buffer, opcode):
         header = Header.encode_header(True, opcode, '', len(packet_buffer), 0)
         self._send_queue.append(header + packet_buffer)
-        if not self.fed_write:
-            self._send()
+        self._send()
 
     def handle_close(self, header, payload):
         """Called when a close frame has been decoded from the stream.
