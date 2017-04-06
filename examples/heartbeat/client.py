@@ -3,15 +3,14 @@ from gevent.pool import Pool
 from gevent import sleep
 
 from pymaid.channel import ClientChannel
-from pymaid.parser import PBParser
 from pymaid.pb import PBHandler
 from pymaid.utils import greenlet_pool
 
-channel = ClientChannel(PBHandler(PBParser))
+channel = ClientChannel(PBHandler())
 
 
 def wrapper(pid, n):
-    channel.connect('/tmp/hello_pb.sock')
+    channel.connect('/tmp/pymaid_heartbeat.sock')
     sleep(5)
 
 

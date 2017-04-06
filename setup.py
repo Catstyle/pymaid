@@ -60,7 +60,7 @@ if __name__ == '__main__':
         long_description=long_description,
         author="Catstyle",
         author_email="Catstyle.Lee@gmail.com",
-        utl="https://github.com/catstyle/pymaid",
+        url="https://github.com/catstyle/pymaid",
         version=__version__,
         license="MIT",
 
@@ -98,7 +98,7 @@ if __name__ == '__main__':
             'wsaccel',
             'kazoo>=2.2.1',
         ],
-        test_requires=[
+        tests_require=[
             'websocket-client',
         ],
         cmdclass={'build_py': MyBuildPy, 'clean': MyClean},

@@ -2,7 +2,6 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
-from pymaid.parser import PBParser
 from pymaid.pb import PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -18,7 +17,7 @@ def wrapper(pid, n):
     conn.close()
 
 
-channel = ClientChannel(PBHandler(PBParser))
+channel = ClientChannel(PBHandler())
 service = ServiceStub(HelloService_Stub(None))
 
 
