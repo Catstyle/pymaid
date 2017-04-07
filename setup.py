@@ -96,7 +96,6 @@ if __name__ == '__main__':
             'six',
             'ujson',
             'wsaccel',
-            'kazoo>=2.2.1',
         ],
         tests_require=[
             'websocket-client',
