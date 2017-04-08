@@ -196,10 +196,10 @@
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
     pymaid.Channel = Channel;
 
-    ChannelPrototype._combineAddress = function(schema, host, port) {
+    ChannelPrototype._combineAddress = function(scheme, host, port) {
         var address = host + ':' + port;
-        if (schema === 'ws' || schema === 'wss') {
-            address = schema + '://' + address;
+        if (scheme === 'ws' || scheme === 'wss') {
+            address = scheme + '://' + address;
         }
         return address;
     },
@@ -212,8 +212,8 @@
         return false;
     },
 
-    ChannelPrototype.connect = function(schema, host, port, callbacks) {
-        var address = this._combineAddress(schema, host, port);
+    ChannelPrototype.connect = function(scheme, host, port, callbacks) {
+        var address = this._combineAddress(scheme, host, port);
         if (this.isAlreadyConnected(address)) {
             console.log(
                 'pymaid: channel already connected to address: ' + address
