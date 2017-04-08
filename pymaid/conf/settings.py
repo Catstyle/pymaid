@@ -1,8 +1,9 @@
 from __future__ import absolute_import
 
 import warnings
+from collections import Mapping
 from importlib import import_module
-import ujson as json
+from ujson import loads
 
 from gevent.event import AsyncResult
 
@@ -32,10 +33,13 @@ class Settings(object):
             # DeprecationWarnings are on anyway
             pass
 
-        if hasattr(self, 'PYMAID_LOGGING'):
-            logging.config.dictConfig(self.PYMAID_LOGGING)
         if hasattr(self, 'LOGGING'):
-            logging.config.dictConfig(self.LOGGING)
+            for key, value in self.LOGGING.items():
+                if not isinstance(value, Mapping):
+                    self.PYMAID_LOGGING[key] = value
+                else:
+                    self.PYMAID_LOGGING[key].update(value)
+        logging.config.dictConfig(self.PYMAID_LOGGING)
 
     def load_from_module(self, module_name):
         """Load the settings module pointed to by the module_name.
@@ -63,7 +67,7 @@ class Settings(object):
         self.logger.debug(
             '[pymaid][settings] configured [%s]',
             {attr: value for attr, value in self.__dict__.items()
-             if attr == attr.upper()}
+             if attr == attr.upper() and 'SECRET' not in attr}
         )
 
     @greenlet_worker
@@ -81,7 +85,7 @@ class Settings(object):
             self.logger.debug(
                 '[pymaid][settings] configured [%s]',
                 {attr: value for attr, value in self.__dict__.items()
-                 if attr == attr.upper()}
+                 if attr == attr.upper() and 'SECRET' not in attr}
             )
 
 
@@ -108,7 +112,7 @@ class RedisBackend(SettingsBackend):
         self.generator.next()
         for resp in self.generator:
             if resp['data']:
-                yield json.loads(resp['data'])
+                yield loads(resp['data'])
 
 
 @pymaid_logger_wrapper
@@ -127,7 +131,7 @@ class ZooKeeperBackend(SettingsBackend):
                 result.set(data)
 
         while 1:
-            yield json.loads(result.get())
+            yield loads(result.get())
             result = AsyncResult()
 
 

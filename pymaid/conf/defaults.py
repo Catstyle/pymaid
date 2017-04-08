@@ -12,6 +12,11 @@ PYMAID_LOGGING = {
         }
     },
     'handlers': {
+        'root': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'standard',
+        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
@@ -20,7 +25,7 @@ PYMAID_LOGGING = {
     },
     'loggers': {
         'root': {
-            'handlers': ['console'],
+            'handlers': ['root'],
             'level': 'DEBUG',
             'propagate': True,
         },
