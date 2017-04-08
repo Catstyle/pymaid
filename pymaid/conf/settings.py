@@ -67,12 +67,13 @@ class Settings(object):
         )
 
     @greenlet_worker
-    def load_from_backend(self, backend):
+    def load_from_backend(self, backend, callback=lambda settings, data: ''):
         for data in backend:
             self.logger.debug(
                 '[pymaid][settings][backend|%s] receive [data|%r]',
                 backend, data
             )
+            callback(self, data)
             for setting in data:
                 if setting == setting.upper():
                     setattr(self, setting, data[setting])
