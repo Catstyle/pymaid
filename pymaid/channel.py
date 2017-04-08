@@ -3,7 +3,7 @@ import errno
 import socket
 from socket import socket as realsocket, error as socket_error
 
-from six import itervalues, string_types
+from six import string_types
 
 from pymaid.connection import Connection
 from pymaid.conf import settings
@@ -16,8 +16,6 @@ __all__ = ['ServerChannel', 'ClientChannel', 'BidChannel']
 
 @pymaid_logger_wrapper
 class BaseChannel(object):
-
-    MAX_CONCURRENCY = 50000
 
     def __init__(self, handler, connection_class=Connection):
         self.handler = handler
@@ -52,7 +50,7 @@ class BaseChannel(object):
 
     @property
     def is_full(self):
-        return len(self.connections) >= self.MAX_CONCURRENCY
+        return len(self.connections) >= settings.MAX_CONCURRENCY
 
     def connection_attached(self, conn):
         pass
@@ -61,8 +59,9 @@ class BaseChannel(object):
         pass
 
     def stop(self, reason='Channel calls stop'):
-        for conn in itervalues(self.connections):
+        for conn in self.connections.values()[:]:
             conn.delay_close(reason)
+        self.connections.clear()
 
 
 @pymaid_logger_wrapper
