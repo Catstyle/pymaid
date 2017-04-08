@@ -72,8 +72,11 @@ class BaseHashManager(object):
     def rehash(self):
         raise NotImplementedError
 
-    def get_node_by_key(self, key):
+    def get_node(self, key):
         raise NotImplementedError
+
+    def __str__(self):
+        return '<HashManager: {}>'.format(self.__class__.__name__)
 
 
 class HashRing(BaseHashManager):
@@ -101,7 +104,7 @@ class HashRing(BaseHashManager):
                 lookup_table[virtual_key] = node
         self.sorted_keys = sorted(lookup_table.keys())
 
-    def get_node_by_key(self, key):
+    def get_node(self, key):
         if not self.nodes:
             return
 
@@ -114,7 +117,7 @@ class HashRing(BaseHashManager):
 class MaglevHash(BaseHashManager):
 
     def __init__(self, hash_func=md5_hash_func, virtual_entry_count=16):
-        super(HashRing, self).__init__(hash_func)
+        super(MaglevHash, self).__init__(hash_func)
         self.virtual_entry_count = virtual_entry_count
         self.lookup_table_size = 0
         self.lookup_table = {}
@@ -155,7 +158,7 @@ class MaglevHash(BaseHashManager):
                 if n == entry_count:
                     return
 
-    def get_node_by_key(self, key):
+    def get_node(self, key):
         if not self.lookup_table:
             return
         key = self.hash_func('cat' + key)
