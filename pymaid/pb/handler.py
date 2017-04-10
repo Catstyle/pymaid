@@ -27,6 +27,7 @@ class PBHandler(object):
     def __call__(self, conn):
         if not conn.oninit():
             return
+        conn.close_conn_onerror = self.close_conn_onerror
 
         tasks_queue = Queue(settings.MAX_TASKS)
         new_task = tasks_queue.put
