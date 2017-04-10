@@ -122,8 +122,7 @@ def trace_method(level=logging.INFO,
 
             start_time = time()
             debug_info = debug_info_func(controller)
-            logger = self.logger
-            record.name = logger.name
+            record.name = self.logger.name
             req = repr(str(request))
 
             def done_wrapper(resp=None, **kwargs):
@@ -133,7 +132,7 @@ def trace_method(level=logging.INFO,
                     debug_info, full_name, req, kwargs or repr(str(resp)),
                     time() - start_time
                 )
-                logger.handle(record)
+                self.logger.handle(record)
                 done(resp, **kwargs)
             try:
                 return func(self, controller, request, done_wrapper)
@@ -150,7 +149,7 @@ def trace_method(level=logging.INFO,
                         '%s [rpc|%s] [req|%s] [exception|%s] [time|%.6f]',
                         debug_info, full_name, req, ex, time() - start_time
                     )
-                logger.handle(record)
+                self.logger.handle(record)
                 raise
         return _
     if isinstance(level, str):

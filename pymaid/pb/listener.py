@@ -67,7 +67,7 @@ class Listener(object):
                 self.pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
-            if isinstance(ex, Error) and self.close_conn_onerror:
+            if isinstance(ex, Error) and conn.close_conn_onerror:
                 conn.delay_close(ex)
 
     def handle_notification(self, controller, content):
