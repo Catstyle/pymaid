@@ -65,9 +65,7 @@ class BaseHashManager(object):
         self.rehash()
 
     def reset(self):
-        nodes = self.nodes
-        for node in nodes[:]:
-            nodes.remove(node)
+        del self.nodes[:]
 
     def rehash(self):
         raise NotImplementedError
