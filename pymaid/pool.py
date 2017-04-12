@@ -82,8 +82,7 @@ class ConnectionPool(object):
             pass
         try:
             for _ in range(init_count):
-                conn = self.make_connection()
-                self.pool.put_nowait(self.item_putter(conn))
+                self.pool.put_nowait(self.item_putter(self.make_connection()))
         except Full:
             pass
 
@@ -118,18 +117,13 @@ class ConnectionPool(object):
             item = self.item_putter(conn)
             if item in self.pool.queue:
                 self.pool.queue.remove(item)
-            del connection.release
             del connection.pid
             try:
                 self.pool.put_nowait(self.empty_item)
             except Full:
                 pass
 
-        def release():
-            self.release(connection)
-
         connection.add_close_cb(close)
-        connection.release = release
         self._connections.append(connection)
         return connection
 
