@@ -1,7 +1,6 @@
 import struct
 
 from gevent.event import AsyncResult
-from gevent.timeout import Timeout
 
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
 
@@ -13,10 +12,9 @@ class ServiceStub(object):
 
     pack_header = struct.Struct('!HH').pack
 
-    def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
+    def __init__(self, stub, conn=None):
         self.stub, self.meta = stub, Controller()
-        self.conn, self.connection_pool = conn, connection_pool
-        self.timeout = timeout
+        self.conn = conn
         self._bind_stub()
 
     def _bind_stub(self):
@@ -38,8 +36,7 @@ class ServiceStub(object):
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, conn=None, connections=None, timeout=None,
-                **kwargs):
+        def rpc(request=None, conn=None, connections=None, **kwargs):
             request = request or request_class(**kwargs)
 
             meta = self.meta
@@ -54,8 +51,7 @@ class ServiceStub(object):
                 for conn in connections:
                     conn.send(content)
             else:
-                conn = conn or self.conn or \
-                    self.connection_pool.get_connection()
+                conn = conn or self.conn
                 assert conn, conn
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
@@ -65,22 +61,22 @@ class ServiceStub(object):
                     meta.SerializeToString(), request.SerializeToString()
                 ))
 
-                if hasattr(conn, 'release'):
-                    conn.release()
                 if not require_response:
                     return
 
                 async_result = AsyncResult()
                 conn.transmissions[tid] = async_result
-                try:
-                    return async_result.get(timeout=timeout or self.timeout)
-                except Timeout:
-                    del conn.transmissions[tid]
-                    raise
+
+                def cleanup(result):
+                    conn.transmissions.pop(tid, None)
+                cleanup.auto_unlink = True
+                async_result.rawlink(cleanup)
+
+                return async_result
         return rpc
 
     def close(self):
-        self.stub = self.meta = self.conn = self.connection_pool = None
+        self.stub = self.meta = self.conn = None
 
 
 class StubManager(object):
@@ -88,16 +84,14 @@ class StubManager(object):
     request_class = {}
     response_class = {}
 
-    def __init__(self, conn=None, connection_pool=None):
+    def __init__(self, conn=None):
         self.conn = conn
-        self.connection_pool = connection_pool
         self._stubs = {}
 
     def add_stub(self, name, stub):
         assert name not in self._stubs, (name, self._stubs.keys())
         self._stubs[name] = stub
         stub.conn = stub.conn or self.conn
-        stub.connection_pool = stub.connection_pool or self.connection_pool
         stub.name = name
         setattr(self, name, stub)
 

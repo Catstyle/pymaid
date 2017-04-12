@@ -31,8 +31,6 @@ class Connection(object):
         self.client_side = client_side
 
         self.buf = BytesIO()
-        # self.buf = bytearray(settings.MAX_RECV_SIZE)
-        # self.buf_length = 0
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_callbacks = False, []
 
@@ -265,8 +263,8 @@ class Connection(object):
                 self.r_timer.stop()
                 self.r_timer = None
 
-    def send(self, packet_buffer):
-        self._send_queue.append(packet_buffer)
+    def send(self, data):
+        self._send_queue.append(data)
         self._send()
     write = send
 
@@ -330,9 +328,15 @@ class Connection(object):
 class DisconnectedConnection(Connection):
 
     def __init__(self):
-        self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
         self.connid = 0
         self.transmission_id = 0
         self.sockname = self.peername = 'disconnected'
         self.is_closed = True
+
+    def send(self, data):
+        pass
+    write = send
+
+    def read(self, size, timeout=None):
+        pass
+    readline = read
