@@ -13,7 +13,7 @@ message = 'a' * 8000
 def wrapper(pid, n, message=message):
     conn = channel.connect('ws://127.0.0.1:8888/')
     for x in range(n):
-        response = service.echo(request, conn=conn)
+        response = service.echo(request, conn=conn).get(30)
         assert response.message == message, len(response.message)
     conn.close()
 

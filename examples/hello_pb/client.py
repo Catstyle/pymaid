@@ -12,7 +12,7 @@ def wrapper(pid, n):
     # conn = channel.connect(('localhost', 8888))
     conn = channel.connect('/tmp/hello_pb.sock')
     for x in range(n):
-        response = service.hello(conn=conn)
+        response = service.hello(conn=conn).get(30)
         assert response.message == 'from pymaid', response.message
     conn.close()
 

@@ -14,7 +14,7 @@ message = 'a' * 8000
 def wrapper(pid, n, message=message):
     conn = channel.connect('/tmp/pymaid_echo.sock')
     for x in range(n):
-        response = service.echo(request, conn=conn)
+        response = service.echo(request, conn=conn).get(30)
         assert response.message == message, len(response.message)
     conn.close()
 

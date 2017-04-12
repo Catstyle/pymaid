@@ -21,13 +21,13 @@ class ChatBroadcastImpl(ChatBroadcast):
 def prepare():
     conn = channel.connect('/tmp/pymaid_chat.sock')
     conn.count = 0
-    service.Join(conn=conn)
+    service.Join(conn=conn).get()
     connections.append(conn)
 
 
 def cleanup():
     for conn in connections:
-        service.Leave(conn=conn)
+        service.Leave(conn=conn).get()
         conn.close()
 
 
