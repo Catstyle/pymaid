@@ -12,7 +12,7 @@ def wrapper(pid, n):
     global cnt
     for x in range(n):
         try:
-            service.player_profile(conn=conn, user_id=x)
+            service.player_profile(conn=conn, user_id=x).get(30)
         except PlayerNotExist:
             cnt += 1
         else:
