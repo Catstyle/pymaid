@@ -36,11 +36,14 @@ class ServiceStub(object):
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, conn=None, connections=None, **kwargs):
+        def rpc(request=None, meta=None, conn=None, connections=None,
+                **kwargs):
             request = request or request_class(**kwargs)
 
+            self.meta.Clear()
+            if meta:
+                self.meta.CopyFrom(meta)
             meta = self.meta
-            meta.Clear()
             meta.service_method = service_method
             meta.packet_type = packet_type
             if connections is not None:
