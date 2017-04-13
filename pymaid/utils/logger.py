@@ -124,13 +124,14 @@ def trace_method(level=logging.INFO,
             debug_info = debug_info_func(controller)
             record.name = self.logger.name
             req = repr(str(request))
+            extension = controller.meta.extension
 
             def done_wrapper(resp=None, **kwargs):
                 update_record(
                     record, level,
-                    '%s [rpc|%s] [req|%s] [resp|%s] [time|%.6f]',
-                    debug_info, full_name, req, kwargs or repr(str(resp)),
-                    time() - start_time
+                    '%s [rpc|%s][extension|%s] [req|%s] [resp|%s] [time|%.6f]',
+                    debug_info, full_name, repr(str(extension)), req,
+                    kwargs or repr(str(resp)), time() - start_time
                 )
                 self.logger.handle(record)
                 done(resp, **kwargs)
@@ -140,14 +141,18 @@ def trace_method(level=logging.INFO,
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [rpc|%s] [req|%s] [warning|%s] [time|%.6f]',
-                        debug_info, full_name, req, ex, time() - start_time
+                        '%s [rpc|%s][extension|%s] [req|%s] [warning|%s] '
+                        '[time|%.6f]',
+                        debug_info, full_name, repr(str(extension)), req, ex,
+                        time() - start_time
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [rpc|%s] [req|%s] [exception|%s] [time|%.6f]',
-                        debug_info, full_name, req, ex, time() - start_time
+                        '%s [rpc|%s][extension|%s] [req|%s] [exception|%s] '
+                        '[time|%.6f]',
+                        debug_info, full_name, repr(str(extension)), req, ex,
+                        time() - start_time
                     )
                 self.logger.handle(record)
                 raise
@@ -171,15 +176,17 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         assert level in levelnames, level
 
         @wraps(rpc)
-        def _(request=None, conn=None, connections=None, timeout=None,
-              **kwargs):
+        def _(request=None, meta=None, conn=None, connections=None, **kwargs):
             frame = getframe(1)
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
-                frame.f_lineno, '[stub|%s][request|%s][kwargs|%s]',
-                (stub_name, request, kwargs), None, stub_name
+                frame.f_lineno,
+                '[stub|%s][extension|%s][request|%s][kwargs|%s]',
+                (stub_name, repr(str(meta.extension)) if meta else None,
+                 request, kwargs),
+                None, stub_name
             ))
-            return rpc(request, conn, connections, timeout, **kwargs)
+            return rpc(request, meta, conn, connections, **kwargs)
         return _
     if isinstance(level, str):
         level = levelnames[level]
