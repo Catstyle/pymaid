@@ -176,17 +176,18 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         assert level in levelnames, level
 
         @wraps(rpc)
-        def _(request=None, meta=None, conn=None, connections=None, **kwargs):
+        def _(request=None, extension=None, conn=None, connections=None,
+              **kwargs):
             frame = getframe(1)
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
                 frame.f_lineno,
                 '[stub|%s][extension|%s][request|%s][kwargs|%s]',
-                (stub_name, repr(str(meta.extension)) if meta else None,
+                (stub_name, repr(str(extension)) if extension else None,
                  request, kwargs),
                 None, stub_name
             ))
-            return rpc(request, meta, conn, connections, **kwargs)
+            return rpc(request, extension, conn, connections, **kwargs)
         return _
     if isinstance(level, str):
         level = levelnames[level]
