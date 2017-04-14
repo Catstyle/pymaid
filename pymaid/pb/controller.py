@@ -5,7 +5,7 @@ __all__ = ['Controller']
 
 class Controller(object):
 
-    __slots__ = ['meta', 'conn']
+    __slots__ = ['meta', 'conn', 'header_buf']
 
     def __init__(self, meta=None, conn=None, **kwargs):
         self.meta, self.conn = meta or Meta(**kwargs), conn

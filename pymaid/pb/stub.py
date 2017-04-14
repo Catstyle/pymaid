@@ -1,30 +1,43 @@
-import struct
-
 from gevent.event import AsyncResult
 
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
 
+from . import pack_header
 from .pymaid_pb2 import Void, Controller
+
+
+class Sender(object):
+
+    def __init__(self, target):
+        self.target = target
+
+    def send(self, meta, request):
+        self.target.send(b'{}{}{}'.format(
+            pack_header(meta.ByteSize(), request.ByteSize()),
+            meta.SerializeToString(), request.SerializeToString()
+        ))
 
 
 @pymaid_logger_wrapper
 class ServiceStub(object):
 
-    pack_header = struct.Struct('!HH').pack
-
     def __init__(self, stub, conn=None):
         self.stub, self.meta = stub, Controller()
         self.conn = conn
+        self.service_stubs = {}
         self._bind_stub()
 
     def _bind_stub(self):
         stub, rpc_stub = self.stub, self._build_rpc_stub
+        service_stubs = self.service_stubs
         for method in stub.DESCRIPTOR.methods:
-            setattr(self, method.name, rpc_stub(
+            rpc = rpc_stub(
                 method.full_name,
                 stub.GetRequestClass(method),
                 stub.GetResponseClass(method)
-            ))
+            )
+            setattr(self, method.name, rpc)
+            service_stubs[method.full_name] = rpc
 
     def _build_rpc_stub(self, service_method, request_class, response_class):
         if not issubclass(response_class, Void):
@@ -36,7 +49,7 @@ class ServiceStub(object):
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, extension=None, conn=None, connections=None,
+        def rpc(request=None, extension=None, conn=None, broadcaster=None,
                 **kwargs):
             request = request or request_class(**kwargs)
 
@@ -44,13 +57,9 @@ class ServiceStub(object):
             meta.Clear()
             meta.service_method = service_method
             meta.packet_type = packet_type
-            if connections is not None:
-                content = b'{}{}{}'.format(
-                    self.pack_header(meta.ByteSize(), request.ByteSize()),
-                    meta.SerializeToString(), request.SerializeToString()
-                )
-                for conn in connections:
-                    conn.send(content)
+            if broadcaster is not None:
+                for sender in broadcaster:
+                    sender.send(meta, request)
             else:
                 conn = conn or self.conn
                 assert conn, conn
@@ -60,7 +69,7 @@ class ServiceStub(object):
                     meta.extension.Pack(extension)
                 conn.transmission_id += 1
                 conn.send(b'{}{}{}'.format(
-                    self.pack_header(meta.ByteSize(), request.ByteSize()),
+                    pack_header(meta.ByteSize(), request.ByteSize()),
                     meta.SerializeToString(), request.SerializeToString()
                 ))
 
@@ -90,6 +99,7 @@ class StubManager(object):
     def __init__(self, conn=None):
         self.conn = conn
         self._stubs = {}
+        self._service_methods = {}
 
     def add_stub(self, name, stub):
         assert name not in self._stubs, (name, self._stubs.keys())
@@ -97,9 +107,12 @@ class StubManager(object):
         stub.conn = stub.conn or self.conn
         stub.name = name
         setattr(self, name, stub)
+        self._service_stubs.update(stub.service_stubs)
 
     def remove_stub(self, name):
         assert name in self._stubs, (name, self._stubs.keys())
         stub = self._stubs.pop(name, None)
         delattr(self, name)
+        for service_stub in stub.service_stubs:
+            self._service_stubs.pop(service_stub, None)
         stub.close()

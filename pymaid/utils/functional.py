@@ -31,21 +31,9 @@ class ObjectManager(object):
         return obj
 
 
-class Sender(object):
-
-    def __init__(self, target):
-        self.target = target
-
-    def send(self, meta, request):
-        self.target.send(b'{}{}{}'.format(
-            self.pack_header(meta.ByteSize(), request.ByteSize()),
-            meta.SerializeToString(), request.SerializeToString()
-        ))
-
-
 class Broadcaster(object):
 
-    def __init__(self, sender_class=Sender):
+    def __init__(self, sender_class):
         self.sender_class = sender_class
 
     def __call__(self, targets):

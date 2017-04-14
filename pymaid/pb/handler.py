@@ -1,4 +1,3 @@
-import struct
 from _socket import error as socket_error
 
 from gevent.queue import Queue
@@ -9,6 +8,7 @@ from pymaid.error import RpcError
 from pymaid.error import get_exception
 from pymaid.utils import greenlet_pool
 
+from . import unpack_header
 from .controller import Controller
 from .listener import Listener
 from .stub import StubManager
@@ -16,9 +16,6 @@ from .pymaid_pb2 import ErrorMessage, Controller as PBC
 
 
 class PBHandler(object):
-
-    HEADER = '!HH'
-    unpack_header = struct.Struct(HEADER).unpack
 
     def __init__(self, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()
@@ -42,7 +39,7 @@ class PBHandler(object):
                 if not header:
                     conn.close(reset=True)
                     break
-                packet_length, content_length = self.unpack_header(header)
+                packet_length, content_length = unpack_header(header)
                 if packet_length + content_length > settings.MAX_PACKET_LENGTH:
                     conn.close(RpcError.PacketTooLarge(
                         packet_length=packet_length + content_length
@@ -75,6 +72,7 @@ class PBHandler(object):
                         except (DecodeError, ValueError) as ex:
                             result.set_exception(ex)
                 else:
+                    controller.header_buf = header
                     callbacks[packet_type](controller, content)
         except socket_error as ex:
             conn.close(ex, reset=True)
@@ -83,9 +81,6 @@ class PBHandler(object):
 
 
 class PBHandlerWithWorker(object):
-
-    HEADER = '!HH'
-    unpack_header = struct.Struct(HEADER).unpack
 
     def __init__(self, listener=None, close_conn_onerror=True):
         self.listener = listener or Listener()
@@ -114,7 +109,7 @@ class PBHandlerWithWorker(object):
                 if not header:
                     conn.close(reset=True)
                     break
-                packet_length, content_length = self.unpack_header(header)
+                packet_length, content_length = unpack_header(header)
                 if packet_length + content_length > settings.MAX_PACKET_LENGTH:
                     conn.close(RpcError.PacketTooLarge(
                         packet_length=packet_length + content_length

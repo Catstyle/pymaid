@@ -1,15 +1,12 @@
-import struct
-
 from pymaid.error import BaseEx, Error, RpcError
 
+from . import pack_header
 from .pymaid_pb2 import Void, ErrorMessage, Controller as PBC
 
 __all__ = ['Listener']
 
 
 class Listener(object):
-
-    pack_header = struct.Struct('!HH').pack
 
     def __init__(self):
         self.service_methods = {}
@@ -40,7 +37,7 @@ class Listener(object):
             err = RpcError.RPCNotExist(service_method=service_method)
             packet = ErrorMessage(code=err.code, message=err.message)
             conn.send(b'{}{}{}'.format(
-                self.pack_header(meta.ByteSize(), packet.ByteSize()),
+                pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
             return
@@ -53,7 +50,7 @@ class Listener(object):
                 return
             packet = response or response_class(**kwargs)
             conn.send(b'{}{}{}'.format(
-                self.pack_header(meta.ByteSize(), packet.ByteSize()),
+                pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
 
@@ -64,7 +61,7 @@ class Listener(object):
             meta.is_failed = True
             packet = ErrorMessage(code=ex.code, message=ex.message)
             conn.send(b'{}{}{}'.format(
-                self.pack_header(meta.ByteSize(), packet.ByteSize()),
+                pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
             if isinstance(ex, Error) and conn.close_conn_onerror:
