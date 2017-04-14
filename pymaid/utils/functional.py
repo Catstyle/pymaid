@@ -31,6 +31,28 @@ class ObjectManager(object):
         return obj
 
 
+class Sender(object):
+
+    def __init__(self, target):
+        self.target = target
+
+    def send(self, meta, request):
+        self.target.send(b'{}{}{}'.format(
+            self.pack_header(meta.ByteSize(), request.ByteSize()),
+            meta.SerializeToString(), request.SerializeToString()
+        ))
+
+
+class Broadcaster(object):
+
+    def __init__(self, sender_class=Sender):
+        self.sender_class = sender_class
+
+    def __call__(self, targets):
+        for target in targets:
+            yield self.sender_class(target)
+
+
 def get_ipaddress(ifname):
     import socket
     import struct
