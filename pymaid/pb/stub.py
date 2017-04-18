@@ -65,9 +65,9 @@ class ServiceStub(object):
                 assert conn, conn
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
+                    conn.transmission_id += 1
                 if extension:
                     meta.extension.Pack(extension)
-                conn.transmission_id += 1
                 conn.send(b'{}{}{}'.format(
                     pack_header(meta.ByteSize(), request.ByteSize()),
                     meta.SerializeToString(), request.SerializeToString()
