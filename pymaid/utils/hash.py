@@ -89,6 +89,9 @@ class HashRing(BaseHashManager):
         if not self.nodes:
             return
 
+        self.lookup_table = {}
+        self.sorted_keys = []
+
         hash_func = self.hash_func
         virtual_entry_count = self.virtual_entry_count
         lookup_table = self.lookup_table
