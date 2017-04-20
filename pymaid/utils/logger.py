@@ -184,7 +184,7 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
                 frame.f_lineno,
                 '[stub|%s][extension|%s][request|%s][kwargs|%s]',
                 (stub_name, repr(str(extension)) if extension else None,
-                 request, kwargs),
+                 repr(str(request)), kwargs),
                 None, stub_name
             ))
             return rpc(request, extension, conn, connections, **kwargs)
