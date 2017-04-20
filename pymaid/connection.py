@@ -90,7 +90,7 @@ class Connection(object):
         queue = self._send_queue
         while 1:
             self._send()
-            if not queue or self.is_closed:
+            if not queue:
                 break
             w_io.start(w_gr.switch)
             try:
@@ -311,11 +311,7 @@ class Connection(object):
             return
         self.read = self.readline = lambda *args, **kwargs: ''
         self.write = self.send = lambda *args, **kwargs: ''
-        # _sendall will check is_closed to avoid recursion
-        self.is_closed = True
         self._sendall()
-        # super close need is_closed = False
-        self.is_closed = False
         self.close(reason, reset)
 
     def __str__(self):
