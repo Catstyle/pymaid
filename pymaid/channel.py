@@ -82,6 +82,7 @@ class ServerChannel(BaseChannel):
             cnt += 1
             try:
                 peer_socket, address = accept()
+                attach_connection(ConnectionClass(peer_socket))
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     break
@@ -89,7 +90,11 @@ class ServerChannel(BaseChannel):
                     continue
                 self.logger.exception(ex)
                 break
-            attach_connection(ConnectionClass(peer_socket))
+            except KeyboardInterrupt:
+                raise
+            except Exception as ex:
+                self.logger.exception(ex)
+                break
 
     def _connection_attached(self, conn):
         super(ServerChannel, self)._connection_attached(conn)
