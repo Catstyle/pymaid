@@ -11,7 +11,6 @@ from pymaid.utils import greenlet_pool
 from . import unpack_header
 from .controller import Controller
 from .listener import Listener
-from .stub import StubManager
 from .pymaid_pb2 import ErrorMessage, Controller as PBC
 
 
@@ -32,7 +31,6 @@ class PBHandler(object):
             PBC.NOTIFICATION: self.listener.handle_notification,
         }
         transmissions = conn.transmissions
-        responses = StubManager.response_class
         try:
             while 1:
                 header = conn.read(4)
@@ -57,6 +55,7 @@ class PBHandler(object):
                     if not result:
                         # invalid transmission_id, do nothing
                         continue
+                    result, response_class = result
 
                     if meta.is_failed:
                         try:
@@ -67,8 +66,7 @@ class PBHandler(object):
                         result.set_exception(ex)
                     else:
                         try:
-                            result.set(responses[meta.service_method]
-                                       .FromString(content))
+                            result.set(response_class.FromString(content))
                         except (DecodeError, ValueError) as ex:
                             result.set_exception(ex)
                 else:
@@ -102,7 +100,6 @@ class PBHandlerWithWorker(object):
             PBC.NOTIFICATION: self.listener.handle_notification,
         }
         transmissions = conn.transmissions
-        responses = StubManager.response_class
         try:
             while 1:
                 header = conn.read(4)
@@ -127,6 +124,7 @@ class PBHandlerWithWorker(object):
                     if not result:
                         # invalid transmission_id, do nothing
                         continue
+                    result, response_class = result
 
                     if meta.is_failed:
                         try:
@@ -137,8 +135,7 @@ class PBHandlerWithWorker(object):
                         result.set_exception(ex)
                     else:
                         try:
-                            result.set(responses[meta.service_method]
-                                       .FromString(content))
+                            result.set(response_class.FromString(content))
                         except (DecodeError, ValueError) as ex:
                             result.set_exception(ex)
                 else:

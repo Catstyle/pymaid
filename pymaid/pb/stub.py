@@ -77,7 +77,7 @@ class ServiceStub(object):
                     return
 
                 async_result = AsyncResult()
-                conn.transmissions[tid] = async_result
+                conn.transmissions[tid] = (async_result, response_class)
 
                 def cleanup(result):
                     conn.transmissions.pop(tid, None)
