@@ -276,7 +276,7 @@ class Connection(object):
         return True
 
     def add_close_cb(self, close_cb):
-        '''last added close callback will be call first'''
+        '''last added close callback will be called first'''
         assert close_cb not in self.close_callbacks
         assert callable(close_cb)
         self.close_callbacks.append(close_cb)
@@ -293,7 +293,7 @@ class Connection(object):
         for async_result in self.transmissions.values():
             # we should not reach here with async_result left
             # that should be an exception
-            async_result.set_exception(ex)
+            async_result[0].set_exception(ex)
         self.transmissions.clear()
 
         del self._send_queue[:]

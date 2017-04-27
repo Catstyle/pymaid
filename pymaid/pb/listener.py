@@ -29,6 +29,7 @@ class Listener(object):
         meta = controller.meta
         meta.packet_type = PBC.RESPONSE
         service_method = meta.service_method
+        meta.service_method = ''
 
         conn = controller.conn
         rpc = self.service_methods.get(service_method)
@@ -54,9 +55,9 @@ class Listener(object):
                 meta.SerializeToString(), packet.SerializeToString()
             ))
 
-        request = request_class.FromString(content)
         try:
-            method(controller, request, send_response)
+            method(controller, request_class.FromString(content),
+                   send_response)
         except BaseEx as ex:
             meta.is_failed = True
             packet = ErrorMessage(code=ex.code, message=ex.message)
@@ -75,9 +76,9 @@ class Listener(object):
             return
 
         method, request_class, response_class = rpc
-        request = request_class.FromString(content)
         try:
-            method(controller, request, lambda *args, **kwargs: '')
+            method(controller, request_class.FromString(content),
+                   lambda *args, **kwargs: '')
         except BaseEx:
             # failed silently when handle_notification
             pass
