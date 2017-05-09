@@ -19,8 +19,11 @@ __version__ = re.search(
 assert __version__
 
 # Get the long description from the README file
-with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+if path.exists(path.join(pwd, 'README.md')):
+    with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
+        long_description = f.read()
+else:
+    long_description = 'not exists'
 
 
 class MyClean(clean):
