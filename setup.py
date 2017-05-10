@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import re
-import sys
 import shutil
 import subprocess
 
@@ -90,10 +89,9 @@ if __name__ == '__main__':
         ],
 
         packages=find_packages(),
-        data_files=[
-            (path.join(sys.prefix, 'include', 'pymaid', 'pb'),
-             ['pymaid/pb/pymaid.proto']),
-        ],
+        package_data={
+            '': ['*.proto'],
+        },
         install_requires=[
             'gevent>=1.2',
             'protobuf>=3.2.0',

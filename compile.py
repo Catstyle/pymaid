@@ -1,6 +1,5 @@
 from __future__ import print_function
 
-import sys
 import os.path
 import subprocess
 import argparse
@@ -10,8 +9,8 @@ import tempfile
 from distutils.spawn import find_executable
 from string import Template
 
-prefix = sys.prefix
-extra_include = os.path.join(prefix, 'include/')
+import pymaid
+extra_include = '/'.join(pymaid.__path__[0].split('/')[:-1])
 
 JS_TEMPLATE = Template("""(function(global) {
     var next = global['${package}'] = global['${package}'] || {};
@@ -51,9 +50,6 @@ def parse_args():
     )
     parser.add_argument(
         '--json-out', type=str, help='create json descriptor using pbjs'
-    )
-    parser.add_argument(
-        '--xor-key', type=str, help='encode json descriptor by key'
     )
 
     args = parser.parse_args()
@@ -112,10 +108,12 @@ def pb2js(pbjs, source, path, output_path, js_package):
     for dirname in dirnames[:-1]:
         nexts.append(
             'var next = global["%s"] = global["%s"] || {};' % (
-                dirname, dirname)
+                dirname, dirname
+            )
         )
-    nexts.append('next["%s"] = %s;' %
-                 (dirnames[-1], content.replace('\n', '\n    ')))
+    nexts.append(
+        'next["%s"] = %s;' % (dirnames[-1], content.replace('\n', '\n    '))
+    )
     content = JS_TEMPLATE.safe_substitute(
         package=js_package, nexts='\n    '.join(nexts)
     )
@@ -126,19 +124,8 @@ def pb2js(pbjs, source, path, output_path, js_package):
 def pb2json(pbjs, source, path, output_path, xor_key):
     content = _pbjs(pbjs, source, path, ['-t', 'json'])
     content = json.dumps(json.loads(content))
-    if xor_key:
-        content = xor(content, xor_key)
     output = source.replace('.proto', '.json')
     save_to_file(os.path.join(output_path, output), content)
-
-
-def xor(content, key):
-    key = key.strip()
-    assert key, 'invalid key'
-    length = len(key)
-    print('xor with key: %s, length: %d' % (key, length))
-    return ''.join(chr(ord(char) ^ ord(key[idx % length]))
-                   for idx, char in enumerate(content))
 
 
 def ensure_folder(path):
