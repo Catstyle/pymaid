@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import re
-import sys
 import shutil
 import subprocess
 
@@ -19,8 +18,11 @@ __version__ = re.search(
 assert __version__
 
 # Get the long description from the README file
-with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
-    long_description = f.read()
+if path.exists(path.join(pwd, 'README.md')):
+    with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
+        long_description = f.read()
+else:
+    long_description = 'not exists'
 
 
 class MyClean(clean):
@@ -45,11 +47,12 @@ class MyClean(clean):
 class MyBuildPy(build_py):
 
     def run(self):
-        errno = subprocess.call(
-            ['python', 'compile.py', '.', '--python-out', '.'])
-        if errno != 0:
+        errno = subprocess.call([
+            'python', 'compile.py', '.', '--python-out', '.'
+        ])
+        if errno != 0 and errno != 2:
             print('call `python compile.py` failed with errno: %d' % errno)
-            exit(1)
+            exit(errno)
         build_py.run(self)
 
 
@@ -86,10 +89,9 @@ if __name__ == '__main__':
         ],
 
         packages=find_packages(),
-        data_files=[
-            (path.join(sys.prefix, 'include', 'pymaid', 'pb'),
-             ['pymaid/pb/pymaid.proto']),
-        ],
+        package_data={
+            '': ['*.proto'],
+        },
         install_requires=[
             'gevent>=1.2',
             'protobuf>=3.2.0',
