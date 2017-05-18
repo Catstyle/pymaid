@@ -86,7 +86,7 @@ class ServerChannel(BaseChannel):
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     break
-                if ex.errno == socket.ECONNABORTED:
+                if ex.errno in {errno.ECONNABORTED, errno.ENOTCONN}:
                     continue
                 self.logger.exception(ex)
                 break
