@@ -79,7 +79,6 @@ class ServerChannel(BaseChannel):
         while 1:
             if cnt >= settings.MAX_ACCEPT or self.is_full:
                 break
-            cnt += 1
             try:
                 peer_socket, address = accept()
                 attach_connection(ConnectionClass(peer_socket))
@@ -94,8 +93,15 @@ class ServerChannel(BaseChannel):
             except KeyboardInterrupt:
                 raise
             except Exception as ex:
+                peer_socket.close()
                 self.logger.exception(ex)
                 break
+            cnt += 1
+        self.logger.debug(
+            '[accept][count|%d/%d][conns|%d/%d]',
+            cnt, settings.MAX_ACCEPT, len(self.connections),
+            settings.MAX_CONCURRENCY
+        )
 
     def _connection_attached(self, conn):
         super(ServerChannel, self)._connection_attached(conn)
@@ -125,7 +131,7 @@ class ServerChannel(BaseChannel):
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), 1), sock))
+        self.accept_watchers.append((io(sock.fileno(), 1, priority=2), sock))
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
