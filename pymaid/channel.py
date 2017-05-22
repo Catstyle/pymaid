@@ -75,32 +75,50 @@ class ServerChannel(BaseChannel):
     def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
-        cnt = 0
+        cnt = err = 0
+        break_reason = ''
         while 1:
             if cnt >= settings.MAX_ACCEPT or self.is_full:
+                break_reason = 'full'
                 break
             try:
                 peer_socket, address = accept()
-                attach_connection(ConnectionClass(peer_socket))
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
+                    break_reason = 'EWOULDBLOCK'
                     break
                 peer_socket.close()
                 if ex.errno in {errno.ECONNABORTED, errno.ENOTCONN}:
+                    err += 1
                     continue
+                break_reason = str(ex)
                 self.logger.exception(ex)
                 break
-            except KeyboardInterrupt:
-                raise
             except Exception as ex:
                 peer_socket.close()
+                break_reason = str(ex)
+                self.logger.exception(ex)
+                break
+            try:
+                attach_connection(ConnectionClass(peer_socket))
+            except socket_error as ex:
+                peer_socket.close()
+                if ex.errno in {errno.ECONNABORTED, errno.ENOTCONN}:
+                    err += 1
+                    continue
+                break_reason = str(ex)
+                self.logger.exception(ex)
+                break
+            except Exception as ex:
+                peer_socket.close()
+                break_reason = str(ex)
                 self.logger.exception(ex)
                 break
             cnt += 1
         self.logger.debug(
-            '[accept][count|%d/%d][conns|%d/%d]',
-            cnt, settings.MAX_ACCEPT, len(self.connections),
-            settings.MAX_CONCURRENCY
+            '[accept][count|%d/%d/%d][conns|%d/%d][break_reason|%s]',
+            cnt, err, settings.MAX_ACCEPT, len(self.connections),
+            settings.MAX_CONCURRENCY, break_reason
         )
 
     def _connection_attached(self, conn):
