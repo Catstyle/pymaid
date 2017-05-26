@@ -37,7 +37,7 @@ class BaseChannel(object):
     def _connection_detached(self, conn, reason=None, reset=False):
         log = self.logger.info
         if reason:
-            if reset or isinstance(reason, (BaseEx, string_types, int)):
+            if isinstance(reason, (BaseEx, string_types, int)):
                 log = self.logger.error
             else:
                 log = self.logger.exception
