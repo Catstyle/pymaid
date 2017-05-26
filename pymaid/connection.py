@@ -62,6 +62,7 @@ class Connection(object):
     def _send(self):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
+            self.w_io.stop()
             return
 
         send = self._socket.send
