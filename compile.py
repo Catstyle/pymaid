@@ -107,7 +107,7 @@ def pb2js(pbjs, source, path, output_path, js_package):
     dirnames = os.path.splitext(relpath)[0].split('/')
     for dirname in dirnames[:-1]:
         nexts.append(
-            'var next = global["%s"] = global["%s"] || {};' % (
+            'var next = next["%s"] = next["%s"] || {};' % (
                 dirname, dirname
             )
         )
