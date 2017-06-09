@@ -295,29 +295,6 @@ class WebSocket(Connection):
         opcode = self.OPCODE_BINARY if binary else self.OPCODE_TEXT
         self.send_frame(message, opcode)
 
-    def close(self, reason=None, reset=False):
-        if self.is_closed:
-            return
-        # send_frame/_sendall will check is_closed to avoid recursion
-        self.is_closed = True
-        self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
-
-        code, message = 1000, ''
-        if isinstance(reason, int):
-            code = reason
-        elif reason:
-            message = str(reason)
-        message = self._encode_bytes(message)
-        self.send_frame(
-            struct.pack('!H%ds' % len(message), code, message),
-            self.OPCODE_CLOSE
-        )
-        self._sendall()
-        # super close need is_closed = False
-        self.is_closed = False
-        super(WebSocket, self).close(reason, reset)
-
 
 class Header(object):
 
