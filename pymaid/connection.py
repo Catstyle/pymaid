@@ -82,17 +82,17 @@ class Connection(object):
             if sent < len(membuf):
                 self._send_queue.append(membuf[sent:].tobytes())
                 self.w_io.start(self._send)
+            else:
+                self.w_retry = 0
+                self.w_io.stop()
         except socket_error as ex:
             if ex.errno == errno.EWOULDBLOCK:
                 self.w_retry += 1
-                self.logger.debug(
-                    '[%s] retry send [retrying|%d]', self, self.w_retry
-                )
                 if self.w_retry >= settings.WRETRY:
-                    self.close(reset=True)
+                    self.close('max retried: %d' % self.w_retry, reset=True)
                 else:
                     self.w_io.start(self._send)
-            elif not self.is_closed:
+            else:
                 self.close(ex, reset=True)
 
     def _sendall(self):
