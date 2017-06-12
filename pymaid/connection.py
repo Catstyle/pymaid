@@ -49,6 +49,7 @@ class Connection(object):
         self._send_queue = []
         # 1: READ, 2: WRITE
         self.r_io, self.w_io = io(fd, 1), io(fd, 2)
+        self.w_retry = 0
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
@@ -68,6 +69,7 @@ class Connection(object):
     def _send(self):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
+            self.w_retry = 0
             self.w_io.stop()
             return
 
@@ -82,7 +84,14 @@ class Connection(object):
                 self.w_io.start(self._send)
         except socket_error as ex:
             if ex.errno == errno.EWOULDBLOCK:
-                self.w_io.start(self._send)
+                self.w_retry += 1
+                self.logger.debug(
+                    '[%s] retry send [retrying|%d]', self, self.w_retry
+                )
+                if self.w_retry >= settings.WRETRY:
+                    self.close(reset=True)
+                else:
+                    self.w_io.start(self._send)
             elif not self.is_closed:
                 self.close(ex, reset=True)
 
