@@ -294,6 +294,12 @@ class Connection(object):
         self.close_callbacks.append(close_cb)
 
     def close(self, reason=None, reset=False):
+        del self._send_queue[:]
+        self.w_io.stop()
+        self.r_io.stop()
+        self.buf = BytesIO()
+        self._socket.close()
+
         if self.is_closed:
             return
         self.is_closed = True
@@ -307,12 +313,6 @@ class Connection(object):
             # that should be an exception
             async_result.set_exception(ex)
         self.transmissions.clear()
-
-        del self._send_queue[:]
-        self.w_io.stop()
-        self.r_io.stop()
-        self.buf = BytesIO()
-        self._socket.close()
 
         for cb in self.close_callbacks[::-1]:
             cb(self, reason, reset)
