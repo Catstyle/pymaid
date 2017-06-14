@@ -73,11 +73,10 @@ class Connection(object):
             self.w_io.stop()
             return
 
-        send = self._socket.send
         membuf = memoryview(''.join(self._send_queue))
         try:
             # see pydoc of socket.send
-            sent = send(membuf)
+            sent = self._socket.send(membuf)
             del self._send_queue[:]
             if sent < len(membuf):
                 self._send_queue.append(membuf[sent:].tobytes())
@@ -88,7 +87,7 @@ class Connection(object):
         except socket_error as ex:
             if ex.errno == errno.EWOULDBLOCK:
                 self.w_retry += 1
-                if self.w_retry >= settings.WRETRY:
+                if self.w_retry > settings.WRETRY:
                     self.close('max retried: %d' % self.w_retry, reset=True)
                 else:
                     self.w_io.start(self._send)
@@ -300,8 +299,6 @@ class Connection(object):
         self.buf = BytesIO()
         self._socket.close()
 
-        if self.is_closed:
-            return
         self.is_closed = True
 
         if isinstance(reason, Greenlet):
@@ -314,20 +311,15 @@ class Connection(object):
             async_result.set_exception(ex)
         self.transmissions.clear()
 
-        for cb in self.close_callbacks[::-1]:
-            cb(self, reason, reset)
+        callbacks = self.close_callbacks[::-1]
         del self.close_callbacks[:]
+        for cb in callbacks:
+            cb(self, reason, reset)
 
     def delay_close(self, reason=None, reset=False):
-        if self.is_closed:
-            return
         self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
-        # _sendall will check is_closed to avoid recursion
-        self.is_closed = True
+        self.write = self.send = lambda *args, **kwargs: None
         self._sendall()
-        # super close need is_closed = False
-        self.is_closed = False
         self.close(reason, reset)
 
     def __str__(self):
@@ -341,7 +333,7 @@ class DisconnectedConnection(Connection):
 
     def __init__(self):
         self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: None
         self.connid = 0
         self.transmission_id = 0
         self.sockname = self.peername = 'disconnected'
