@@ -31,8 +31,6 @@ class Connection(object):
         self.client_side = client_side
 
         self.buf = BytesIO()
-        # self.buf = bytearray(settings.MAX_RECV_SIZE)
-        # self.buf_length = 0
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_callbacks = False, []
 

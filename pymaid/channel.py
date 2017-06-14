@@ -71,13 +71,17 @@ class ServerChannel(BaseChannel):
         super(ServerChannel, self).__init__(handler, connection_class)
         self.accept_watchers = []
         self.middlewares = []
+        self.is_paused = False
 
     def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
         cnt = 0
         while 1:
-            if cnt >= settings.MAX_ACCEPT or self.is_full:
+            if cnt >= settings.MAX_ACCEPT:
+                break
+            if self.is_full:
+                self.pause()
                 break
             cnt += 1
             try:
@@ -87,6 +91,7 @@ class ServerChannel(BaseChannel):
                     break
                 if ex.errno == socket.ECONNABORTED:
                     continue
+                peer_socket.close()
                 self.logger.exception(ex)
                 break
             attach_connection(ConnectionClass(peer_socket))
@@ -100,6 +105,8 @@ class ServerChannel(BaseChannel):
         super(ServerChannel, self)._connection_detached(conn, reason, reset)
         for middleware in self.middlewares:
             middleware.on_close(conn)
+        if self.is_paused and not self.is_full:
+            self.start()
 
     def listen(self, address, backlog=256, type_=socket.SOCK_STREAM):
         # not support ipv6 yet
@@ -125,14 +132,19 @@ class ServerChannel(BaseChannel):
         self.middlewares.append(middleware)
 
     def start(self):
+        self.is_paused = False
         for watcher, sock in self.accept_watchers:
             if not watcher.active:
                 watcher.start(self._do_accept, sock)
 
-    def stop(self, reason='ServerChannel calls stop'):
+    def pause(self):
+        self.is_paused = True
         for watcher, sock in self.accept_watchers:
             if watcher.active:
                 watcher.stop()
+
+    def stop(self, reason='ServerChannel calls stop'):
+        self.pause()
         super(ServerChannel, self).stop(reason)
 
 
