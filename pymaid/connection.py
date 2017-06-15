@@ -36,11 +36,7 @@ class Connection(object):
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
-        try:
-            self.peername = sock.getpeername()
-        except socket_error as ex:
-            if ex.errno == errno.ENOTCONN:
-                self.peername = str(ex)
+        self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
         fd = self.fd = sock.fileno()
 
