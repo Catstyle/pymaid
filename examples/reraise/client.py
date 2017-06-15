@@ -1,3 +1,6 @@
+import re
+from argparse import ArgumentParser
+
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
@@ -7,10 +10,31 @@ from rpc_pb2 import RemoteError_Stub
 from error import PlayerNotExist
 
 
-def wrapper(pid, n):
-    conn = channel.connect(("127.0.0.1", 8888))
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        '-c', dest='concurrency', type=int, default=100, help='concurrency'
+    )
+    parser.add_argument(
+        '-r', dest='request', type=int, default=100, help='request per client'
+    )
+    parser.add_argument(
+        '--address', type=str, default='/tmp/pymaid_reraise.sock',
+        help='connect address'
+    )
+
+    args = parser.parse_args()
+    if re.search(r':\d+$', args.address):
+        address, port = args.address.split(':')
+        args.address = (address, int(port))
+    print(args)
+    return args
+
+
+def wrapper(pid, address, count):
+    conn = channel.connect(address)
     global cnt
-    for x in range(n):
+    for x in range(count):
         try:
             service.player_profile(conn=conn, user_id=x)
         except PlayerNotExist:
@@ -25,15 +49,16 @@ channel = ClientChannel(PBHandler())
 service = ServiceStub(RemoteError_Stub(None))
 
 
-def main():
+def main(args):
     pool = Pool()
     pool.spawn(wrapper, 111111, 2000)
-    for x in range(1000):
-        pool.spawn(wrapper, x, 1)
+    for x in range(args.concurrency):
+        pool.spawn(wrapper, x, args.address, args.request)
 
     pool.join()
     assert cnt == 3000
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
