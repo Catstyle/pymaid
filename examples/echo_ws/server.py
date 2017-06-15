@@ -1,4 +1,6 @@
 from __future__ import print_function
+import re
+from argparse import ArgumentParser
 
 import pymaid
 from pymaid.channel import ServerChannel
@@ -6,6 +8,20 @@ from pymaid.pb import PBHandler, Listener
 from pymaid.utils import greenlet_pool
 
 from echo_pb2 import Message, EchoService
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        '--address', type=str, default='127.0.0.1:8888', help='listen address'
+    )
+
+    args = parser.parse_args()
+    if re.search(r':\d+$', args.address):
+        address, port = args.address.split(':')
+        args.address = (address, int(port))
+    print(args)
+    return args
 
 
 class EchoServiceImpl(EchoService):
@@ -16,11 +32,11 @@ class EchoServiceImpl(EchoService):
         callback(response)
 
 
-def main():
+def main(args):
     listener = Listener()
     listener.append_service(EchoServiceImpl())
     channel = ServerChannel(PBHandler(listener))
-    channel.listen(("", 8888))
+    channel.listen(args.address)
     channel.start()
     try:
         pymaid.serve_forever()
@@ -32,4 +48,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
