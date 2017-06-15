@@ -1,4 +1,6 @@
 from __future__ import print_function
+import re
+from argparse import ArgumentParser
 
 import pymaid
 from pymaid.channel import ServerChannel
@@ -9,6 +11,21 @@ from echo_pb2 import Message
 from echo_pb2 import EchoService
 
 
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        '--address', type=str, default='/tmp/pymaid_echo.sock',
+        help='listen address'
+    )
+
+    args = parser.parse_args()
+    if re.search(r':\d+$', args.address):
+        address, port = args.address.split(':')
+        args.address = (address, int(port))
+    print(args)
+    return args
+
+
 class EchoServiceImpl(EchoService):
 
     def echo(self, controller, request, callback):
@@ -17,11 +34,11 @@ class EchoServiceImpl(EchoService):
         callback(response)
 
 
-def main():
+def main(args):
     listener = Listener()
     listener.append_service(EchoServiceImpl())
     channel = ServerChannel(PBHandler(listener))
-    channel.listen('/tmp/pymaid_echo.sock')
+    channel.listen(args.address)
     channel.start()
     try:
         pymaid.serve_forever()
@@ -33,4 +50,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
