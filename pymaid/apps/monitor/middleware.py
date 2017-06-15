@@ -20,6 +20,7 @@ class MonitorMiddleware(BaseMiddleware):
         def heartbeat_timeout():
             conn.heartbeat_count += 1
             if conn.heartbeat_count >= self.heartbeat_count:
+                conn.heartbeat_timer.stop()
                 conn.close(MonitorError.HeartbeatTimeout())
 
         heartbeat_timer = timer(0, self.heartbeat_interval)

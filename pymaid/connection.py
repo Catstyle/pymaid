@@ -43,6 +43,7 @@ class Connection(object):
         self._send_queue = []
         # 1: READ, 2: WRITE
         self.r_io, self.w_io = io(fd, 1), io(fd, 2)
+        self.w_retry = 0
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
@@ -62,22 +63,29 @@ class Connection(object):
     def _send(self):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
+            self.w_retry = 0
             self.w_io.stop()
             return
 
-        send = self._socket.send
         membuf = memoryview(''.join(self._send_queue))
         try:
             # see pydoc of socket.send
-            sent = send(membuf)
+            sent = self._socket.send(membuf)
             del self._send_queue[:]
             if sent < len(membuf):
                 self._send_queue.append(membuf[sent:].tobytes())
                 self.w_io.start(self._send)
+            else:
+                self.w_retry = 0
+                self.w_io.stop()
         except socket_error as ex:
             if ex.errno == errno.EWOULDBLOCK:
-                self.w_io.start(self._send)
-            elif not self.is_closed:
+                self.w_retry += 1
+                if self.w_retry > settings.WRETRY:
+                    self.close('max retried: %d' % self.w_retry, reset=True)
+                else:
+                    self.w_io.start(self._send)
+            else:
                 self.close(ex, reset=True)
 
     def _sendall(self):
@@ -279,8 +287,12 @@ class Connection(object):
         self.close_callbacks.append(close_cb)
 
     def close(self, reason=None, reset=False):
-        if self.is_closed:
-            return
+        del self._send_queue[:]
+        self.w_io.stop()
+        self.r_io.stop()
+        self.buf = BytesIO()
+        self._socket.close()
+
         self.is_closed = True
 
         if isinstance(reason, Greenlet):
@@ -293,21 +305,14 @@ class Connection(object):
             async_result[0].set_exception(ex)
         self.transmissions.clear()
 
-        del self._send_queue[:]
-        self.w_io.stop()
-        self.r_io.stop()
-        self.buf = BytesIO()
-        self._socket.close()
-
-        for cb in self.close_callbacks[::-1]:
-            cb(self, reason, reset)
+        callbacks = self.close_callbacks[::-1]
         del self.close_callbacks[:]
+        for cb in callbacks:
+            cb(self, reason, reset)
 
     def delay_close(self, reason=None, reset=False):
-        if self.is_closed:
-            return
         self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: ''
+        self.write = self.send = lambda *args, **kwargs: None
         self._sendall()
         self.close(reason, reset)
 
