@@ -3,7 +3,6 @@ from gevent import sleep
 from gevent.pool import Pool
 
 from pymaid.channel import BidChannel
-from pymaid.parser import PBParser
 from pymaid.pb import Listener, PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -20,15 +19,15 @@ class ChatBroadcastImpl(ChatBroadcast):
 
 
 def prepare():
-    conn = channel.connect(("127.0.0.1", 8888))
+    conn = channel.connect('/tmp/pymaid_chat.sock')
     conn.count = 0
-    service.Join(conn=conn)
+    service.Join(conn=conn).get()
     connections.append(conn)
 
 
 def cleanup():
     for conn in connections:
-        service.Leave(conn=conn)
+        service.Leave(conn=conn).get()
         conn.close()
 
 
@@ -36,12 +35,12 @@ def wrapper(conn, n, total, message=message):
     for x in range(n):
         service.Publish(request, conn=conn)
     while conn.count != total:
-        sleep(0.001)
+        sleep(0.1)
 
 
 listener = Listener()
 listener.append_service(ChatBroadcastImpl())
-channel = BidChannel(PBHandler, listener, parser=PBParser)
+channel = BidChannel(PBHandler(listener))
 connections = []
 
 service = ServiceStub(ChatService_Stub(None))

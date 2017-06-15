@@ -4,7 +4,7 @@ import pymaid
 from pymaid.channel import ServerChannel
 
 
-def handler(conn, listener):
+def handler(conn):
     readline, write = conn.readline, conn.write
     while 1:
         data = readline(1024)

@@ -1,15 +1,12 @@
 import os
-from copy import weakref
-from _socket import socket as realsocket
-from _socket import (
-    AF_UNIX, AF_INET, SOCK_STREAM, SOL_SOCKET, SO_REUSEADDR, SO_REUSEPORT
-)
+import errno
+import socket
+from socket import socket as realsocket, error as socket_error
 
-from six import itervalues, string_types
-from gevent.socket import error as socket_error, EWOULDBLOCK
-from gevent.core import READ
+from six import string_types
 
 from pymaid.connection import Connection
+from pymaid.conf import settings
 from pymaid.error.base import BaseEx
 from pymaid.utils import greenlet_pool, io
 from pymaid.utils.logger import pymaid_logger_wrapper
@@ -20,16 +17,12 @@ __all__ = ['ServerChannel', 'ClientChannel']
 @pymaid_logger_wrapper
 class BaseChannel(object):
 
-    MAX_CONCURRENCY = 50000
-
-    def __init__(self, handler, connection_class=Connection, **kwargs):
-        self.parser = None
+    def __init__(self, handler, connection_class=Connection):
         self.handler = handler
-        self.handler_kwargs = kwargs
         self.connection_class = connection_class
-        self.connections = weakref.WeakValueDictionary()
+        self.connections = {}
 
-    def _connection_attached(self, conn, **handler_kwargs):
+    def _connection_attached(self, conn):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.connid, conn.sockname, conn.peername
@@ -37,20 +30,13 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
-        if self.parser:
-            # used by stub
-            conn.pack_meta = self.parser.pack_meta
-            conn.unpack = self.parser.unpack
-        conn.worker_gr = greenlet_pool.spawn(
-            self.handler, conn, **handler_kwargs
-        )
-        conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
+        self.handler(conn)
 
     def _connection_detached(self, conn, reason=None, reset=False):
         log = self.logger.info
         if reason:
-            if reset or isinstance(reason, (BaseEx, string_types, int)):
+            if isinstance(reason, (BaseEx, string_types, int)):
                 log = self.logger.error
             else:
                 log = self.logger.exception
@@ -63,7 +49,7 @@ class BaseChannel(object):
 
     @property
     def is_full(self):
-        return len(self.connections) >= self.MAX_CONCURRENCY
+        return len(self.connections) >= settings.MAX_CONCURRENCY
 
     def connection_attached(self, conn):
         pass
@@ -72,50 +58,52 @@ class BaseChannel(object):
         pass
 
     def stop(self, reason='Channel calls stop'):
-        for conn in itervalues(self.connections):
+        for conn in self.connections.values()[:]:
             conn.delay_close(reason)
+        self.connections.clear()
 
 
 @pymaid_logger_wrapper
 class ServerChannel(BaseChannel):
 
-    # Sets the maximum number of consecutive accepts that a process may perform
-    # on a single wake up. High values give higher priority to high connection
-    # rates, while lower values give higher priority to already established
-    # connections.
-    # Default is 256. Note, that in case of multiple working processes on the
-    # same listening value, it should be set to a lower value.
-    MAX_ACCEPT = 256
-
-    def __init__(self, handler, listener=None, connection_class=Connection,
-                 **kwargs):
-        super(ServerChannel, self).__init__(
-            handler, connection_class, **kwargs
-        )
-        self.parser = kwargs.pop('parser', None)
-        self.handler_kwargs.update({'listener': listener})
+    def __init__(self, handler, connection_class=Connection):
+        super(ServerChannel, self).__init__(handler, connection_class)
         self.accept_watchers = []
         self.middlewares = []
+        self.is_paused = False
 
-    def _do_accept(self, sock, max_accept):
+    def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
         ConnectionClass = self.connection_class
-        cnt, handler_kwargs = 0, self.handler_kwargs
+        cnt = err = 0
         while 1:
-            if cnt >= max_accept or self.is_full:
+            if cnt >= settings.MAX_ACCEPT:
                 break
-            cnt += 1
+            if self.is_full:
+                self.pause()
+                break
             try:
                 peer_socket, address = accept()
+                conn = ConnectionClass(peer_socket)
             except socket_error as ex:
-                if ex.errno == EWOULDBLOCK:
+                if ex.errno == errno.EWOULDBLOCK:
                     break
+                peer_socket.close()
+                if ex.errno in {errno.ECONNABORTED, errno.ENOTCONN}:
+                    err += 1
+                    continue
                 self.logger.exception(ex)
-                raise
-            attach_connection(ConnectionClass(peer_socket), **handler_kwargs)
+                break
+            except Exception as ex:
+                peer_socket.close()
+                self.logger.exception(ex)
+                break
+            cnt += 1
+            conn.worker_gr = greenlet_pool.spawn(attach_connection, conn)
+            conn.worker_gr.link_exception(conn.close)
 
-    def _connection_attached(self, conn, **handler_kwargs):
-        super(ServerChannel, self)._connection_attached(conn, **handler_kwargs)
+    def _connection_attached(self, conn):
+        super(ServerChannel, self)._connection_attached(conn)
         for middleware in self.middlewares:
             middleware.on_connect(conn)
 
@@ -123,71 +111,57 @@ class ServerChannel(BaseChannel):
         super(ServerChannel, self)._connection_detached(conn, reason, reset)
         for middleware in self.middlewares:
             middleware.on_close(conn)
+        if self.is_paused and not self.is_full:
+            self.start()
 
-    def listen(self, address, backlog=1024, type_=SOCK_STREAM):
+    def listen(self, address, backlog=256, type_=socket.SOCK_STREAM):
         # not support ipv6 yet
         if isinstance(address, string_types):
-            family = AF_UNIX
+            family = socket.AF_UNIX
             if os.path.exists(address):
                 os.unlink(address)
         else:
-            family = AF_INET
+            family = socket.AF_INET
         self.logger.info(
             '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
         )
         sock = realsocket(family, type_)
-        sock.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
-        sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        # should explicitly set SO_REUSEPORT
+        # sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), READ), sock))
+        self.accept_watchers.append((io(sock.fileno(), 1, priority=2), sock))
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
 
     def start(self):
+        self.is_paused = False
         for watcher, sock in self.accept_watchers:
             if not watcher.active:
-                watcher.start(self._do_accept, sock, self.MAX_ACCEPT)
+                watcher.start(self._do_accept, sock)
 
-    def stop(self, reason='ServerChannel calls stop'):
+    def pause(self):
+        self.is_paused = True
         for watcher, sock in self.accept_watchers:
             if watcher.active:
                 watcher.stop()
+
+    def stop(self, reason='ServerChannel calls stop'):
+        self.pause()
         super(ServerChannel, self).stop(reason)
 
 
 @pymaid_logger_wrapper
 class ClientChannel(BaseChannel):
 
-    def __init__(self, handler=lambda *args, **kwargs: '',
-                 connection_class=Connection, **kwargs):
-        super(ClientChannel, self).__init__(
-            handler, connection_class, **kwargs
-        )
-        self.parser = kwargs.pop('parser', None)
+    def __init__(self, handler=lambda conn: '', connection_class=Connection):
+        super(ClientChannel, self).__init__(handler, connection_class)
 
-    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
-        family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(
-            address, True, timeout, family, type_
-        )
-        handler_kwargs = self.handler_kwargs.copy()
-        handler_kwargs.update(kwargs)
-        self._connection_attached(conn, **handler_kwargs)
-        return conn
-
-
-@pymaid_logger_wrapper
-class BidChannel(ServerChannel):
-
-    def connect(self, address, type_=SOCK_STREAM, timeout=None, **kwargs):
-        family = AF_UNIX if isinstance(address, string_types) else AF_INET
-        conn = self.connection_class.connect(
-            address, True, timeout, family, type_
-        )
-        handler_kwargs = self.handler_kwargs.copy()
-        handler_kwargs.update(kwargs)
-        self._connection_attached(conn, **handler_kwargs)
+    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None):
+        conn = self.connection_class.connect(address, True, timeout, type_)
+        conn.worker_gr = greenlet_pool.spawn(self._connection_attached, conn)
+        conn.worker_gr.link_exception(conn.close)
         return conn

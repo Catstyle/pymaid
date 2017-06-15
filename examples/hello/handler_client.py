@@ -9,20 +9,22 @@ req = '1234567890' * 100 + '\n'
 req_size = len(req)
 
 
-def handler(conn, n):
+def handler(conn):
     read, write = conn.readline, conn.write
-    for x in range(n):
+    for x in range(10000):
         write(req)
         resp = read(req_size)
         assert resp == req, len(resp)
     conn.close()
-handler_channel = ClientChannel('/tmp/hello.sock', handler)
+
+
+handler_channel = ClientChannel(handler)
 
 
 def main():
-    for x in range(1000):
+    for x in range(100):
         # handler run on an independent greenlet
-        handler_channel.connect(n=1000)
+        handler_channel.connect('/tmp/hello.sock')
 
     try:
         pymaid.serve_forever()

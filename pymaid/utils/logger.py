@@ -27,26 +27,40 @@ project_logger = None
 
 def create_project_logger(name):
     global project_logger
-    global pymaid_logger
     assert not project_logger
     project_logger = logging.getLogger(name)
-    for cls in pymaid_logger.wrappers + root_logger.wrappers:
+    for cls in root_logger.wrappers:
         cls.logger = project_logger.getChild(cls.__name__)
-    pymaid_logger = project_logger
     return project_logger
 
 
-def pymaid_logger_wrapper(cls):
-    cls.logger = pymaid_logger.getChild(cls.__name__)
-    pymaid_logger.wrappers.append(cls)
-    return cls
+def pymaid_logger_wrapper(name=''):
+
+    def _(cls):
+        cls.logger = pymaid_logger.getChild(name)
+        pymaid_logger.wrappers.append(cls)
+        return cls
+
+    if isinstance(name, type):
+        cls, name = name, name.__name__
+        return _(cls)
+    else:
+        return _
 
 
-def logger_wrapper(cls):
-    cls.logger = get_logger(cls.__name__)
-    if cls.logger.parent is root_logger:
-        root_logger.wrappers.append(cls)
-    return cls
+def logger_wrapper(name=''):
+
+    def _(cls):
+        cls.logger = get_logger(name)
+        if cls.logger.parent is root_logger:
+            root_logger.wrappers.append(cls)
+        return cls
+
+    if isinstance(name, type):
+        cls, name = name, name.__name__
+        return _(cls)
+    else:
+        return _
 
 
 def get_logger(name):
@@ -67,7 +81,8 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO, debug_info_func=None):
+def trace_service(level=logging.INFO,
+                  debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(cls):
         assert level in levelnames, level
         for method in cls.DESCRIPTOR.methods:
@@ -82,11 +97,12 @@ def trace_service(level=logging.INFO, debug_info_func=None):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level, debug_info_func = level, 'INFO', None
+        cls, level = level, 'INFO'
         return wrapper(cls)
 
 
-def trace_method(level=logging.INFO, debug_info_func=None):
+def trace_method(level=logging.INFO,
+                 debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(func):
         assert level in levelnames, level
         co = func.func_code
@@ -104,25 +120,20 @@ def trace_method(level=logging.INFO, debug_info_func=None):
         def _(self, controller, request, done):
             assert isinstance(self, Service)
 
-            if debug_info_func:
-                debug_info = debug_info_func(controller)
-            else:
-                debug_info = '[conn|%d]' % controller.conn.connid
-            logger = self.logger
-            record.name = logger.name
+            start_time = time()
+            debug_info = debug_info_func(controller)
+            record.name = self.logger.name
             req = repr(str(request))
-            update_record(
-                record, level, '%s [Enter|%s] [req|%s]', debug_info, full_name,
-                req
-            )
-            logger.handle(record)
+            extension = controller.meta.extension
 
             def done_wrapper(resp=None, **kwargs):
                 update_record(
-                    record, level, '%s [Leave|%s] [resp|%s]', debug_info,
-                    full_name, kwargs or repr(str(resp))
+                    record, level,
+                    '%s [rpc|%s][extension|%s] [req|%s] [resp|%s] [time|%.6f]',
+                    debug_info, full_name, repr(str(extension)), req,
+                    kwargs or repr(str(resp)), time() - start_time
                 )
-                logger.handle(record)
+                self.logger.handle(record)
                 done(resp, **kwargs)
             try:
                 return func(self, controller, request, done_wrapper)
@@ -130,16 +141,20 @@ def trace_method(level=logging.INFO, debug_info_func=None):
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [Leave|%s][req|%s] [warning|%s]',
-                        debug_info, full_name, req, ex
+                        '%s [rpc|%s][extension|%s] [req|%s] [warning|%s] '
+                        '[time|%.6f]',
+                        debug_info, full_name, repr(str(extension)), req, ex,
+                        time() - start_time
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [Leave|%s][req|%s] [exception|%s]',
-                        debug_info, full_name, req, ex
+                        '%s [rpc|%s][extension|%s] [req|%s] [exception|%s] '
+                        '[time|%.6f]',
+                        debug_info, full_name, repr(str(extension)), req, ex,
+                        time() - start_time
                     )
-                logger.handle(record)
+                self.logger.handle(record)
                 raise
         return _
     if isinstance(level, str):
@@ -149,7 +164,7 @@ def trace_method(level=logging.INFO, debug_info_func=None):
         return wrapper
     else:
         assert callable(level), level
-        func, level, debug_info_func = level, logging.INFO, None
+        func, level = level, logging.INFO
         return wrapper(func)
 
 
@@ -161,14 +176,18 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         assert level in levelnames, level
 
         @wraps(rpc)
-        def _(request=None, *args, **kwargs):
+        def _(request=None, extension=None, conn=None, connections=None,
+              **kwargs):
             frame = getframe(1)
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
-                frame.f_lineno, '[stub|%s][request|%s][kwargs|%s]',
-                (stub_name, request, kwargs), None, stub_name
+                frame.f_lineno,
+                '[stub|%s][extension|%s][request|%s][kwargs|%s]',
+                (stub_name, repr(str(extension)) if extension else None,
+                 repr(str(request)), kwargs),
+                None, stub_name
             ))
-            return rpc(request, *args, **kwargs)
+            return rpc(request, extension, conn, connections, **kwargs)
         return _
     if isinstance(level, str):
         level = levelnames[level]

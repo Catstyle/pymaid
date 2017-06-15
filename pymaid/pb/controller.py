@@ -1,13 +1,11 @@
-from google.protobuf.service import RpcController
-
 from .pymaid_pb2 import Controller as Meta
 
 __all__ = ['Controller']
 
 
-class Controller(RpcController):
+class Controller(object):
 
-    __slots__ = ['meta', 'conn']
+    __slots__ = ['meta', 'conn', 'header_buf']
 
     def __init__(self, meta=None, conn=None, **kwargs):
         self.meta, self.conn = meta or Meta(**kwargs), conn

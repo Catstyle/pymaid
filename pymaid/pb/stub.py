@@ -1,39 +1,55 @@
 from gevent.event import AsyncResult
-from gevent.timeout import Timeout
 
-from pymaid.pb.pymaid_pb2 import Void, Controller
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
+
+from . import pack_header
+from .pymaid_pb2 import Void, Controller
+
+
+class Sender(object):
+
+    def __init__(self, target):
+        self.target = target
+
+    def send(self, meta, request):
+        self.target.send(b'{}{}{}'.format(
+            pack_header(meta.ByteSize(), request.ByteSize()),
+            meta.SerializeToString(), request.SerializeToString()
+        ))
 
 
 @pymaid_logger_wrapper
 class ServiceStub(object):
 
-    def __init__(self, stub, conn=None, connection_pool=None, timeout=30.0):
+    def __init__(self, stub, conn=None):
         self.stub, self.meta = stub, Controller()
-        self.conn, self.connection_pool = conn, connection_pool
-        self.timeout = timeout
+        self.conn = conn
+        self.service_stubs = {}
         self._bind_stub()
 
     def _bind_stub(self):
         stub, rpc_stub = self.stub, self._build_rpc_stub
+        service_stubs = self.service_stubs
         for method in stub.DESCRIPTOR.methods:
-            setattr(self, method.name, rpc_stub(
+            rpc = rpc_stub(
                 method.full_name,
                 stub.GetRequestClass(method),
                 stub.GetResponseClass(method)
-            ))
+            )
+            setattr(self, method.name, rpc)
+            service_stubs[method.full_name] = rpc
 
     def _build_rpc_stub(self, service_method, request_class, response_class):
         if not issubclass(response_class, Void):
             packet_type, require_response = Controller.REQUEST, True
         else:
             packet_type, require_response = Controller.NOTIFICATION, False
-        StubManager.request_class[service_method] = response_class
+        StubManager.request_class[service_method] = request_class
         StubManager.response_class[service_method] = response_class
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, conn=None, connections=None, timeout=None,
+        def rpc(request=None, extension=None, conn=None, broadcaster=None,
                 **kwargs):
             request = request or request_class(**kwargs)
 
@@ -41,35 +57,38 @@ class ServiceStub(object):
             meta.Clear()
             meta.service_method = service_method
             meta.packet_type = packet_type
-            if connections is not None:
-                for conn in connections:
-                    conn.send(conn.pack_meta(meta, request))
+            if broadcaster is not None:
+                for sender in broadcaster:
+                    sender.send(meta, request)
             else:
-                conn = conn or self.conn or \
-                    self.connection_pool.get_connection()
+                conn = conn or self.conn
                 assert conn, conn
                 if require_response:
-                    meta.transmission_id = conn.transmission_id
-                conn.transmission_id += 1
-                conn.send(conn.pack_meta(meta, request))
+                    tid = meta.transmission_id = conn.transmission_id
+                    conn.transmission_id += 1
+                if extension:
+                    meta.extension.Pack(extension)
+                conn.send(b'{}{}{}'.format(
+                    pack_header(meta.ByteSize(), request.ByteSize()),
+                    meta.SerializeToString(), request.SerializeToString()
+                ))
 
-                if hasattr(conn, 'release'):
-                    conn.release()
                 if not require_response:
                     return
 
                 async_result = AsyncResult()
-                conn.transmissions[meta.transmission_id] = async_result
-                try:
-                    return async_result.get(timeout=timeout or self.timeout)
-                except Timeout:
-                    del conn.transmissions[meta.transmission_id]
-                    raise
+                conn.transmissions[tid] = (async_result, response_class)
+
+                def cleanup(result):
+                    conn.transmissions.pop(tid, None)
+                cleanup.auto_unlink = True
+                async_result.rawlink(cleanup)
+
+                return async_result
         return rpc
 
     def close(self):
-        self.stub = self.meta = None
-        self.conn = self.connection_pool = None
+        self.stub = self.meta = self.conn = None
 
 
 class StubManager(object):
@@ -77,21 +96,23 @@ class StubManager(object):
     request_class = {}
     response_class = {}
 
-    def __init__(self, conn=None, connection_pool=None):
+    def __init__(self, conn=None):
         self.conn = conn
-        self.connection_pool = connection_pool
         self._stubs = {}
+        self._service_methods = {}
 
     def add_stub(self, name, stub):
         assert name not in self._stubs, (name, self._stubs.keys())
         self._stubs[name] = stub
         stub.conn = stub.conn or self.conn
-        stub.connection_pool = stub.connection_pool or self.connection_pool
         stub.name = name
         setattr(self, name, stub)
+        self._service_stubs.update(stub.service_stubs)
 
     def remove_stub(self, name):
         assert name in self._stubs, (name, self._stubs.keys())
         stub = self._stubs.pop(name, None)
         delattr(self, name)
+        for service_stub in stub.service_stubs:
+            self._service_stubs.pop(service_stub, None)
         stub.close()

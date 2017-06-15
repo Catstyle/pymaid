@@ -3,17 +3,18 @@ import abc
 from sys import _getframe as getframe
 
 
-class ErrorMeta(type):
+_cached_classes = {}
 
-    classes = {}
+
+class ErrorMeta(type):
 
     def __init__(cls, name, bases, attrs):
         super(ErrorMeta, cls).__init__(name, bases, attrs)
         if name in ['BaseEx', 'Error', 'Warning']:
             return
 
-        assert cls.code not in ErrorMeta.classes, (cls.code, ErrorMeta.classes)
-        ErrorMeta.classes[cls.code] = cls
+        assert cls.code not in _cached_classes, (cls.code, _cached_classes)
+        _cached_classes[cls.code] = cls
         assert hasattr(cls, 'message')
 
 
@@ -67,13 +68,13 @@ class Builder(object):
 
 
 def get_exception(code, message):
-    if code in ErrorMeta.classes:
-        cls = ErrorMeta.classes[code]
+    if code in _cached_classes:
+        cls = _cached_classes[code]
     else:
         cls = type(
-            'RemoteEx%s' % code, (Warning,), {'code': code, 'message': message}
+            'Unknown%s' % code, (Warning,), {'code': code, 'message': message}
         )
-        ErrorMeta.classes[code] = cls
+        _cached_classes[code] = cls
     ins = cls()
     ins.message = message
     return ins

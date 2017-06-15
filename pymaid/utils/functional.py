@@ -31,6 +31,16 @@ class ObjectManager(object):
         return obj
 
 
+class Broadcaster(object):
+
+    def __init__(self, sender_class):
+        self.sender_class = sender_class
+
+    def __call__(self, targets):
+        for target in targets:
+            yield self.sender_class(target)
+
+
 def get_ipaddress(ifname):
     import socket
     import struct

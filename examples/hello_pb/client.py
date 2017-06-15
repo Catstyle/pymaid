@@ -2,7 +2,6 @@ from __future__ import print_function
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
-from pymaid.parser import PBParser
 from pymaid.pb import PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -13,19 +12,19 @@ def wrapper(pid, n):
     # conn = channel.connect(('localhost', 8888))
     conn = channel.connect('/tmp/hello_pb.sock')
     for x in range(n):
-        response = service.hello(conn=conn)
+        response = service.hello(conn=conn).get(30)
         assert response.message == 'from pymaid', response.message
     conn.close()
 
 
-channel = ClientChannel(PBHandler, parser=PBParser)
+channel = ClientChannel(PBHandler())
 service = ServiceStub(HelloService_Stub(None))
 
 
 def main():
     pool = Pool()
-    for x in range(1000):
-        pool.spawn(wrapper, x, 1000)
+    for x in range(100):
+        pool.spawn(wrapper, x, 10000)
 
     try:
         pool.join()

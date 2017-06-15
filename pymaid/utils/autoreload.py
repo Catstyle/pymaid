@@ -188,6 +188,7 @@ class ModuleReloader(object):
 # superreload
 # ------------------------------------------------------------------------------
 
+
 if PY3:
     func_attrs = ['__code__', '__defaults__', '__doc__',
                   '__closure__', '__globals__', '__dict__']

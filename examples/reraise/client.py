@@ -1,7 +1,6 @@
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
-from pymaid.parser import PBParser
 from pymaid.pb import ServiceStub, PBHandler
 
 from rpc_pb2 import RemoteError_Stub
@@ -13,7 +12,7 @@ def wrapper(pid, n):
     global cnt
     for x in range(n):
         try:
-            service.player_profile(conn=conn, user_id=x)
+            service.player_profile(conn=conn, user_id=x).get(30)
         except PlayerNotExist:
             cnt += 1
         else:
@@ -22,7 +21,7 @@ def wrapper(pid, n):
 
 
 cnt = 0
-channel = ClientChannel(PBHandler, parser=PBParser)
+channel = ClientChannel(PBHandler())
 service = ServiceStub(RemoteError_Stub(None))
 
 

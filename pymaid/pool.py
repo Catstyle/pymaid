@@ -2,7 +2,6 @@ import os
 import sys
 import threading
 from contextlib import contextmanager
-from _socket import error as socket_error
 
 from gevent.queue import LifoQueue, PriorityQueue, Full, Empty
 
@@ -23,9 +22,8 @@ class ConnectionPool(object):
 
         Any additional keyword arguments are passed to the channel.connect.
         """
-        size = size or 1000
-        if not isinstance(size, int) or size < 0 or size > 1000:
-            raise ValueError('"size" must be 0 < size <= 1000')
+        if not isinstance(size, int) or size < 0 or size > 100:
+            raise ValueError('"size" must be 0 < size <= 100')
 
         self.name = name
         self.size = size
@@ -84,8 +82,7 @@ class ConnectionPool(object):
             pass
         try:
             for _ in range(init_count):
-                conn = self.make_connection()
-                self.pool.put_nowait(self.item_putter(conn))
+                self.pool.put_nowait(self.item_putter(self.make_connection()))
         except Full:
             pass
 
@@ -112,27 +109,22 @@ class ConnectionPool(object):
 
     def make_connection(self):
         "Create a new connection"
-        try:
-            connection = self.channel.connect(**self.connection_kwargs)
-        except socket_error:
-            connection = None
-        else:
-            connection.pid = os.getpid()
+        connection = self.channel.connect(**self.connection_kwargs)
+        connection.pid = os.getpid()
 
-            def close(conn, reason=None, reset=None):
-                self._connections.remove(conn)
-                item = self.item_putter(conn)
-                if item in self.pool.queue:
-                    self.pool.queue.remove(item)
-                del connection.release
-                del connection.pid
+        def close(conn, reason=None, reset=None):
+            self._connections.remove(conn)
+            item = self.item_putter(conn)
+            if item in self.pool.queue:
+                self.pool.queue.remove(item)
+            del connection.pid
+            try:
+                self.pool.put_nowait(self.empty_item)
+            except Full:
+                pass
 
-            def release():
-                self.release(connection)
-
-            connection.add_close_cb(close)
-            connection.release = release
-            self._connections.append(connection)
+        connection.add_close_cb(close)
+        self._connections.append(connection)
         return connection
 
     def release(self, connection):

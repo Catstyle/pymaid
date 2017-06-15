@@ -146,10 +146,10 @@
 
         var ctrlLimit = this._headerSize + ctrlSize;
         var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
-        var controller = pb.Controller.decode(controllerBuf);
-
-        var contentBuf = bb.slice(ctrlLimit, ctrlLimit + contentSize);
-        return {controller: controller, content: contentBuf};
+        return {
+            controller: pb.Controller.decode(controllerBuf),
+            content: bb.slice(ctrlLimit, ctrlLimit + contentSize)
+        };
     };
 
     JSONParser.pack = function(controller, content) {
@@ -171,10 +171,10 @@
         var contentSize = bb.readUint16();
 
         var controllerBuf = bb.readString(ctrlSize);
-        var controller = pb.Controller.decode(JSON.parse(controllerBuf));
-
-        var contentBuf = bb.readString(contentSize);
-        return {controller: controller, content: JSON.parse(contentBuf)};
+        return {
+            controller: pb.Controller.decode(JSON.parse(controllerBuf)),
+            content: JSON.parse(bb.readString(contentSize))
+        };
     };
 
 
@@ -196,10 +196,10 @@
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
     pymaid.Channel = Channel;
 
-    ChannelPrototype._combineAddress = function(schema, host, port) {
+    ChannelPrototype._combineAddress = function(scheme, host, port) {
         var address = host + ':' + port;
-        if (schema === 'ws' || schema === 'wss') {
-            address = schema + '://' + address;
+        if (scheme === 'ws' || scheme === 'wss') {
+            address = scheme + '://' + address;
         }
         return address;
     },
@@ -212,8 +212,8 @@
         return false;
     },
 
-    ChannelPrototype.connect = function(schema, host, port, callbacks) {
-        var address = this._combineAddress(schema, host, port);
+    ChannelPrototype.connect = function(scheme, host, port, callbacks) {
+        var address = this._combineAddress(scheme, host, port);
         if (this.isAlreadyConnected(address)) {
             console.log(
                 'pymaid: channel already connected to address: ' + address
@@ -233,7 +233,7 @@
                 callbacks.onclose && callbacks.onclose(conn, evt);
             },
 
-            onerror: callbacks.onerror | function() {},
+            onerror: callbacks.onerror || function() {},
         };
         // now we support websocket only
         return new WSConnection(address, this, channel_callbacks);
@@ -246,7 +246,6 @@
         console.log('pymaid: channel closing with [reason|' + reason + ']');
         this.is_closed = true;
         this.conn.close(reason);
-        this.conn.channel = null;
         this.conn = null;
     };
 
@@ -354,7 +353,7 @@
             delete this.transmissions[tid];
             cb(controller, content);
         } else {
-            this.channel.listener.onmessage(controller, content, this);
+            this.channel && this.channel.listener.onmessage(controller, content, this);
         }
     };
 
@@ -431,7 +430,7 @@
                         );
                     }
                     if (!conn || conn.is_closed) {
-                        cb({message: 'pymaid: rpc conn is null/closed'}, null);
+                        setTimeout(cb.bind(this, {message: 'pymaid: rpc conn is null/closed'}, null), 0);
                         return;
                     }
 
@@ -669,21 +668,12 @@
 
     HMPrototype.setCookies = function(cookies) {
         if (cookies) {
-            // e.g. 'token=xxx; Expires=Thu, 20-Oct-2016 19:58:45 GMT; Path=/, session=yyy; Expires=Fri, 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/'
-            // cookies.split(',') will return 4 elements:
-            // ['token=xxx; Expires=Thu', ' 20-Oct-2016 19:58:45 GMT; Path=/', ' session=yyy; Expires=Fri', ' 21-Oct-2016 07:58:45 GMT; HttpOnly; Path=/']
-            // but we know what we need will be in the first place
-            // so we just need element.trim().split(';')[0]
-            // !!!! IT IS A TRICKY HACKY !!!
-            var cookies = cookies.split(',');
-            var list = [];
-            for (var idx in cookies) {
-                var cookie = cookies[idx].trim().split(';')[0];
-                list.push(cookie);
-            }
-            this._cookies = list.join('; ');
-            console.log('pymaid: HttpManager setCookies: ' + this._cookies);
+            this._cookies = cookies;
         }
+    };
+
+    HMPrototype.onNotAuthenticated = function() {
+        console.log('pymaid HttpManager became not authenticated');
     };
 
     HMPrototype.newRequest = function(type, url, cb, timeout, async) {
@@ -725,6 +715,9 @@
                     }
                     err = {message: response, status: status};
                 }
+            } else if (status == 401) {
+                self.onNotAuthenticated();
+                return;
             } else {
                 err = {message: response, status: status};
             }
@@ -744,7 +737,10 @@
 
     HMPrototype.get = function(url, data, cb, timeout) {
         var params = getParams(data);
-        var req = this.newRequest('GET', url+'?'+params, cb, timeout);
+        if (params) {
+            url += '?' + params;
+        }
+        var req = this.newRequest('GET', url, cb, timeout);
         req.send();
         return req;
     };
@@ -765,7 +761,10 @@
 
     HMPrototype.delete = function(url, data, cb, timeout) {
         var params = getParams(data);
-        var req = this.newRequest('DELETE', url+'?'+params, cb, timeout);
+        if (params) {
+            url += '?' + params;
+        }
+        var req = this.newRequest('DELETE', url, cb, timeout);
         req.send();
         return req;
     };

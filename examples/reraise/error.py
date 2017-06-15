@@ -1,7 +1,7 @@
-from pymaid.error import Error
+from pymaid.error import Warning
 
 
-class PlayerNotExist(Error):
+class PlayerNotExist(Warning):
 
     code = 12345
-    message_format = 'player not exist in this server'
+    message = '[player|{}] not exist in this server'
