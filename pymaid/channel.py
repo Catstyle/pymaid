@@ -30,8 +30,9 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
+        conn.worker_gr = greenlet_pool.spawn(self.handler, conn)
+        conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
-        self.handler(conn)
 
     def _connection_detached(self, conn, reason=None, reset=False):
         log = self.logger.info
@@ -84,7 +85,7 @@ class ServerChannel(BaseChannel):
                 break
             try:
                 peer_socket, address = accept()
-                conn = ConnectionClass(peer_socket)
+                attach_connection(ConnectionClass(peer_socket))
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     break
@@ -99,8 +100,6 @@ class ServerChannel(BaseChannel):
                 self.logger.exception(ex)
                 break
             cnt += 1
-            conn.worker_gr = greenlet_pool.spawn(attach_connection, conn)
-            conn.worker_gr.link_exception(conn.close)
 
     def _connection_attached(self, conn):
         super(ServerChannel, self)._connection_attached(conn)
@@ -132,7 +131,7 @@ class ServerChannel(BaseChannel):
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), 1, priority=2), sock))
+        self.accept_watchers.append((io(sock.fileno(), 1), sock))
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
