@@ -338,3 +338,6 @@ class DisconnectedConnection(Connection):
     def read(self, size, timeout=None):
         pass
     readline = read
+
+    def close(self, reason=None, reset=False):
+        pass
