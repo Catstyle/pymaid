@@ -60,9 +60,14 @@ class Settings(object):
         self.load_from_object(mod)
 
     def load_from_object(self, obj):
-        for setting in dir(obj):
-            if setting == setting.upper():
-                setattr(self, setting, getattr(obj, setting))
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if key == key.upper():
+                    setattr(self, key, value)
+        else:
+            for setting in dir(obj):
+                if setting == setting.upper():
+                    setattr(self, setting, getattr(obj, setting))
         self._configure_logging()
         self.logger.debug(
             '[pymaid][settings] configured [%s]',
