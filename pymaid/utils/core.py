@@ -1,3 +1,6 @@
+import sys
+import inspect
+import traceback
 from functools import wraps
 
 from gevent import get_hub
@@ -75,3 +78,17 @@ def enable_autoreload(signum):
     def autoreload(sig, frame):
         reloader.check()
     signal.signal(signum, autoreload)
+
+
+def enable_debug_output(signum):
+
+    def debug_output(sig, frame):
+        sys.stderr.write('############## pymaid debug_output ##############\n')
+        for tid, frame in sys._current_frames().iteritems():
+            sys.stderr.write('\n')
+            sys.stderr.write('thread: %s\n' % tid)
+            sys.stderr.write(
+                ''.join(traceback.format_list(traceback.extract_stack(frame)))
+            )
+            sys.stderr.write('%s' % str(inspect.getargvalues(frame)))
+    signal.signal(signum, debug_output)
