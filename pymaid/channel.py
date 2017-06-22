@@ -1,9 +1,10 @@
 import os
 import errno
 import socket
-from socket import socket as realsocket, error as socket_error
+from socket import error as socket_error
 
 from six import string_types
+from gevent.socket import socket as realsocket
 
 from pymaid.connection import Connection
 from pymaid.conf import settings
