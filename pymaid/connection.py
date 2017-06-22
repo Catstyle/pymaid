@@ -4,21 +4,24 @@ from io import BytesIO
 
 import errno
 import socket
-from socket import socket as realsocket, error as socket_error
+from socket import error as socket_error
 from socket import AF_INET, AF_UNIX
 
 from six import string_types
 
 from gevent import getcurrent, Timeout
 from gevent.greenlet import Greenlet
+from gevent.socket import socket as realsocket
 
 from pymaid.conf import settings
 from pymaid.error import RpcError
 from pymaid.utils import timer, io, hub
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 __all__ = ['Connection']
 
 
+@pymaid_logger_wrapper
 class Connection(object):
 
     CONNID = 1
