@@ -82,7 +82,7 @@ class ServerChannel(BaseChannel):
             if cnt >= settings.MAX_ACCEPT:
                 break
             if self.is_full:
-                self.pause()
+                self.pause('stop accept since channel is full')
                 break
             try:
                 peer_socket, address = accept()
@@ -143,14 +143,15 @@ class ServerChannel(BaseChannel):
             if not watcher.active:
                 watcher.start(self._do_accept, sock)
 
-    def pause(self):
+    def pause(self, reason):
+        self.logger.info('calling pause with reason: %s', reason)
         self.is_paused = True
         for watcher, sock in self.accept_watchers:
             if watcher.active:
                 watcher.stop()
 
     def stop(self, reason='ServerChannel calls stop'):
-        self.pause()
+        self.pause(reason)
         super(ServerChannel, self).stop(reason)
 
 
