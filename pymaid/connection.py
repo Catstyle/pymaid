@@ -1,4 +1,3 @@
-import struct
 from os import strerror
 from io import BytesIO
 
@@ -25,7 +24,6 @@ __all__ = ['Connection']
 class Connection(object):
 
     CONNID = 1
-    LINGER_PACK = struct.pack('ii', 1, 1)
 
     def __init__(self, sock, client_side=False):
         self._socket = sock
@@ -61,7 +59,6 @@ class Connection(object):
                     SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
                 )
                 setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
-        setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
 
     def _send(self):
         '''try to send all packets to reduce system call'''
