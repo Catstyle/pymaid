@@ -9,8 +9,12 @@ import tempfile
 from distutils.spawn import find_executable
 from string import Template
 
-import pymaid
-extra_include = '/'.join(pymaid.__path__[0].split('/')[:-1])
+import imp
+try:
+    path = imp.find_module('pymaid')[1]
+    extra_include = '/'.join(path.split('/')[:-1])
+except ImportError:
+    extra_include = '.'
 
 JS_TEMPLATE = Template("""(function(global) {
     var next = global['${package}'] = global['${package}'] || {};
