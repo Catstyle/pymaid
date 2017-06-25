@@ -326,9 +326,18 @@ class Connection(object):
 class DisconnectedConnection(Connection):
 
     def __init__(self):
-        self.read = self.readline = lambda *args, **kwargs: ''
-        self.write = self.send = lambda *args, **kwargs: None
         self.connid = 0
         self.transmission_id = 0
         self.sockname = self.peername = 'disconnected'
         self.is_closed = True
+
+    def read(self, size, timeout=None):
+        pass
+    readline = read
+
+    def send(self, data):
+        pass
+    write = send
+
+    def close(self, reason=None, reset=False):
+        pass
