@@ -132,7 +132,7 @@ class MaglevHash(BaseHashManager):
         super(MaglevHash, self).__init__(name, hash_func)
         self.virtual_entry_count = virtual_entry_count
         self.lookup_table_size = 0
-        self.lookup_table = {}
+        self.lookup_table = []
 
     def rehash(self):
         if not self.nodes:
@@ -178,5 +178,5 @@ class MaglevHash(BaseHashManager):
 
     def reset(self):
         super(MaglevHash, self).reset()
-        self.lookup_table.clear()
+        del self.lookup_table[:]
         self.lookup_table_size = 0
