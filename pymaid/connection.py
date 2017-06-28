@@ -1,4 +1,3 @@
-from os import strerror
 from io import BytesIO
 
 import errno
@@ -45,6 +44,7 @@ class Connection(object):
         # 1: READ, 2: WRITE
         self.r_io, self.w_io = io(fd, 1), io(fd, 2)
         self.w_retry = 0
+        self.r_timer = None
 
     def _setsockopt(self, sock):
         setsockopt = sock.setsockopt
@@ -218,26 +218,7 @@ class Connection(object):
         sock = realsocket(
             AF_UNIX if isinstance(address, string_types) else AF_INET, type_
         )
-        err = sock.connect_ex(address)
-        # 11: EWOULDBLOCK, 115: EINPROGRESS
-        if err in {11, 115}:
-            # 1: READ, 2: WRITE
-            rw_io = io(sock.fileno(), 1 | 2)
-            rw_gr = getcurrent()
-            rw_io.start(rw_gr.switch)
-            if timeout:
-                rw_timer = timer(timeout)
-                rw_timer.start(rw_gr.throw, Timeout)
-            try:
-                rw_gr.parent.switch()
-            finally:
-                if timeout:
-                    rw_timer.stop()
-                rw_io.stop()
-                rw_timer = rw_io = None
-            err = sock.connect_ex(address)
-        if err != 0 and err != errno.EISCONN:
-            raise socket_error(err, strerror(err))
+        sock.connect(address)
         return cls(sock, client_side)
 
     def read(self, size, timeout=None):
@@ -292,6 +273,9 @@ class Connection(object):
         self.r_io.stop()
         self.buf = BytesIO()
         self._socket.close()
+
+        if self.r_timer:
+            self.r_timer.stop()
 
         self.is_closed = True
 
