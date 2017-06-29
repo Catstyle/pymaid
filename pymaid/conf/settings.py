@@ -71,8 +71,8 @@ class Settings(object):
         self._configure_logging()
         self.logger.debug(
             '[pymaid][settings] configured [%s]',
-            {attr: value for attr, value in self.__dict__.items()
-             if attr == attr.upper() and 'SECRET' not in attr}
+            [(attr, value) for attr, value in sorted(self.__dict__.items())
+             if attr == attr.upper() and 'SECRET' not in attr]
         )
 
     @greenlet_worker
@@ -89,8 +89,8 @@ class Settings(object):
             self._configure_logging()
             self.logger.debug(
                 '[pymaid][settings] configured [%s]',
-                {attr: value for attr, value in self.__dict__.items()
-                 if attr == attr.upper() and 'SECRET' not in attr}
+                [(attr, value) for attr, value in sorted(self.__dict__.items())
+                 if attr == attr.upper() and 'SECRET' not in attr]
             )
 
 
