@@ -7,7 +7,7 @@ from socket import AF_INET, AF_UNIX
 
 from six import string_types
 
-from gevent import getcurrent, Timeout
+from gevent import getcurrent
 from gevent.greenlet import Greenlet
 from gevent.socket import socket as realsocket
 
@@ -125,7 +125,7 @@ class Connection(object):
                     self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
-                    except Timeout:
+                    except RpcError.Timeout:
                         self.buf = buf
                         raise
                     finally:
@@ -176,7 +176,7 @@ class Connection(object):
                     self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
-                    except Timeout:
+                    except RpcError.Timeout:
                         self.buf = buf
                         raise
                     finally:
@@ -228,7 +228,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(getcurrent().throw, Timeout)
+            self.r_timer.start(getcurrent().throw, RpcError.Timeout(timeout))
             try:
                 return self._read(size)
             finally:
@@ -242,7 +242,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(getcurrent().throw, Timeout)
+            self.r_timer.start(getcurrent().throw, RpcError.Timeout(timeout))
             try:
                 return self._readline(size)
             finally:

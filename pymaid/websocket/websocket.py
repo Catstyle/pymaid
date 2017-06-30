@@ -1,11 +1,13 @@
 import struct
 import base64
+from functools import partial
 
 from io import BytesIO
 from hashlib import sha1
 from socket import error as socket_error
 
 from pymaid.connection import Connection
+from pymaid.conf import settings
 from pymaid.utils import logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError, FrameTooLargeException
@@ -38,6 +40,7 @@ class WebSocket(Connection):
         super(WebSocket, self).__init__(sock)
         self.message = BytesIO()
         self.utf8validator = Utf8Validator()
+        self.timeout = settings.PM_WEBSOCKET_TIMEOUT
 
     def _decode_bytes(self, bytestring):
         if not bytestring:
@@ -67,7 +70,7 @@ class WebSocket(Connection):
     def oninit(self):
         """ Called by handler once handler start on a greenlet."""
         raw_readline = super(WebSocket, self).readline
-        line = raw_readline(1024)
+        line = raw_readline(1024, self.timeout)
         if not line:
             self.close()
             return False
@@ -83,7 +86,7 @@ class WebSocket(Connection):
 
         headers = {}
         while 1:
-            line = raw_readline(1024).strip()
+            line = raw_readline(1024, self.timeout).strip()
             if not line:
                 break
             key, value = line.split(':', 1)
@@ -162,7 +165,9 @@ class WebSocket(Connection):
 
         :return: The header and payload as a tuple.
         """
-        header = Header.decode_header(super(WebSocket, self).read)
+        header = Header.decode_header(
+            partial(super(WebSocket, self).read, timeout=self.timeout)
+        )
         if not header:
             return header, ''
 
@@ -172,7 +177,7 @@ class WebSocket(Connection):
         if not header.length:
             return header, ''
 
-        payload = super(WebSocket, self).read(header.length)
+        payload = super(WebSocket, self).read(header.length, self.timeout)
         if len(payload) != header.length:
             raise WebSocketError('Unexpected EOF reading frame payload')
 
