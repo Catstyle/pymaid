@@ -7,6 +7,7 @@ from socket import error as socket_error
 from functools import partial
 
 from pymaid.connection import Connection
+from pymaid.conf import settings
 from pymaid.utils import logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError, FrameTooLargeException
@@ -39,7 +40,7 @@ class WebSocket(Connection):
         super(WebSocket, self).__init__(sock)
         self.message = BytesIO()
         self.utf8validator = Utf8Validator()
-        self.timeout = 10
+        self.timeout = settings.PM_WEBSOCKET_TIMEOUT
 
     def _decode_bytes(self, bytestring):
         if not bytestring:
