@@ -10,4 +10,4 @@ RpcError.build_error(
     'PacketTooLarge', 3, '[packet_length|{packet_length}] out of limitation'
 )
 RpcError.build_error('EOF', 4, 'socket received eof')
-RpcError.build_error('Timeout', 4, 'socket read/readline timeout {}')
+RpcError.build_error('Timeout', 5, 'socket read/readline timeout {}')
