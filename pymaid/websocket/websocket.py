@@ -72,7 +72,7 @@ class WebSocket(Connection):
         raw_readline = super(WebSocket, self).readline
         line = raw_readline(1024, self.timeout)
         if not line:
-            self.close()
+            self.close(reset=True)
             return False
 
         datas = line.split()
