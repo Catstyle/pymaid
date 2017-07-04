@@ -1,17 +1,15 @@
 from _socket import error as socket_error
 
 from gevent.queue import Queue
-from google.protobuf.message import DecodeError
 
 from pymaid.conf import settings
 from pymaid.error import RpcError
-from pymaid.error import get_exception
 from pymaid.utils import greenlet_pool
 
 from . import unpack_header
 from .controller import Controller
 from .listener import Listener
-from .pymaid_pb2 import ErrorMessage, Controller as PBC
+from .pymaid_pb2 import Controller as PBC
 
 
 class PBHandler(object):
@@ -30,7 +28,7 @@ class PBHandler(object):
             PBC.REQUEST: self.listener.handle_request,
             PBC.NOTIFICATION: self.listener.handle_notification,
         }
-        transmissions = conn.transmissions
+        handle_response = self.listener.handle_response
         try:
             while 1:
                 header = conn.read(4)
@@ -48,29 +46,12 @@ class PBHandler(object):
                 meta = PBC.FromString(buf[:packet_length])
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
+                controller.header_buf = header
+
                 packet_type = meta.packet_type
-
                 if packet_type == RESPONSE:
-                    result = transmissions.pop(meta.transmission_id, None)
-                    if not result:
-                        # invalid transmission_id, do nothing
-                        continue
-                    result, response_class = result
-
-                    if meta.is_failed:
-                        try:
-                            message = ErrorMessage.FromString(content)
-                            ex = get_exception(message.code, message.message)
-                        except (DecodeError, ValueError) as ex:
-                            ex = ex
-                        result.set_exception(ex)
-                    else:
-                        try:
-                            result.set(response_class.FromString(content))
-                        except (DecodeError, ValueError) as ex:
-                            result.set_exception(ex)
+                    handle_response(controller, content)
                 else:
-                    controller.header_buf = header
                     callbacks[packet_type](controller, content)
         except socket_error as ex:
             conn.close(ex, reset=True)
@@ -99,7 +80,7 @@ class PBHandlerWithWorker(object):
             PBC.REQUEST: self.listener.handle_request,
             PBC.NOTIFICATION: self.listener.handle_notification,
         }
-        transmissions = conn.transmissions
+        handle_response = self.listener.handle_response
         try:
             while 1:
                 header = conn.read(4)
@@ -117,27 +98,11 @@ class PBHandlerWithWorker(object):
                 meta = PBC.FromString(buf[:packet_length])
                 controller = Controller(meta, conn)
                 content = buf[packet_length:]
+                controller.header_buf = header
+
                 packet_type = meta.packet_type
-
                 if packet_type == RESPONSE:
-                    result = transmissions.pop(meta.transmission_id, None)
-                    if not result:
-                        # invalid transmission_id, do nothing
-                        continue
-                    result, response_class = result
-
-                    if meta.is_failed:
-                        try:
-                            message = ErrorMessage.FromString(content)
-                            ex = get_exception(message.code, message.message)
-                        except (DecodeError, ValueError) as ex:
-                            ex = ex
-                        result.set_exception(ex)
-                    else:
-                        try:
-                            result.set(response_class.FromString(content))
-                        except (DecodeError, ValueError) as ex:
-                            result.set_exception(ex)
+                    handle_response(controller, content)
                 else:
                     new_task((callbacks[packet_type], controller, content))
         except socket_error as ex:
