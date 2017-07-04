@@ -33,12 +33,15 @@ class ObjectManager(object):
 
 class Broadcaster(object):
 
-    def __init__(self, sender_class):
+    def __init__(self, sender_class=None):
         self.sender_class = sender_class
 
     def __call__(self, targets):
         for target in targets:
-            yield self.sender_class(target)
+            if self.sender_class:
+                yield self.sender_class(target)
+            else:
+                yield target
 
 
 def get_ipaddress(ifname):
