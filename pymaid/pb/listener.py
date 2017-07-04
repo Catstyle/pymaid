@@ -1,4 +1,7 @@
+from google.protobuf.message import DecodeError
+
 from pymaid.error import BaseEx, Error, RpcError
+from pymaid.error import get_exception
 
 from . import pack_header
 from .pymaid_pb2 import Void, ErrorMessage, Controller as PBC
@@ -67,6 +70,27 @@ class Listener(object):
             ))
             if isinstance(ex, Error) and conn.close_conn_onerror:
                 conn.delay_close(ex)
+
+    def handle_response(self, controller, content):
+        meta = controller.meta
+        result = controller.conn.transmissions.pop(meta.transmission_id, None)
+        if not result:
+            # invalid transmission_id, do nothing
+            return
+        result, response_class = result
+
+        if meta.is_failed:
+            try:
+                message = ErrorMessage.FromString(content)
+                ex = get_exception(message.code, message.message)
+            except (DecodeError, ValueError) as ex:
+                ex = ex
+            result.set_exception(ex)
+        else:
+            try:
+                result.set(response_class.FromString(content))
+            except (DecodeError, ValueError) as ex:
+                result.set_exception(ex)
 
     def handle_notification(self, controller, content):
         service_method = controller.meta.service_method
