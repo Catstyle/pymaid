@@ -1,5 +1,6 @@
 from gevent.event import AsyncResult
 
+from pymaid.utils.functional import Broadcaster
 from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
 
 from . import pack_header
@@ -58,8 +59,16 @@ class ServiceStub(object):
             meta.service_method = service_method
             meta.packet_type = packet_type
             if broadcaster is not None:
-                for sender in broadcaster:
-                    sender.send(meta, request)
+                if not isinstance(broadcaster, Broadcaster):
+                    content = b'{}{}{}'.format(
+                        pack_header(meta.ByteSize(), request.ByteSize()),
+                        meta.SerializeToString(), request.SerializeToString()
+                    )
+                    for sender in broadcaster:
+                        sender.send(content)
+                else:
+                    for sender in broadcaster:
+                        sender.send(meta, request)
             else:
                 conn = conn or self.conn
                 assert conn, conn
