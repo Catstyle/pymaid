@@ -16,17 +16,23 @@ class Listener(object):
 
     def append_service(self, service):
         service_methods = self.service_methods
-        for method in service.DESCRIPTOR.methods:
-            full_name = method.full_name
-            assert full_name not in service_methods
-            tuples = (
-                getattr(service, method.name),
-                service.GetRequestClass(method),
-                service.GetResponseClass(method)
-            )
-            service_methods[full_name] = tuples
-            # js/lua pb lib will format as '.service.method'
-            service_methods['.' + full_name] = tuples
+        for base in service.__class__.__bases__:
+            for method in base.DESCRIPTOR.methods:
+                method_name = method.name
+                base_method = getattr(base, method_name)
+                impl_method = getattr(service, method_name, base_method)
+                if base_method == impl_method:
+                    continue
+                full_name = method.full_name
+                assert full_name not in service_methods
+                tuples = (
+                    impl_method,
+                    service.GetRequestClass(method),
+                    service.GetResponseClass(method)
+                )
+                service_methods[full_name] = tuples
+                # js/lua pb lib will format as '.service.method'
+                service_methods['.' + full_name] = tuples
 
     def handle_request(self, controller, content):
         meta = controller.meta
