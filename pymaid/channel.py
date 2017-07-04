@@ -23,7 +23,7 @@ class BaseChannel(object):
         self.connection_class = connection_class
         self.connections = {}
 
-    def _connection_attached(self, conn):
+    def _connection_attached(self, conn, **kwargs):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.connid, conn.sockname, conn.peername
@@ -31,7 +31,7 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
-        conn.worker_gr = greenlet_pool.spawn(self.handler, conn)
+        conn.worker_gr = greenlet_pool.spawn(self.handler, conn, **kwargs)
         conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
 
@@ -161,8 +161,8 @@ class ClientChannel(BaseChannel):
     def __init__(self, handler=lambda conn: '', connection_class=Connection):
         super(ClientChannel, self).__init__(handler, connection_class)
 
-    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None):
+    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None,
+                **kwargs):
         conn = self.connection_class.connect(address, True, timeout, type_)
-        conn.worker_gr = greenlet_pool.spawn(self._connection_attached, conn)
-        conn.worker_gr.link_exception(conn.close)
+        self._connection_attached(conn, **kwargs)
         return conn
