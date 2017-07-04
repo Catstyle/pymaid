@@ -23,10 +23,11 @@ def md5_hash_func(key):
 
 class HashNode(object):
 
-    def __init__(self, key, weight=1):
+    def __init__(self, key, weight=1, enabled=True):
         self.key = key
         self.hashed_key = md5_hash_func(key)
         self.weight = weight
+        self.enabled = enabled
 
     def __eq__(self, other):
         if not isinstance(other, HashNode):
@@ -52,14 +53,16 @@ class BaseHashManager(object):
         if node.key in self.objects:
             return
         self.objects[node.key] = node
-        self.nodes.append(node)
-        self.rehash()
+        if node.enabled:
+            self.nodes.append(node)
+            self.rehash()
 
     def add_nodes(self, nodes):
         for node in nodes:
             if node.key not in self.objects:
                 self.objects[node.key] = node
-                self.nodes.append(node)
+                if node.enabled:
+                    self.nodes.append(node)
         self.rehash()
 
     def remove_node(self, node):
@@ -68,6 +71,24 @@ class BaseHashManager(object):
         if node in self.nodes:
             self.nodes.remove(node)
         self.rehash()
+
+    def enable_node(self, key):
+        if key not in self.objects:
+            return
+        node = self.objects[key]
+        node.enabled = True
+        if node not in self.nodes:
+            self.nodes.append(node)
+            self.rehash()
+
+    def disable_node(self, key):
+        if key not in self.objects:
+            return
+        node = self.objects[key]
+        node.enabled = False
+        if node in self.nodes:
+            self.nodes.remove(node)
+            self.rehash()
 
     def reset(self):
         self.objects.clear()
