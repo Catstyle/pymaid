@@ -61,6 +61,7 @@ class BaseHashManager(object):
         for node in nodes:
             if node.key not in self.objects:
                 self.objects[node.key] = node
+                node._hash_manager = self
                 if node.enabled:
                     self.nodes.append(node)
         self.rehash()
@@ -68,6 +69,8 @@ class BaseHashManager(object):
     def remove_node(self, node):
         if node.key in self.objects:
             del self.objects[node.key]
+            node._hash_manager = None
+            del node._hash_manager
         if node in self.nodes:
             self.nodes.remove(node)
         self.rehash()
