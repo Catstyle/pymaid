@@ -29,14 +29,18 @@ class BaseEx(Exception):
 class Error(BaseEx):
 
     def __unicode__(self):
-        return u'[ERROR][code|{}][message|{}]'.format(self.code, self.message)
+        return u'[ERROR][{}][code|{}][message|{}]'.format(
+            self.__class__.__name__, self.code, self.message
+        )
     __repr__ = __str__ = __unicode__
 
 
 class Warning(BaseEx):
 
     def __unicode__(self):
-        return u'[WARN][code|{}][message|{}]'.format(self.code, self.message)
+        return u'[WARN][{}][code|{}][message|{}]'.format(
+            self.__class__.__name__, self.code, self.message
+        )
     __repr__ = __str__ = __unicode__
 
 
