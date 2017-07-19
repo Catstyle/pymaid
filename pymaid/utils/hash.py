@@ -53,6 +53,7 @@ class BaseHashManager(object):
         if node.key in self.objects:
             return
         self.objects[node.key] = node
+        node._hash_manager = self
         if node.enabled:
             self.nodes.append(node)
             self.rehash()
