@@ -2,10 +2,12 @@ import logging
 import logging.config
 from logging import LogRecord
 
-from time import time
+from collections import Mapping
 from functools import wraps
-from types import MethodType
 from sys import _getframe as getframe
+from time import time
+from types import MethodType
+import warnings
 
 from google.protobuf.service import Service
 
@@ -23,6 +25,31 @@ root_logger.wrappers = []
 pymaid_logger = logging.getLogger('pymaid')
 pymaid_logger.wrappers = []
 project_logger = None
+
+
+def configure_logging(settings):
+    """Setup logging from PYMAID_LOGGING and LOGGING settings."""
+    import logging
+    import logging.config
+    try:
+        # Route warnings through python logging
+        logging.captureWarnings(True)
+        # Allow DeprecationWarnings through the warnings filters
+        warnings.simplefilter("default", DeprecationWarning)
+    except AttributeError:
+        # No captureWarnings on Python 2.6
+        # DeprecationWarnings are on anyway
+        pass
+
+    if not hasattr(settings, 'PYMAID_LOGGING'):
+        settings.PYMAID_LOGGING = {}
+    if hasattr(settings, 'LOGGING'):
+        for key, value in settings.LOGGING.items():
+            if not isinstance(value, Mapping):
+                settings.PYMAID_LOGGING[key] = value
+            else:
+                settings.PYMAID_LOGGING[key].update(value)
+    logging.config.dictConfig(settings.PYMAID_LOGGING)
 
 
 def create_project_logger(name):
