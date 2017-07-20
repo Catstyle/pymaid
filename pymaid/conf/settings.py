@@ -1,14 +1,12 @@
 from __future__ import absolute_import
 
-import warnings
-from collections import Mapping
 from importlib import import_module
 from ujson import loads
 
 from gevent.event import AsyncResult
 
 from pymaid.utils.core import greenlet_worker
-from pymaid.utils.logger import pymaid_logger_wrapper
+from pymaid.utils.logger import configure_logging, pymaid_logger_wrapper
 
 from . import defaults
 
@@ -17,29 +15,13 @@ from . import defaults
 class Settings(object):
 
     def __init__(self):
-        self.load_from_object(defaults)
+        self.watchers = []
+        self.data = {}
 
-    def _configure_logging(self):
-        """Setup logging from LOGGING_CONFIG and LOGGING settings."""
-        import logging
-        import logging.config
-        try:
-            # Route warnings through python logging
-            logging.captureWarnings(True)
-            # Allow DeprecationWarnings through the warnings filters
-            warnings.simplefilter("default", DeprecationWarning)
-        except AttributeError:
-            # No captureWarnings on Python 2.6
-            # DeprecationWarnings are on anyway
-            pass
-
-        if hasattr(self, 'LOGGING'):
-            for key, value in self.LOGGING.items():
-                if not isinstance(value, Mapping):
-                    self.PYMAID_LOGGING[key] = value
-                else:
-                    self.PYMAID_LOGGING[key].update(value)
-        logging.config.dictConfig(self.PYMAID_LOGGING)
+    def add_watcher(self, watcher):
+        if watcher in self.watchers:
+            return
+        self.watchers.append(watcher)
 
     def load_from_module(self, module_name):
         """Load the settings module pointed to by the module_name.
@@ -60,38 +42,35 @@ class Settings(object):
         self.load_from_object(mod)
 
     def load_from_object(self, obj):
+        data = {}
         if isinstance(obj, dict):
-            for key, value in obj.items():
-                if key == key.upper():
-                    setattr(self, key, value)
+            data.update({
+                key: value for key, value in obj.items() if key == key.upper()
+            })
         else:
-            for setting in dir(obj):
-                if setting == setting.upper():
-                    setattr(self, setting, getattr(obj, setting))
-        self._configure_logging()
+            data.update({
+                key: getattr(obj, key)
+                for key in dir(obj) if key == key.upper()
+            })
+        self.data.update(data)
+        for key, value in data.items():
+            setattr(self, key, value)
+        for watcher in self.watchers:
+            watcher(self)
         self.logger.debug(
             '[pymaid][settings] configured [%s]',
-            [(attr, value) for attr, value in sorted(self.__dict__.items())
-             if attr == attr.upper() and 'SECRET' not in attr]
+            [(key, value) for key, value in sorted(self.data.items())
+             if 'SECRET' not in key]
         )
 
     @greenlet_worker
-    def load_from_backend(self, backend, callback=lambda settings, data: ''):
+    def load_from_backend(self, backend):
         for data in backend:
             self.logger.debug(
                 '[pymaid][settings][backend|%s] receive [data|%r]',
                 backend, data
             )
-            callback(self, data)
-            for setting in data:
-                if setting == setting.upper():
-                    setattr(self, setting, data[setting])
-            self._configure_logging()
-            self.logger.debug(
-                '[pymaid][settings] configured [%s]',
-                [(attr, value) for attr, value in sorted(self.__dict__.items())
-                 if attr == attr.upper() and 'SECRET' not in attr]
-            )
+            self.load_from_object(data)
 
 
 class SettingsBackend(object):
@@ -141,3 +120,5 @@ class ZooKeeperBackend(SettingsBackend):
 
 
 settings = Settings()
+settings.add_watcher(configure_logging)
+settings.load_from_object(defaults)
