@@ -16,9 +16,6 @@ from . import defaults
 @pymaid_logger_wrapper
 class Settings(object):
 
-    def __init__(self):
-        self.load_from_object(defaults)
-
     def _configure_logging(self):
         """Setup logging from LOGGING_CONFIG and LOGGING settings."""
         import logging
@@ -141,3 +138,4 @@ class ZooKeeperBackend(SettingsBackend):
 
 
 settings = Settings()
+settings.load_from_object(defaults)
