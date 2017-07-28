@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import pymaid
 from pymaid.channel import ServerChannel
+from pymaid.websocket.websocket import WebSocket
 from pymaid.pb import PBHandler, Listener
 from pymaid.utils import greenlet_pool
 
@@ -35,7 +36,7 @@ class EchoServiceImpl(EchoService):
 def main(args):
     listener = Listener()
     listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler(listener))
+    channel = ServerChannel(PBHandler(listener), WebSocket)
     channel.listen(args.address)
     channel.start()
     try:

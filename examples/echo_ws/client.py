@@ -5,6 +5,7 @@ from argparse import ArgumentParser
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
+from pymaid.websocket.websocket import WebSocket
 from pymaid.pb import PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -42,7 +43,7 @@ def wrapper(pid, address, count, message=message):
     conn.close()
 
 
-channel = ClientChannel(PBHandler())
+channel = ClientChannel(PBHandler(), WebSocket)
 service = ServiceStub(EchoService_Stub(None))
 method = service.stub.DESCRIPTOR.FindMethodByName('echo')
 request_class = service.stub.GetRequestClass(method)
@@ -66,4 +67,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)
