@@ -62,6 +62,8 @@ class Settings(object):
             [(key, value) for key, value in sorted(self.data.items())
              if 'SECRET' not in key]
         )
+        for watcher in self.watchers:
+            watcher(self)
 
     @greenlet_worker
     def load_from_backend(self, backend):
