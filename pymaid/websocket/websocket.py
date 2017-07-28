@@ -101,31 +101,6 @@ class WebSocket(Connection):
             self.is_connected = self._do_handshake()
             self.connecting_event.set()
 
-    def _decode_bytes(self, bytestring):
-        if not bytestring:
-            return u''
-
-        try:
-            return bytestring.decode('utf-8')
-        except UnicodeDecodeError:
-            self.close(1007)
-            raise
-
-    def _encode_bytes(self, text):
-        if isinstance(text, str):
-            return text
-
-        if not isinstance(text, unicode):  # noqa
-            text = unicode(text or '')  # noqa
-        return text.encode('utf-8')
-
-    def _is_valid_close_code(self, code):
-        # code == 1000: not sure about this but the autobahn fuzzer requires it
-        if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
-                code == 1100 or 2000 <= code <= 2999):
-            return False
-        return True
-
     def _read_headers(self):
         headers = {}
         raw_readline = super(WebSocket, self).readline
@@ -237,12 +212,12 @@ class WebSocket(Connection):
         payload = payload[2:]
 
         if payload:
-            validator = Utf8Validator()
-            val = validator.validate(payload)
+            val = self.utf8validator.validate(payload)
             if not val[0]:
                 raise UnicodeError
 
-        if not self._is_valid_close_code(code):
+        if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
+                code == 1100 or 2000 <= code <= 2999):
             raise ProtocolError('Invalid close code {0}'.format(code))
         self.close(code, payload)
 
@@ -251,17 +226,6 @@ class WebSocket(Connection):
 
     def handle_pong(self, header, payload):
         pass
-
-    def validate_utf8(self, payload):
-        # Make sure the frames are decodable independently
-        self.utf8validate_last = self.utf8validator.validate(payload)
-        if not self.utf8validate_last[0]:
-            raise UnicodeError(
-                "Encountered invalid UTF-8 while processing "
-                "text message at payload octet index {0:d}".format(
-                    self.utf8validate_last[3]
-                )
-            )
 
     def read_frame(self):
         """Block until a full frame has been read from the socket.
@@ -316,7 +280,6 @@ class WebSocket(Connection):
 
                 # Start reading a new message, reset the validator
                 self.utf8validator.reset()
-                self.utf8validate_last = (True, True, 0, 0)
                 opcode = f_opcode
             elif f_opcode == self.OPCODE_CONTINUATION:
                 if not opcode:
@@ -338,7 +301,12 @@ class WebSocket(Connection):
                 break
 
         if opcode == self.OPCODE_TEXT:
-            self.validate_utf8(message)
+            stat = self.utf8validator.validate(message)
+            if not stat[0]:
+                raise UnicodeError(
+                    "Encountered invalid UTF-8 while processing "
+                    "text message at payload octet index {0:d}".format(stat[3])
+                )
             return message
         else:
             return bytearray(message)
@@ -390,8 +358,8 @@ class WebSocket(Connection):
 
     def send_frame(self, message, opcode):
         """Send a frame over the websocket with message as its payload."""
-        if opcode == self.OPCODE_TEXT:
-            message = self._encode_bytes(message)
+        if opcode == self.OPCODE_TEXT and isinstance(message, text_type):
+            message = message.encode('utf-8')
         elif opcode == self.OPCODE_BINARY:
             message = str(message)
         self._write(message, opcode)
