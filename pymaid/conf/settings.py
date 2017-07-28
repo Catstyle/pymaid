@@ -55,8 +55,6 @@ class Settings(object):
         self.data.update(data)
         for key, value in data.items():
             setattr(self, key, value)
-        for watcher in self.watchers:
-            watcher(self)
         self.logger.debug(
             '[pymaid][settings] configured [%s]',
             [(key, value) for key, value in sorted(self.data.items())
