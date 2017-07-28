@@ -33,6 +33,7 @@ class Connection(object):
         self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_callbacks = False, []
+        self.is_connected = True
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
@@ -212,7 +213,7 @@ class Connection(object):
         return buf.getvalue()
 
     @classmethod
-    def connect(cls, address, client_side=False, timeout=None,
+    def connect(cls, address, client_side=True, timeout=None,
                 type_=socket.SOCK_STREAM):
         assert getcurrent() != hub, 'could not call block func in main loop'
         sock = realsocket(
