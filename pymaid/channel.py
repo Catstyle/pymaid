@@ -70,7 +70,7 @@ class ServerChannel(BaseChannel):
 
     def __init__(self, handler, connection_class=Connection):
         super(ServerChannel, self).__init__(handler, connection_class)
-        self.accept_watchers = []
+        self.accept_watchers = {}
         self.middlewares = []
         self.is_paused = False
 
@@ -122,9 +122,6 @@ class ServerChannel(BaseChannel):
                 os.unlink(address)
         else:
             family = socket.AF_INET
-        self.logger.info(
-            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
-        )
         sock = realsocket(family, type_)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # should explicitly set SO_REUSEPORT
@@ -132,23 +129,37 @@ class ServerChannel(BaseChannel):
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), 1), sock))
+        fd = sock.fileno()
+        self.accept_watchers[fd] = (io(fd, 1), sock)
+
+        address = sock.getsockname()
+        self.logger.info(
+            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
+        )
+        return address
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
 
+    def start_watcher(self, watcher, sock):
+        self.logger.debug('channel start: %s', sock)
+        watcher.start(self._do_accept, sock)
+
+    def stop_watcher(self, watcher, sock, reason):
+        self.logger.debug('channel pause: %s, %s', sock, reason)
+        watcher.stop()
+
     def start(self):
         self.is_paused = False
-        for watcher, sock in self.accept_watchers:
+        for watcher, sock in self.accept_watchers.values():
             if not watcher.active:
-                watcher.start(self._do_accept, sock)
+                self.start_watcher(watcher, sock)
 
     def pause(self, reason):
-        self.logger.info('calling pause with reason: %s', reason)
         self.is_paused = True
-        for watcher, sock in self.accept_watchers:
+        for watcher, sock in self.accept_watchers.values():
             if watcher.active:
-                watcher.stop()
+                self.stop_watcher(watcher, sock, reason)
 
     def stop(self, reason='ServerChannel calls stop'):
         self.pause(reason)
