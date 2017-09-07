@@ -76,6 +76,7 @@ class ServerChannel(BaseChannel):
 
     def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
+        node_address = sock.getsockname()
         ConnectionClass = self.connection_class
         cnt = err = 0
         while 1:
@@ -86,7 +87,9 @@ class ServerChannel(BaseChannel):
                 break
             try:
                 peer_socket, address = accept()
-                attach_connection(ConnectionClass(peer_socket))
+                conn = ConnectionClass(peer_socket)
+                conn.node_address = node_address
+                attach_connection(conn)
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     break
