@@ -39,6 +39,5 @@ nosetests.xml
 *.swp
 
 # pb
-*_pb2.py
 *.lua
 protos/
