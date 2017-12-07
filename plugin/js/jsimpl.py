@@ -16,8 +16,9 @@ for name, attr in descriptor.FieldDescriptor.__dict__.items():
     if name.startswith('LABEL_'):
         LABELS[attr] = name.lower().split('_')[-1]
 
-SERVICE_TEMPLATE = Template("""(function(global) {
-    (global['${package}'] = global['${package}'] || {})['${service_name}'] = {
+SERVICE_TEMPLATE = Template("""${requires}
+(function(global) {
+    var service = {
         name: '${full_name}',
         listeners: [],
 
@@ -29,7 +30,10 @@ SERVICE_TEMPLATE = Template("""(function(global) {
             this.listeners.splice(this.listeners.indexOf(listener), 1);
         },
 ${methods}
-    };
+    }
+    var namespace = (global['${package}'] = global['${package}'] || {});
+    namespace['${service_name}'] = service;
+    ${in_out_types}
 })(this);
 """)
 
@@ -41,6 +45,14 @@ ${method_name}: function(controller, req, cb) {
     });
 },
 """)
+
+REQUIRE_TEMPLATE = Template("""goog.require('${name}');""")
+INPUT_TEMPLATE = Template(
+    """service.${method_name}.input_type = ${input_type};"""
+)
+OUTPUT_TEMPLATE = Template(
+    """service.${method_name}.output_type = ${output_type};"""
+)
 
 indent = '\n        '
 star_indent = '\n * '
@@ -56,6 +68,9 @@ def parse_args():
     parser.add_argument('--output', default='.', type=str, help='output path')
     parser.add_argument(
         '--package', type=str, default='pbimpl', help='js package name'
+    )
+    parser.add_argument(
+        '--prefix', type=str, default='proto', help='js proto prefix name'
     )
 
     args = parser.parse_args()
@@ -102,8 +117,10 @@ def extra_message(message, indent='    '):
     return fields
 
 
-def generate_jsimpl(service_descriptor, package):
+def generate_jsimpl(service_descriptor, package, prefix):
     methods = ['']
+    requires = set()
+    in_out_types = []
     service_name = service_descriptor.name
     print('generating %s' % service_descriptor.full_name)
     for method in service_descriptor.methods:
@@ -111,25 +128,40 @@ def generate_jsimpl(service_descriptor, package):
         req += star_indent.join(extra_message(method.input_type))
         resp = star_indent + 'resp: ' + method.output_type.name + star_indent
         resp += star_indent.join(extra_message(method.output_type))
+        input_type = prefix + '.' + method.input_type.full_name
+        output_type = prefix + '.' + method.output_type.full_name
+        requires.update([REQUIRE_TEMPLATE.safe_substitute(name=input_type),
+                         REQUIRE_TEMPLATE.safe_substitute(name=output_type)])
+        in_out_types.extend([
+            INPUT_TEMPLATE.safe_substitute(
+                method_name=method.name, input_type=input_type
+            ),
+            OUTPUT_TEMPLATE.safe_substitute(
+                method_name=method.name, output_type=output_type
+            ),
+        ])
         cb = '\n    cb(controller, req);'
         if method.output_type.name == 'Void':
             cb = ''
         mstr = METHOD_TEMPLATE.safe_substitute(
             req=req, resp=resp, service_name=service_name,
-            method_name=method.name, cb=cb
+            method_name=method.name, cb=cb,
+            input_type=input_type, output_type=output_type,
         )
         methods.append(indent.join(mstr.split('\n')))
     return SERVICE_TEMPLATE.safe_substitute(
-        package=package, full_name=service_descriptor.full_name,
+        requires='\n'.join(sorted(requires)), package=package,
+        full_name=service_descriptor.full_name,
         service_name=service_name, methods=indent.join(methods),
+        in_out_types='\n    '.join(in_out_types),
     )
 
 
-def generate(path, output, package, root):
+def generate(path, output, package, prefix, root):
     for module in get_modules(path):
         mod = import_module(module)
         for service in parse_module(mod):
-            content = generate_jsimpl(service.DESCRIPTOR, package)
+            content = generate_jsimpl(service.DESCRIPTOR, package, prefix)
 
             splits = os.path.relpath(module, path).split('/')
             output_path = os.path.join(output, '/'.join(splits[:-1]))
@@ -142,4 +174,4 @@ def generate(path, output, package, root):
 
 if __name__ == '__main__':
     args = parse_args()
-    generate(args.path, args.output, args.package, args.root)
+    generate(args.path, args.output, args.package, args.prefix, args.root)
