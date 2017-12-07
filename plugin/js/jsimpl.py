@@ -1,12 +1,12 @@
 from __future__ import print_function
 
-import sys
 import os.path
 import argparse
-import importlib
+import imp
 
 from string import Template
 from google.protobuf import descriptor
+from google.protobuf.service_reflection import GeneratedServiceType
 
 
 TYPES, LABELS = {}, {}
@@ -49,34 +49,44 @@ star_indent = '\n * '
 def parse_args():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('module', type=str, help='module file')
-    parser.add_argument('service', type=str, help='service name')
-    parser.add_argument('-p', nargs='*', type=str, help='extra python path')
+    parser.add_argument('path', type=str, help='module file')
+    parser.add_argument(
+        '--root', default='.', type=str, help='extra python path'
+    )
     parser.add_argument('--output', default='.', type=str, help='output path')
     parser.add_argument(
         '--package', type=str, default='pbimpl', help='js package name'
     )
 
     args = parser.parse_args()
-    print (args)
-    print ()
+    print(args)
+    print()
 
     return args
 
 
-def parse_module(module_file, service_name):
-    dirname = os.path.dirname(module_file)
-    sys.path.append(dirname)
+def get_modules(root_path):
+    modules = []
+    for root, dirnames, filenames in os.walk(root_path):
+        for filename in filenames:
+            if filename.endswith('_pb2.py'):
+                modules.append(os.path.join(root, filename))
+    print('modules', modules)
+    return modules
 
-    module_name = module_file.replace('/', '.')
+
+def import_module(module_file):
+    module_name = module_file.split('/')[-1]
     if module_name.endswith('.py'):
         module_name = module_name[:-3]
-    module = importlib.import_module(module_name)
+    return imp.load_source(module_name, module_file)
 
+
+def parse_module(module):
     for attr in module.__dict__.values():
-        if (isinstance(attr, descriptor.ServiceDescriptor) and
-                attr.name == service_name):
-            return attr
+        if (isinstance(attr, GeneratedServiceType) and
+                attr.DESCRIPTOR.name.endswith('Broadcast')):
+            yield attr
 
 
 def extra_message(message, indent='    '):
@@ -95,6 +105,7 @@ def extra_message(message, indent='    '):
 def generate_jsimpl(service_descriptor, package):
     methods = ['']
     service_name = service_descriptor.name
+    print('generating %s' % service_descriptor.full_name)
     for method in service_descriptor.methods:
         req = star_indent + 'req: ' + method.input_type.name + star_indent
         req += star_indent.join(extra_message(method.input_type))
@@ -114,16 +125,21 @@ def generate_jsimpl(service_descriptor, package):
     )
 
 
+def generate(path, output, package, root):
+    for module in get_modules(path):
+        mod = import_module(module)
+        for service in parse_module(mod):
+            content = generate_jsimpl(service.DESCRIPTOR, package)
+
+            splits = os.path.relpath(module, path).split('/')
+            output_path = os.path.join(output, '/'.join(splits[:-1]))
+            if not os.path.exists(output_path):
+                os.makedirs(output_path)
+            file_path = os.path.join(output_path, splits[-1][:-7])
+            with open(file_path + '_broadcast.js', 'w') as fp:
+                fp.write(content)
+
+
 if __name__ == '__main__':
     args = parse_args()
-    if args.p:
-        sys.path.extend(args.p)
-    service_descriptor = parse_module(args.module, args.service)
-    assert service_descriptor
-    impl = generate_jsimpl(service_descriptor, args.package)
-
-    output = args.output
-    if not os.path.exists(output):
-        os.makedirs(output)
-    with open(os.path.join(output, args.service.lower()) + '.js', 'w') as fp:
-        fp.write(impl)
+    generate(args.path, args.output, args.package, args.root)
