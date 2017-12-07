@@ -61,7 +61,7 @@ _HELLORESPONSE = _descriptor.Descriptor(
             has_default_value=False, default_value=_b("").decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -120,6 +120,9 @@ _HELLOSERVICE = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_HELLOSERVICE)
+
+DESCRIPTOR.services_by_name['HelloService'] = _HELLOSERVICE
 
 HelloService = service_reflection.GeneratedServiceType('HelloService', (_service.Service,), dict(
     DESCRIPTOR=_HELLOSERVICE,

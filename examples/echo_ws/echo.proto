@@ -8,5 +8,5 @@ message Message {
 }
 
 service EchoService {
-    rpc echo(Message) returns (Message);
+    rpc Echo(Message) returns (Message);
 };

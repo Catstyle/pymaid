@@ -20,7 +20,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
     name='examples/echo_ws/echo.proto',
     package='echo',
     syntax='proto3',
-    serialized_pb=_b('\n\x1b\x65xamples/echo_ws/echo.proto\x12\x04\x65\x63ho\"\x1a\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\t23\n\x0b\x45\x63hoService\x12$\n\x04\x65\x63ho\x12\r.echo.Message\x1a\r.echo.MessageB\x03\x90\x01\x01\x62\x06proto3')
+    serialized_pb=_b('\n\x1b\x65xamples/echo_ws/echo.proto\x12\x04\x65\x63ho\"\x1a\n\x07Message\x12\x0f\n\x07message\x18\x01 \x01(\t23\n\x0b\x45\x63hoService\x12$\n\x04\x45\x63ho\x12\r.echo.Message\x1a\r.echo.MessageB\x03\x90\x01\x01\x62\x06proto3')
 )
 
 
@@ -37,7 +37,7 @@ _MESSAGE = _descriptor.Descriptor(
             has_default_value=False, default_value=_b("").decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -79,8 +79,8 @@ _ECHOSERVICE = _descriptor.ServiceDescriptor(
     serialized_end=116,
     methods=[
         _descriptor.MethodDescriptor(
-            name='echo',
-            full_name='echo.EchoService.echo',
+            name='Echo',
+            full_name='echo.EchoService.Echo',
             index=0,
             containing_service=None,
             input_type=_MESSAGE,
@@ -88,6 +88,9 @@ _ECHOSERVICE = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_ECHOSERVICE)
+
+DESCRIPTOR.services_by_name['EchoService'] = _ECHOSERVICE
 
 EchoService = service_reflection.GeneratedServiceType('EchoService', (_service.Service,), dict(
     DESCRIPTOR=_ECHOSERVICE,
