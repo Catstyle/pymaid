@@ -84,6 +84,9 @@ _MONITORSERVICE = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_MONITORSERVICE)
+
+DESCRIPTOR.services_by_name['MonitorService'] = _MONITORSERVICE
 
 MonitorService = service_reflection.GeneratedServiceType('MonitorService', (_service.Service,), dict(
     DESCRIPTOR=_MONITORSERVICE,

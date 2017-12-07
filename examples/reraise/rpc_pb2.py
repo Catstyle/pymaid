@@ -37,7 +37,7 @@ _USERID = _descriptor.Descriptor(
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -68,14 +68,14 @@ _PLAYER = _descriptor.Descriptor(
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
         _descriptor.FieldDescriptor(
             name='nickname', full_name='reraise.Player.nickname', index=1,
             number=2, type=9, cpp_type=9, label=1,
             has_default_value=False, default_value=_b("").decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -134,6 +134,9 @@ _REMOTEERROR = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_REMOTEERROR)
+
+DESCRIPTOR.services_by_name['RemoteError'] = _REMOTEERROR
 
 RemoteError = service_reflection.GeneratedServiceType('RemoteError', (_service.Service,), dict(
     DESCRIPTOR=_REMOTEERROR,

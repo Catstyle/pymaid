@@ -27,7 +27,7 @@ def parse_args():
 
 class EchoServiceImpl(EchoService):
 
-    def echo(self, controller, request, callback):
+    def Echo(self, controller, request, callback):
         response = Message()
         response.CopyFrom(request)
         callback(response)

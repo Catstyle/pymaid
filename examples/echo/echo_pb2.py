@@ -37,7 +37,7 @@ _MESSAGE = _descriptor.Descriptor(
             has_default_value=False, default_value=_b("").decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -88,6 +88,9 @@ _ECHOSERVICE = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_ECHOSERVICE)
+
+DESCRIPTOR.services_by_name['EchoService'] = _ECHOSERVICE
 
 EchoService = service_reflection.GeneratedServiceType('EchoService', (_service.Service,), dict(
     DESCRIPTOR=_ECHOSERVICE,

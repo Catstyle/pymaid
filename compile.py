@@ -3,18 +3,12 @@ from __future__ import print_function
 import os.path
 import subprocess
 import argparse
-import json
-import tempfile
 
 from distutils.spawn import find_executable
 from string import Template
 
-import imp
-try:
-    path = imp.find_module('pymaid')[1]
-    extra_include = '/'.join(path.split('/')[:-1])
-except ImportError:
-    extra_include = '.'
+import pymaid
+extra_include = '/'.join(pymaid.__path__[0].split('/')[:-1])
 
 JS_TEMPLATE = Template("""(function(global) {
     var next = global['${package}'] = global['${package}'] || {};
@@ -30,30 +24,16 @@ def parse_args():
     parser.add_argument(
         '--protoc', default=find_executable('protoc'), help='protoc compiler'
     )
-    parser.add_argument(
-        '--pblua', default=find_executable('protoc-gen-lua'),
-        help='protoc compiler lua plugin'
-    )
-    parser.add_argument(
-        '--pbjs', default=find_executable('pbjs'), help='protoc compiler'
-    )
     parser.add_argument('--python-out', type=str, help='python output path')
     parser.add_argument(
         '--py-init', action='store_true', help='create python module init file'
     )
     parser.add_argument(
-        '--lua-out', type=str,
-        help='create lua runtime structrues using protoc-gen-lua'
-    )
-    parser.add_argument(
-        '--js-out', type=str, help='create js runtime structrues using pbjs'
+        '--js-out', type=str, help='create js runtime structrues using protoc'
     )
     parser.add_argument(
         '--js-package', type=str, default='pbs',
         help='js descriptor package name'
-    )
-    parser.add_argument(
-        '--json-out', type=str, help='create json descriptor using pbjs'
     )
 
     args = parser.parse_args()
@@ -75,61 +55,25 @@ def get_protos(path):
     return protos
 
 
-def pb2py(protoc, source, path, python_out, lua_out=None):
+def pb2py(protoc, source, path, python_out):
     command = [
         protoc, '-I', '.', '-I', path, '-I', extra_include,
         '--python_out', python_out, source
     ]
-    if lua_out:
-        command.insert(-1, '--lua_out')
-        command.insert(-1, lua_out)
-    print('protoc %s' % command)
+    print('%s' % ' '.join(command))
     if subprocess.call(command) != 0:
         exit(1)
 
 
-def _pbjs(pbjs, source, path, extra_command):
-    command = [pbjs, source, '-p', '.', '-p', path, '-p', extra_include]
-    command.extend(extra_command)
-    print('pbjs %s' % command)
-    with tempfile.SpooledTemporaryFile() as fp:
-        proc = subprocess.Popen(command, stdout=fp.fileno())
-        proc.wait()
-        fp.seek(0)
-        content = fp.readlines()
-    content = json.loads(''.join(content))
-    content.setdefault('syntax', 'proto3')
-    content = json.dumps(content, indent=4)
-    return content
-
-
-def pb2js(pbjs, source, path, output_path, js_package):
-    content = _pbjs(pbjs, source, path, ['-t', 'json'])
-
-    nexts = []
-    relpath = os.path.relpath(source, path)
-    dirnames = os.path.splitext(relpath)[0].split('/')
-    for dirname in dirnames[:-1]:
-        nexts.append(
-            'var next = next["%s"] = next["%s"] || {};' % (
-                dirname, dirname
-            )
-        )
-    nexts.append(
-        'next["%s"] = %s;' % (dirnames[-1], content.replace('\n', '\n    '))
-    )
-    content = JS_TEMPLATE.safe_substitute(
-        package=js_package, nexts='\n    '.join(nexts)
-    )
-    output = source.replace('.proto', '.js')
-    save_to_file(os.path.join(output_path, output), content)
-
-
-def pb2json(pbjs, source, path, output_path, xor_key):
-    content = _pbjs(pbjs, source, path, ['-t', 'json'])
-    content = json.dumps(json.loads(content))
-    output = source.replace('.proto', '.json')
-    save_to_file(os.path.join(output_path, output), content)
+def pb2js(protoc, source, path, output_path):
+    command = [
+        protoc, '-I', '.', '-I', path, '-I', extra_include,
+        '--js_out=one_output_file_per_input_file,binary:%s' % output_path,
+        source
+    ]
+    print('%s' % ' '.join(command))
+    if subprocess.call(command) != 0:
+        exit(1)
 
 
 def ensure_folder(path):
@@ -144,16 +88,13 @@ def save_to_file(output, content):
 
 
 def generate(path, protoc=None, python_out='', py_init=False,
-             pbjs=None, js_out='', js_package='pbs',
-             json_out='', xor_key='',
-             pblua=None, lua_out=''):
+             js_out='', js_package='pbs'):
     if python_out:
         assert protoc, 'generate python require `protoc`'
         ensure_folder(python_out)
-    if js_out or json_out:
-        assert pbjs, 'generate js/json require `pbjs`'
-    if lua_out:
-        assert pblua, 'generate lua require `protoc-gen-lua`'
+    if js_out:
+        assert protoc, 'generate js/json require `protoc`'
+        ensure_folder(js_out)
 
     protos = get_protos(path)
     for source in protos:
@@ -162,11 +103,9 @@ def generate(path, protoc=None, python_out='', py_init=False,
             exit(1)
         print('compiling %s' % source)
         if python_out:
-            pb2py(protoc, source, path, python_out, lua_out)
+            pb2py(protoc, source, path, python_out)
         if js_out:
-            pb2js(pbjs, source, path, js_out, js_package)
-        if json_out:
-            pb2json(pbjs, source, path, json_out, xor_key)
+            pb2js(protoc, source, path, js_out)
         print()
 
     if python_out and py_init:

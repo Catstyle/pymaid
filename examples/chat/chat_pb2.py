@@ -40,7 +40,7 @@ _MESSAGE = _descriptor.Descriptor(
             has_default_value=False, default_value=_b("").decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
-            options=None),
+            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -141,16 +141,9 @@ _CHATSERVICE = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_CHATSERVICE)
 
-ChatService = service_reflection.GeneratedServiceType('ChatService', (_service.Service,), dict(
-    DESCRIPTOR=_CHATSERVICE,
-    __module__='examples.chat.chat_pb2'
-))
-
-ChatService_Stub = service_reflection.GeneratedServiceStubType('ChatService_Stub', (ChatService,), dict(
-    DESCRIPTOR=_CHATSERVICE,
-    __module__='examples.chat.chat_pb2'
-))
+DESCRIPTOR.services_by_name['ChatService'] = _CHATSERVICE
 
 
 _CHATBROADCAST = _descriptor.ServiceDescriptor(
@@ -172,6 +165,20 @@ _CHATBROADCAST = _descriptor.ServiceDescriptor(
             options=None,
         ),
     ])
+_sym_db.RegisterServiceDescriptor(_CHATBROADCAST)
+
+DESCRIPTOR.services_by_name['ChatBroadcast'] = _CHATBROADCAST
+
+ChatService = service_reflection.GeneratedServiceType('ChatService', (_service.Service,), dict(
+    DESCRIPTOR=_CHATSERVICE,
+    __module__='examples.chat.chat_pb2'
+))
+
+ChatService_Stub = service_reflection.GeneratedServiceStubType('ChatService_Stub', (ChatService,), dict(
+    DESCRIPTOR=_CHATSERVICE,
+    __module__='examples.chat.chat_pb2'
+))
+
 
 ChatBroadcast = service_reflection.GeneratedServiceType('ChatBroadcast', (_service.Service,), dict(
     DESCRIPTOR=_CHATBROADCAST,
