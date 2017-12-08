@@ -41,7 +41,7 @@ class Listener(object):
         rpc = self.service_methods.get(service_method)
         if not rpc:
             meta.is_failed = True
-            err = RpcError.RPCNotExist(service_method=service_method)
+            err = RpcError.RPCNotExist(service_method)
             packet = ErrorMessage(code=err.code, message=err.message)
             conn.send(b'{}{}{}'.format(
                 pack_header(meta.ByteSize(), packet.ByteSize()),
