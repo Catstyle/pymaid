@@ -90,6 +90,8 @@ goog.require('proto.pymaid.pb');
         this.conn = null;
         this.parser = parser || PBParser;
         this.is_closed = true;
+        this.stubs = new pymaid.StubManager();
+        this.listener = new pymaid.Listener();
     };
 
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
