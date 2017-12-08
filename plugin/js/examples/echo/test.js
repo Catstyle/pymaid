@@ -1,6 +1,7 @@
 var echoTest = function() {
     goog.require('examples/echo/echo_pb');
     var channel = new pymaid.Channel(pbrpc, {});
+    channel.init_stubs(pbrpc);
 
     var echo = function() {
         var cb = function(err, resp) {
