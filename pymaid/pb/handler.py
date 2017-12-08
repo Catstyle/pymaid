@@ -38,7 +38,7 @@ class PBHandler(object):
                 packet_length, content_length = unpack_header(header)
                 if packet_length + content_length > settings.MAX_PACKET_LENGTH:
                     conn.close(RpcError.PacketTooLarge(
-                        packet_length=packet_length + content_length
+                        packet_length + content_length
                     ))
                     break
 
@@ -90,7 +90,7 @@ class PBHandlerWithWorker(object):
                 packet_length, content_length = unpack_header(header)
                 if packet_length + content_length > settings.MAX_PACKET_LENGTH:
                     conn.close(RpcError.PacketTooLarge(
-                        packet_length=packet_length + content_length
+                        packet_length + content_length
                     ))
                     break
 
