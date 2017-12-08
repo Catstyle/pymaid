@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+import sys
 import os.path
 import argparse
 import imp
@@ -158,6 +159,7 @@ def generate_jsimpl(service_descriptor, package, prefix):
 
 
 def generate(path, output, package, prefix, root):
+    sys.path.append(path)
     for module in get_modules(path):
         mod = import_module(module)
         for service in parse_module(mod):
