@@ -156,9 +156,9 @@ def trace_method(level=logging.INFO,
             def done_wrapper(resp=None, **kwargs):
                 update_record(
                     record, level,
-                    '%s [rpc|%s][extension|%s] [req|%s] [resp|%s] [time|%.6f]',
-                    debug_info, full_name, repr(str(extension)), req,
-                    kwargs or repr(str(resp)), time() - start_time
+                    '%s [rpc|%s][extension|%r] [req|%r] [resp|%r] [time|%.6f]',
+                    debug_info, full_name, str(extension), req,
+                    str(kwargs) or str(resp), time() - start_time
                 )
                 self.logger.handle(record)
                 done(resp, **kwargs)
@@ -168,17 +168,17 @@ def trace_method(level=logging.INFO,
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [rpc|%s][extension|%s] [req|%s] [warning|%s] '
+                        '%s [rpc|%s][extension|%r] [req|%r] [warning|%s] '
                         '[time|%.6f]',
-                        debug_info, full_name, repr(str(extension)), req, ex,
+                        debug_info, full_name, str(extension), req, ex,
                         time() - start_time
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [rpc|%s][extension|%s] [req|%s] [exception|%s] '
+                        '%s [rpc|%s][extension|%r] [req|%r] [exception|%s] '
                         '[time|%.6f]',
-                        debug_info, full_name, repr(str(extension)), req, ex,
+                        debug_info, full_name, str(extension), req, ex,
                         time() - start_time
                     )
                 self.logger.handle(record)
@@ -209,9 +209,9 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
             stub.logger.handle(LogRecord(
                 stub.logger.name, level, frame.f_code.co_filename,
                 frame.f_lineno,
-                '[stub|%s][extension|%s][request|%s][kwargs|%s]',
-                (stub_name, repr(str(extension)) if extension else None,
-                 repr(str(request)), kwargs),
+                '[stub|%s][extension|%r][request|%r][kwargs|%r]',
+                (stub_name, str(extension) if extension else None,
+                 str(request), str(kwargs)),
                 None, stub_name
             ))
             return rpc(request, extension, conn, broadcaster, **kwargs)
