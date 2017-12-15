@@ -168,6 +168,7 @@ goog.require('proto.pymaid.pb');
                 stubs.register(attr, pbrpc[attr]);
             }
         }
+        stubs.bindConnection(this.conn);
     };
 
     ChannelPrototype.init_listener = function(pbimpl) {
@@ -305,7 +306,10 @@ goog.require('proto.pymaid.pb');
                 var responseType = method.output_type;
 
                 var requireResponse = responseType !== pb.Void;
-                var illegalResponse = {message: "Illegal response received in: " + name};
+                var illegalResponse = pb.ErrorMessage.fromObject({
+                    code: 1,
+                    message: "Illegal response received in: " + name
+                });
 
                 this[name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
@@ -347,10 +351,7 @@ goog.require('proto.pymaid.pb');
                             } else if (controller.getIsFailed()) {
                                 err = content = pb.ErrorMessage.deserializeBinary(resp);
                             } else {
-                                try {
-                                    resp = content = responseType.deserializeBinary(resp);
-                                } catch (Error) {
-                                }
+                                resp = content = responseType.deserializeBinary(resp);
                                 if (!(resp instanceof responseType)) {
                                     err = content = illegalResponse;
                                 }
