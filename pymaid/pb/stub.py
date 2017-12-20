@@ -50,8 +50,7 @@ class ServiceStub(object):
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, extension=None, conn=None, broadcaster=None,
-                **kwargs):
+        def rpc(request=None, conn=None, broadcaster=None, **kwargs):
             request = request or request_class(**kwargs)
 
             meta = self.meta
@@ -75,8 +74,6 @@ class ServiceStub(object):
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
-                if extension:
-                    meta.extension.Pack(extension)
                 conn.send(b'{}{}{}'.format(
                     pack_header(meta.ByteSize(), request.ByteSize()),
                     meta.SerializeToString(), request.SerializeToString()

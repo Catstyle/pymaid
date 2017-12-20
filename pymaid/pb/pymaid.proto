@@ -1,7 +1,6 @@
 syntax = "proto3";
 
 package pymaid.pb;
-import 'google/protobuf/any.proto';
 
 message Controller {
     string service_method = 1;
@@ -17,8 +16,6 @@ message Controller {
     uint32 transmission_id = 3;
     bool is_canceled = 4;
     bool is_failed = 5;
-
-    google.protobuf.Any extension = 15;
 }
 
 message RpcAck {
