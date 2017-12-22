@@ -14,15 +14,12 @@ from google.protobuf import descriptor_pb2
 _sym_db = _symbol_database.Default()
 
 
-from google.protobuf import any_pb2 as google_dot_protobuf_dot_any__pb2
-
-
 DESCRIPTOR = _descriptor.FileDescriptor(
     name='pymaid/pb/pymaid.proto',
     package='pymaid.pb',
     syntax='proto3',
-    serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\x1a\x19google/protobuf/any.proto\"\x8d\x02\n\nController\x12\x16\n\x0eservice_method\x18\x01 \x01(\t\x12\x35\n\x0bpacket_type\x18\x02 \x01(\x0e\x32 .pymaid.pb.Controller.PacketType\x12\x17\n\x0ftransmission_id\x18\x03 \x01(\r\x12\x13\n\x0bis_canceled\x18\x04 \x01(\x08\x12\x11\n\tis_failed\x18\x05 \x01(\x08\x12\'\n\textension\x18\x0f \x01(\x0b\x32\x14.google.protobuf.Any\"F\n\nPacketType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07REQUEST\x10\x01\x12\x0c\n\x08RESPONSE\x10\x02\x12\x10\n\x0cNOTIFICATION\x10\x03\"\x08\n\x06RpcAck\"\x06\n\x04Void\"-\n\x0c\x45rrorMessage\x12\x0c\n\x04\x63ode\x18\x01 \x01(\r\x12\x0f\n\x07message\x18\x02 \x01(\tb\x06proto3'),
-    dependencies=[google_dot_protobuf_dot_any__pb2.DESCRIPTOR, ])
+    serialized_pb=_b('\n\x16pymaid/pb/pymaid.proto\x12\tpymaid.pb\"\xe4\x01\n\nController\x12\x16\n\x0eservice_method\x18\x01 \x01(\t\x12\x35\n\x0bpacket_type\x18\x02 \x01(\x0e\x32 .pymaid.pb.Controller.PacketType\x12\x17\n\x0ftransmission_id\x18\x03 \x01(\r\x12\x13\n\x0bis_canceled\x18\x04 \x01(\x08\x12\x11\n\tis_failed\x18\x05 \x01(\x08\"F\n\nPacketType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07REQUEST\x10\x01\x12\x0c\n\x08RESPONSE\x10\x02\x12\x10\n\x0cNOTIFICATION\x10\x03\"\x08\n\x06RpcAck\"\x06\n\x04Void\"-\n\x0c\x45rrorMessage\x12\x0c\n\x04\x63ode\x18\x01 \x01(\r\x12\x0f\n\x07message\x18\x02 \x01(\tb\x06proto3')
+)
 
 
 _CONTROLLER_PACKETTYPE = _descriptor.EnumDescriptor(
@@ -50,8 +47,8 @@ _CONTROLLER_PACKETTYPE = _descriptor.EnumDescriptor(
     ],
     containing_type=None,
     options=None,
-    serialized_start=264,
-    serialized_end=334,
+    serialized_start=196,
+    serialized_end=266,
 )
 _sym_db.RegisterEnumDescriptor(_CONTROLLER_PACKETTYPE)
 
@@ -98,13 +95,6 @@ _CONTROLLER = _descriptor.Descriptor(
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             options=None, file=DESCRIPTOR),
-        _descriptor.FieldDescriptor(
-            name='extension', full_name='pymaid.pb.Controller.extension', index=5,
-            number=15, type=11, cpp_type=10, label=1,
-            has_default_value=False, default_value=None,
-            message_type=None, enum_type=None, containing_type=None,
-            is_extension=False, extension_scope=None,
-            options=None, file=DESCRIPTOR),
     ],
     extensions=[
     ],
@@ -118,8 +108,8 @@ _CONTROLLER = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=65,
-    serialized_end=334,
+    serialized_start=38,
+    serialized_end=266,
 )
 
 
@@ -142,8 +132,8 @@ _RPCACK = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=336,
-    serialized_end=344,
+    serialized_start=268,
+    serialized_end=276,
 )
 
 
@@ -166,8 +156,8 @@ _VOID = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=346,
-    serialized_end=352,
+    serialized_start=278,
+    serialized_end=284,
 )
 
 
@@ -204,12 +194,11 @@ _ERRORMESSAGE = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=354,
-    serialized_end=399,
+    serialized_start=286,
+    serialized_end=331,
 )
 
 _CONTROLLER.fields_by_name['packet_type'].enum_type = _CONTROLLER_PACKETTYPE
-_CONTROLLER.fields_by_name['extension'].message_type = google_dot_protobuf_dot_any__pb2._ANY
 _CONTROLLER_PACKETTYPE.containing_type = _CONTROLLER
 DESCRIPTOR.message_types_by_name['Controller'] = _CONTROLLER
 DESCRIPTOR.message_types_by_name['RpcAck'] = _RPCACK
