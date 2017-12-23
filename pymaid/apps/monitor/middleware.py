@@ -1,4 +1,3 @@
-from pymaid.conf import settings
 from pymaid.utils import timer
 from pymaid.apps.middleware import BaseMiddleware
 
@@ -24,10 +23,7 @@ class MonitorMiddleware(BaseMiddleware):
                 conn.heartbeat_timer.stop()
                 conn.close(MonitorError.HeartbeatTimeout())
 
-        heartbeat_timer = timer(
-            0, self.heartbeat_interval,
-            use_greenlet=settings.HEARTBEAT_USE_GREENLET
-        )
+        heartbeat_timer = timer(0, self.heartbeat_interval)
         heartbeat_timer.again(heartbeat_timeout)
         conn.heartbeat_timer = heartbeat_timer
         conn.clear_heartbeat_counter = clear_heartbeat_counter
