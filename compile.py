@@ -7,8 +7,11 @@ import argparse
 from distutils.spawn import find_executable
 from string import Template
 
-import pymaid
-extra_include = '/'.join(pymaid.__path__[0].split('/')[:-1])
+try:
+    import pymaid
+    extra_include = '/'.join(pymaid.__path__[0].split('/')[:-1])
+except ImportError:
+    extra_include = '.'
 
 JS_TEMPLATE = Template("""(function(global) {
     var next = global['${package}'] = global['${package}'] || {};
