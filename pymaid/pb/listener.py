@@ -1,7 +1,6 @@
 from google.protobuf.message import DecodeError
 
-from pymaid.error import BaseEx, Error, RpcError
-from pymaid.error import get_exception
+from pymaid.error import BaseEx, Error, RpcError, ErrorManager
 
 from . import pack_header
 from .pymaid_pb2 import Void, ErrorMessage, Controller as PBC
@@ -84,10 +83,15 @@ class Listener(object):
 
         if meta.is_failed:
             try:
-                message = ErrorMessage.FromString(content)
-                ex = get_exception(message.code, message.message)
+                err = ErrorMessage.FromString(content)
             except (DecodeError, ValueError) as ex:
                 ex = ex
+            else:
+                ex = ErrorManager.get_exception(err.code)
+                if ex is None:
+                    ex = ErrorManager.add_warning(err.code, err.message)
+                ex = ex()
+                ex.message = err.message
             result.set_exception(ex)
         else:
             try:

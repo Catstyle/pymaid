@@ -3,23 +3,9 @@ import abc
 from sys import _getframe as getframe
 
 
-_cached_classes = {}
-
-
-class ErrorMeta(type):
-
-    def __init__(cls, name, bases, attrs):
-        super(ErrorMeta, cls).__init__(name, bases, attrs)
-        if name in ['BaseEx', 'Error', 'Warning']:
-            return
-
-        assert cls.code not in _cached_classes, (cls.code, _cached_classes)
-        _cached_classes[cls.code] = cls
-        assert hasattr(cls, 'message')
-
-
-@six.add_metaclass(ErrorMeta)
 class BaseEx(Exception):
+
+    message = 'BaseEx'
 
     def __init__(self, *args, **kwargs):
         if args or kwargs:
@@ -44,51 +30,73 @@ class Warning(BaseEx):
     __repr__ = __str__ = __unicode__
 
 
-class Builder(object):
+class ErrorManager(object):
 
     index = 0
+    codes = {}
+    exceptions = {}
+    managers = {}
 
     @classmethod
-    def build_error(cls, name, code, message):
+    def add(cls, name, ex):
+        setattr(cls, name, ex)
+        if issubclass(ex, BaseEx):
+            assert ex.code not in cls.codes, (ex.code, cls.codes)
+            cls.codes[ex.code] = ex
+            cls.exceptions[name] = ex
+        elif issubclass(ex, ErrorManager):
+            cls.managers[ex.__name__] = ex
+
+    @classmethod
+    def add_error(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         error = type(
             name, (Error,),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        setattr(cls, name, error)
         cls.register(error)
+        cls.add(name, error)
+        return error
+    # compability
+    build_error = add_error
 
     @classmethod
-    def build_warning(cls, name, code, message):
+    def add_warning(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         warning = type(
             name, (Warning,),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        setattr(cls, name, warning)
         cls.register(warning)
+        cls.add(name, warning)
+        return warning
+    # compability
+    build_warning = add_warning
 
+    @classmethod
+    def get_exception(cls, code):
+        ex = None
+        if code in cls.codes:
+            ex = cls.codes[code]
+        else:
+            for manager in cls.managers.values():
+                ex = manager.get_exception(code)
+                if ex is not None:
+                    return ex
+        return ex
 
-def get_exception(code, message):
-    if code in _cached_classes:
-        cls = _cached_classes[code]
-    else:
-        cls = type(
-            'Unknown%s' % code, (Warning,), {'code': code, 'message': message}
-        )
-        _cached_classes[code] = cls
-    ins = cls()
-    ins.message = message
-    return ins
-
-
-def create_manager(name, index):
-    frame = getframe(1)  # get caller frame
-    kwargs = dict(Builder.__dict__)
-    kwargs['__module__'] = frame.f_locals.get('__name__', '')
-    manager = type(name, (Builder,), kwargs)
-    manager = six.add_metaclass(abc.ABCMeta)(manager)
-    manager.index = index
-    return manager
+    @classmethod
+    def create_manager(cls, name, index):
+        frame = getframe(1)  # get caller frame
+        kwargs = dict(ErrorManager.__dict__)
+        kwargs['__module__'] = frame.f_locals.get('__name__', '')
+        manager = type(name, (ErrorManager,), kwargs)
+        manager = six.add_metaclass(abc.ABCMeta)(manager)
+        manager.index = index
+        manager.codes = {}
+        manager.exceptions = {}
+        manager.managers = {}
+        cls.add(name, manager)
+        return manager
