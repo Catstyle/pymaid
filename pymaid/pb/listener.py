@@ -89,7 +89,9 @@ class Listener(object):
             else:
                 ex = ErrorManager.get_exception(err.code)
                 if ex is None:
-                    ex = ErrorManager.add_warning(err.code, err.message)
+                    ex = ErrorManager.add_warning(
+                        'Unknown%d', err.code, err.message
+                    )
                 ex = ex()
                 ex.message = err.message
             result.set_exception(ex)
