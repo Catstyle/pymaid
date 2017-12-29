@@ -19,8 +19,6 @@ class PBHandler(object):
         self.close_conn_onerror = close_conn_onerror
 
     def __call__(self, conn):
-        if not conn.oninit():
-            return
         conn.close_conn_onerror = self.close_conn_onerror
 
         RESPONSE = PBC.RESPONSE
@@ -30,6 +28,8 @@ class PBHandler(object):
         }
         handle_response = self.listener.handle_response
         try:
+            if not conn.oninit():
+                return
             while 1:
                 header = conn.read(4)
                 if not header:
