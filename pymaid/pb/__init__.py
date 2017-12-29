@@ -1,7 +1,8 @@
 import struct
-HEADER = '!HH'  # noqa
-pack_header = struct.Struct(HEADER).pack  # noqa
-unpack_header = struct.Struct(HEADER).unpack  # noqa
+
+from pymaid.conf import settings
+pack_header = struct.Struct(settings.PM_PB_HEADER).pack  # noqa
+unpack_header = struct.Struct(settings.PM_PB_HEADER).unpack  # noqa
 
 from .listener import Listener
 from .handler import PBHandler
