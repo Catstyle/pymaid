@@ -94,7 +94,7 @@ if __name__ == '__main__':
         },
         install_requires=[
             'gevent>=1.2',
-            'protobuf>=3.2.0',
+            'protobuf>=3.5.0',
             'six',
             'ujson',
             'wsaccel',

@@ -30,6 +30,7 @@ class Warning(BaseEx):
     __repr__ = __str__ = __unicode__
 
 
+@six.add_metaclass(abc.ABCMeta)
 class ErrorManager(object):
 
     index = 0
