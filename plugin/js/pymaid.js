@@ -11,6 +11,81 @@ goog.require('proto.pymaid.pb');
     pb.ErrorMessage = proto.pymaid.pb.ErrorMessage;
 
     /**
+     * Serialization/Deserialization utils
+     *
+     */
+    pb.instantiate = pb.serialize = pb.deserialize = pb.format = undefined;
+
+    var underscore = function(ins) {
+        var obj = {};
+        for (var attr in ins) {
+            if (ins.hasOwnProperty(attr)) {
+                var value = ins[attr];
+                if (typeof value === 'Object') {
+                    value = underscore(value);
+                } else if (goog.isArray(value)) {
+                    value = value.map(function(val) {typeof val === 'Object' ? underscore(val) : val});
+                }
+                obj[attr.replace(/([A-Z])/g, '_$1').toLowerCase()] = value;
+            }
+        }
+        return obj;
+    }
+
+    var camel = function(ins) {
+        var obj = {}
+        for (var attr in ins) {
+            if (ins.hasOwnProperty(attr)) {
+                var value = ins[attr];
+                if (typeof value === 'Object') {
+                    value = camel(value);
+                } else if (goog.isArray(value)) {
+                    value = value.map(function(val) {typeof val === 'Object' ? camel(val) : val});
+                }
+                obj[attr.replace(/_(\w)/g, function(all, letter) {return letter.toUpperCase()})] = value;
+            }
+        }
+        return obj;
+    }
+
+    var jspb_instantiate = function(proto, data) {
+        for (var attr in data) {
+            if (goog.isArray(data[attr])) {
+                data[attr + '_list'] = data[attr];
+            }
+        }
+        return proto.fromObject(camel(data));
+    }
+
+    var jspb_serialize = function(ins) {
+        return ins.serializeBinary();
+    }
+
+    var jspb_deserialize = function(proto, data) {
+        var ins = underscore(proto.deserializeBinary(data).toObject());
+        for (var attr in ins) {
+            if (attr.endsWith('_list')) {
+                ins[attr.substr(0, attr.length - 5)] = ins[attr];
+                delete ins[attr];
+            }
+        }
+        return ins;
+    }
+
+    var jspb_format = function(ins) {
+        if (ins.toObject !== undefined) {
+            return JSON.stringify(underscore(ins.toObject()));
+        } else {
+            return JSON.stringify(underscore(ins));
+        }
+    }
+
+    pb.instantiate = jspb_instantiate;
+    pb.serialize = jspb_serialize;
+    pb.deserialize = jspb_deserialize;
+    pb.format = jspb_format;
+
+    /**
      * Parser, encode/decode packet
      *
      */
@@ -21,10 +96,8 @@ goog.require('proto.pymaid.pb');
     // 4 is for '!HH'
     PBParser._headerSize = JSONParser._headerSize = 4;
 
-    PBParser.pack = function(controller, content) {
-        var ctrlBinary = controller.serializeBinary();
-        var contentBinary = content.serializeBinary();
-        var ctrlSize = ctrlBinary.byteLength;
+    PBParser.pack = function(controllerBinary, contentBinary) {
+        var ctrlSize = controllerBinary.byteLength;
         var contentSize = contentBinary.byteLength;
 
         var ab = new ArrayBuffer(this._headerSize + ctrlSize + contentSize);
@@ -33,7 +106,7 @@ goog.require('proto.pymaid.pb');
         var content = new Uint8Array(ab, 4 + ctrlSize, contentSize);
         dv.setUint16(0, ctrlSize);
         dv.setUint16(2, contentSize);
-        ctrl.set(ctrlBinary);
+        ctrl.set(controllerBinary);
         content.set(contentBinary);
         return ab;
     };
@@ -45,7 +118,7 @@ goog.require('proto.pymaid.pb');
 
         var ctrlLimit = this._headerSize + ctrlSize;
         return {
-            controller: pb.Controller.deserializeBinary(ab.slice(this._headerSize, ctrlLimit)),
+            controller: pb.deserialize(pb.Controller, ab.slice(this._headerSize, ctrlLimit)),
             content: ab.slice(ctrlLimit, ctrlLimit + contentSize)
         };
     };
@@ -228,26 +301,28 @@ goog.require('proto.pymaid.pb');
     WSConnectionPrototype.cleanup = function(reason) {
         for (var idx in this.transmissions) {
             var cb = this.transmissions[idx];
-            cb(pb.Controller.fromObject({isFailed: true}),
-               pb.ErrorMessage.fromObject({
+            cb({is_failed: true},
+               pb.serialize(pb.instantiate(pb.ErrorMessage, {
+                   code: 400,
                    message: 'pymaid: rpc conn closed with [reason|' + reason + ']'
-               }).serializeBinary()
+               }))
             );
             delete this.transmissions[idx];
         }
+        this.transmissions = {};
     }
 
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
         var controller = packet.controller, content = packet.content;
 
-        if (controller.getPacketType() == pb.Controller.PacketType.RESPONSE) {
-            var tid = controller.getTransmissionId();
+        if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
+            var tid = controller.transmission_id;
             var cb = this.transmissions[tid];
             if (!cb) {
                 console.log(
                     'pymaid: [WSConnection|'+this.connid+'][transmission|'+tid+']' +
-                    '[service_method|'+controller.getServiceMethod()+'] has no cb'
+                    '[service_method|'+controller.service_method+'] has no cb'
                 );
                 // what to do?
                 return;
@@ -306,10 +381,6 @@ goog.require('proto.pymaid.pb');
                 var responseType = method.output_type;
 
                 var requireResponse = responseType !== pb.Void;
-                var illegalResponse = pb.ErrorMessage.fromObject({
-                    code: 1,
-                    message: "Illegal response received in: " + name
-                });
 
                 this[name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
@@ -323,43 +394,39 @@ goog.require('proto.pymaid.pb');
                         return;
                     }
 
-                    var controller = pb.Controller.fromObject({
-                        serviceMethod: serviceName + '.' + name,
-                        packetType: pb.Controller.PacketType.REQUEST,
-                    });
+                    var data = {
+                        service_method: serviceName + '.' + name,
+                        packet_type: pb.Controller.PacketType.REQUEST,
+                    };
                     if (requireResponse) {
                         var tid = conn.transmissionId;
-                        controller.setTransmissionId(tid);
+                        data['transmission_id'] = tid;
                         conn.transmissionId++;
                     }
+                    var controller = pb.instantiate(pb.Controller, data);
                     if (!(req instanceof requestType)) {
-                        req = requestType.fromObject(req);
+                        req = pb.instantiate(requestType, req);
                     }
                     console.log(
-                        'pymaid: [Stub][controller|'+JSON.stringify(controller.toObject())+']'+
-                        '[req|'+JSON.stringify(req.toObject())+']'
+                        'pymaid: [Stub][controller|'+pb.format(controller)+']'+
+                        '[req|'+pb.format(req)+']'
                     );
-                    conn.send(conn.parser.pack(controller, req));
+                    conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(req)));
 
                     if (!requireResponse) {
                         setTimeout(cb.bind(this, null, null), 0);
                     } else {
                         conn.transmissions[tid] = function(controller, resp) {
                             var err = null, content;
-                            if (!controller) {
-                                err = content = illegalResponse;
-                            } else if (controller.getIsFailed()) {
-                                err = content = pb.ErrorMessage.deserializeBinary(resp);
+                            if (controller.is_failed) {
+                                err = content = pb.deserialize(pb.ErrorMessage, resp);
                             } else {
-                                resp = content = responseType.deserializeBinary(resp);
-                                if (!(resp instanceof responseType)) {
-                                    err = content = illegalResponse;
-                                }
+                                resp = content = pb.deserialize(responseType, resp);
                             }
                             console.log(
                                 'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-                                '[onmessage][controller|'+JSON.stringify(controller.toObject())+']'+
-                                '[content|'+JSON.stringify(content.toObject())+']'
+                                '[onmessage][controller|'+pb.format(controller)+']'+
+                                '[content|'+pb.format(content)+']'
                             );
                             cb(err, resp);
                         };
@@ -419,7 +486,7 @@ goog.require('proto.pymaid.pb');
     };
 
     ListenerPrototype.onmessage = function(controller, content, conn) {
-        var serviceMethod = controller.getServiceMethod();
+        var serviceMethod = controller.service_method;
         var dot = serviceMethod.lastIndexOf('.');
         var serviceName = serviceMethod.substr(0, dot);
         var methodName = serviceMethod.substr(dot+1);
@@ -430,11 +497,10 @@ goog.require('proto.pymaid.pb');
             return;
         }
         var method = impl[methodName];
-        var req = method.input_type.deserializeBinary(content), respType = method.output_type;
+        var req = pb.deserialize(method.input_type, content), respType = method.output_type;
         console.log(
             'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-            '[onmessage][controller|'+JSON.stringify(controller.toObject())+']' +
-            '[content|'+JSON.stringify(req.toObject())+']'
+            '[onmessage][controller|'+pb.format(controller)+']'+'[content|'+pb.format(req)+']'
         );
         impl[methodName](controller, req, function(err, content) {
             if (respType === pb.Void) {
@@ -444,15 +510,18 @@ goog.require('proto.pymaid.pb');
             controller.setPacketType(pb.Controller.PacketType.RESPONSE);
             if (err) {
                 controller.setIsFailed(true);
-                conn.send(conn.parser.pack(controller, pb.ErrorMessage.fromObject(err)));
+                conn.send(conn.parser.pack(
+                    pb.serialize(controller),
+                    pb.serialize(pb.instantiate(pb.ErrorMessage, err))
+                ));
             } else {
                 if (content === null) {
                     throw Error('pymaid: impl: '+serviceMethod+' got null content');
                 }
                 if (!(content instanceof respType)) {
-                    content = respType.fromObject(content);
+                    content = pb.deserialize(respType, content);
                 }
-                conn.send(conn.parser.pack(controller, content));
+                conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(content)));
             }
         });
     };
