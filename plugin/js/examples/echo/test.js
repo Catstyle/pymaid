@@ -6,9 +6,9 @@ var echoTest = function() {
     var echo = function() {
         var cb = function(err, resp) {
             if (!err) {
-                console.log('receive resp: ' + resp.getMessage());
+                console.log('receive resp: ' + resp.message);
             } else {
-                console.log('receive error: ' + JSON.stringify(err.toObject()));
+                console.log('receive error: ' + JSON.stringify(err));
             }
         };
         channel.stubs.echoService.Echo({message: 'haha哈'}, cb);
