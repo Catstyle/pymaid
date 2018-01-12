@@ -17,40 +17,42 @@ goog.require('proto.pymaid.pb');
     pb.instantiate = pb.serialize = pb.deserialize = pb.format = undefined;
 
     var underscore = function(ins) {
-        var obj = {};
-        for (var attr in ins) {
-            if (ins.hasOwnProperty(attr)) {
-                var value = ins[attr];
-                if (typeof value === 'Object') {
-                    value = underscore(value);
-                } else if (goog.isArray(value)) {
-                    value = value.map(function(val) {typeof val === 'Object' ? underscore(val) : val});
+        switch (goog.typeOf(ins)) {
+            case 'array':
+                return ins.map(underscore);
+            case 'object':
+                var obj = {};
+                for (var attr in ins) {
+                    if (ins.hasOwnProperty(attr)) {
+                        obj[attr.replace(/([A-Z])/g, '_$1').toLowerCase()] = underscore(ins[attr]);
+                    }
                 }
-                obj[attr.replace(/([A-Z])/g, '_$1').toLowerCase()] = value;
-            }
+                return obj;
+            default:
+                return ins;
         }
-        return obj;
     }
 
     var camel = function(ins) {
-        var obj = {}
-        for (var attr in ins) {
-            if (ins.hasOwnProperty(attr)) {
-                var value = ins[attr];
-                if (typeof value === 'Object') {
-                    value = camel(value);
-                } else if (goog.isArray(value)) {
-                    value = value.map(function(val) {typeof val === 'Object' ? camel(val) : val});
+        switch (goog.typeOf(ins)) {
+            case 'array':
+                return ins.map(underscore);
+            case 'object':
+                var obj = {};
+                for (var attr in ins) {
+                    if (ins.hasOwnProperty(attr)) {
+                        obj[attr.replace(/_(\w)/g, function(all, letter) {return letter.toUpperCase()})] = camel(ins[attr]);
+                    }
                 }
-                obj[attr.replace(/_(\w)/g, function(all, letter) {return letter.toUpperCase()})] = value;
-            }
+                return obj;
+            default:
+                return ins;
         }
-        return obj;
     }
 
     var jspb_instantiate = function(proto, data) {
         for (var attr in data) {
-            if (goog.isArray(data[attr])) {
+            if (goog.isArray(data[attr]) && !attr.endsWith('_list')) {
                 data[attr + '_list'] = data[attr];
             }
         }
@@ -66,6 +68,14 @@ goog.require('proto.pymaid.pb');
         for (var attr in ins) {
             if (attr.endsWith('_list')) {
                 ins[attr.substr(0, attr.length - 5)] = ins[attr];
+                delete ins[attr];
+            } else if (attr.endsWith('_map') && goog.isArray(ins[attr])) {
+                var obj = {};
+                var arr = ins[attr];
+                for (var idx = 0, size = arr.length; idx < size; ++idx) {
+                    obj[arr[idx][0]] = arr[idx][1];
+                }
+                ins[attr.substr(0, attr.length - 4)] = obj;
                 delete ins[attr];
             }
         }
