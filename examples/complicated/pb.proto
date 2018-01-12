@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package complicated;
+option py_generic_services = true;
+
+message Message {
+    string message = 1;
+}
+
+message ComplicatedMessage {
+    Message message = 1;
+    repeated uint32 uints = 2 [packed = true];
+    map<uint32, Message> messages = 3;
+    uint32 count = 4;
+}
+
+service Service {
+    rpc Test(ComplicatedMessage) returns (ComplicatedMessage);
+}
