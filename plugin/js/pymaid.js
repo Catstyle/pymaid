@@ -22,7 +22,8 @@ goog.require('proto.pymaid.pb');
                 return ins.map(underscore);
             case 'object':
                 var obj = {};
-                for (var attr in ins) {
+                for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                    var attr = attrs[idx];
                     if (ins.hasOwnProperty(attr)) {
                         obj[attr.replace(/([A-Z])/g, '_$1').toLowerCase()] = underscore(ins[attr]);
                     }
@@ -36,10 +37,11 @@ goog.require('proto.pymaid.pb');
     var camel = function(ins) {
         switch (goog.typeOf(ins)) {
             case 'array':
-                return ins.map(underscore);
+                return ins.map(camel);
             case 'object':
                 var obj = {};
-                for (var attr in ins) {
+                for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                    var attr = attrs[idx];
                     if (ins.hasOwnProperty(attr)) {
                         obj[attr.replace(/_(\w)/g, function(all, letter) {return letter.toUpperCase()})] = camel(ins[attr]);
                     }
@@ -51,12 +53,35 @@ goog.require('proto.pymaid.pb');
     }
 
     var jspb_instantiate = function(proto, data) {
-        for (var attr in data) {
-            if (goog.isArray(data[attr]) && !attr.endsWith('_list')) {
-                data[attr + '_list'] = data[attr];
+        var transform = function(ins) {
+            switch (goog.typeOf(ins)) {
+                case 'array':
+                    return ins.map(transform);
+                case 'object':
+                    for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                        var attr = attrs[idx];
+                        if (ins.hasOwnProperty(attr)) {
+                            var value = ins[attr];
+                            if (goog.isArray(value) && !attr.endsWith('_list')) {
+                                ins[attr + '_list'] = transform(value);
+                                delete ins[attr];
+                            } else if (value.pbmap === true) {
+                                delete value['pbmap'];
+                                var arr = [];
+                                for (var ks = Object.keys(value), idx = 0; idx < ks.length; ++idx) {
+                                    arr.push([ks[idx], transform(value[ks[idx]])]);
+                                }
+                                ins[attr + '_map'] = arr;
+                                delete ins[attr];
+                            }
+                        }
+                    }
+                    return ins;
+                default:
+                    return ins;
             }
         }
-        return proto.fromObject(camel(data));
+        return proto.fromObject(camel(transform(data)));
     }
 
     var jspb_serialize = function(ins) {
@@ -65,21 +90,35 @@ goog.require('proto.pymaid.pb');
 
     var jspb_deserialize = function(proto, data) {
         var ins = underscore(proto.deserializeBinary(data).toObject());
-        for (var attr in ins) {
-            if (attr.endsWith('_list')) {
-                ins[attr.substr(0, attr.length - 5)] = ins[attr];
-                delete ins[attr];
-            } else if (attr.endsWith('_map') && goog.isArray(ins[attr])) {
-                var obj = {};
-                var arr = ins[attr];
-                for (var idx = 0, size = arr.length; idx < size; ++idx) {
-                    obj[arr[idx][0]] = arr[idx][1];
-                }
-                ins[attr.substr(0, attr.length - 4)] = obj;
-                delete ins[attr];
+
+        var transform = function(ins) {
+            switch (goog.typeOf(ins)) {
+                case 'array':
+                    return ins.map(transform);
+                case 'object':
+                    for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                        var attr = attrs[idx]
+                        if (ins.hasOwnProperty(attr)) {
+                            if (attr.endsWith('_list')) {
+                                ins[attr.substr(0, attr.length - 5)] = transform(ins[attr]);
+                                delete ins[attr];
+                            } else if (attr.endsWith('_map') && goog.isArray(ins[attr])) {
+                                var obj = {};
+                                var arr = ins[attr];
+                                for (var idx = 0, size = arr.length; idx < size; ++idx) {
+                                    obj[arr[idx][0]] = transform(arr[idx][1]);
+                                }
+                                ins[attr.substr(0, attr.length - 4)] = obj;
+                                delete ins[attr];
+                            }
+                        }
+                    }
+                    return ins;
+                default:
+                    return ins;
             }
         }
-        return ins;
+        return transform(ins);
     }
 
     var jspb_format = function(ins) {

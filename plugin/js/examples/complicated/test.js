@@ -11,8 +11,11 @@ var test = function() {
                 console.log('receive error: ' + JSON.stringify(err));
             }
         };
-        channel.stubs.service.Test({message: {message: 'haha哈'}, count: 5}, cb);
+        channel.stubs.service.Test({
+            message: {message: 'haha哈'}, count: 5, uints: [1, 2, 3],
+            messages: {1: {'message': '1'}, pbmap: true}
+        }, cb);
     };
-    channel.connect('ws', '192.168.0.11', 8888, {onopen: wrapper});
+    channel.connect('ws', '127.0.0.1', 8888, {onopen: wrapper});
 };
 
