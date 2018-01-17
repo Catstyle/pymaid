@@ -609,10 +609,16 @@ goog.require('proto.pymaid.pb');
 
     var getParams = function(data) {
         var params = [], attr;
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
+        for (attr in data) {
+            if (data.hasOwnProperty(attr)) {
+                switch (goog.typeOf(data[attr])) {
+                    case 'array':
+                        // do some format like ?a=1&a=2...
+                        params = params.concat(data[attr].map(function(x) {return attr+'='+x;}));
+                        break;
+                    default:
+                        params.push(attr+'='+data[attr]);
+                        break;
                 }
             }
         }
