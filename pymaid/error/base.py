@@ -14,20 +14,30 @@ class BaseEx(Exception):
 
 class Error(BaseEx):
 
+    def __str__(self):
+        return u'[ERROR][{}][code|{}][message|{}]'.format(
+            self.__class__.__name__, self.code, self.message
+        ).encode('utf-8')
+    __repr__ = __str__
+
     def __unicode__(self):
         return u'[ERROR][{}][code|{}][message|{}]'.format(
             self.__class__.__name__, self.code, self.message
         )
-    __repr__ = __str__ = __unicode__
 
 
 class Warning(BaseEx):
+
+    def __str__(self):
+        return u'[WARN][{}][code|{}][message|{}]'.format(
+            self.__class__.__name__, self.code, self.message
+        ).encode('utf-8')
+    __repr__ = __str__
 
     def __unicode__(self):
         return u'[WARN][{}][code|{}][message|{}]'.format(
             self.__class__.__name__, self.code, self.message
         )
-    __repr__ = __str__ = __unicode__
 
 
 @six.add_metaclass(abc.ABCMeta)
