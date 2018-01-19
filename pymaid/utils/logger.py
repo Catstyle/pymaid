@@ -8,6 +8,7 @@ from sys import _getframe as getframe
 from time import time
 from types import MethodType
 import warnings
+import sys
 
 from google.protobuf.service import Service
 
@@ -18,7 +19,11 @@ __all__ = [
     'trace_stub'
 ]
 
-levelnames = logging._levelNames
+if sys.version_info.major >= 3:
+    logging_levels = logging._levelToName
+    logging_names = logging._nameToLevel
+else:
+    logging_names = logging_levels = logging._levelNames
 
 root_logger = logging.getLogger('root')
 root_logger.wrappers = []
@@ -100,7 +105,7 @@ def get_logger(name):
 
 def update_record(record, level, msg, *args):
     record.levelno = level
-    record.levelname = levelnames[level]
+    record.levelname = logging_levels[level]
     record.msg = msg
     record.args = args
     ct = time()
@@ -111,28 +116,28 @@ def update_record(record, level, msg, *args):
 def trace_service(level=logging.INFO,
                   debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(cls):
-        assert level in levelnames, level
+        assert level in logging_levels, (level, logging_levels)
         for method in cls.DESCRIPTOR.methods:
             name = method.name
             setattr(cls, name,
                     trace_method(level, debug_info_func)(getattr(cls, name)))
         return cls
     if isinstance(level, str):
-        level = levelnames[level]
+        level = logging_names[level]
         return wrapper
     elif isinstance(level, int):
         return wrapper
     else:
         assert issubclass(level, Service), level
-        cls, level = level, 'INFO'
+        cls, level = level, logging.INFO
         return wrapper(cls)
 
 
 def trace_method(level=logging.INFO,
                  debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
     def wrapper(func):
-        assert level in levelnames, level
-        co = func.func_code
+        assert level in logging_levels, (level, logging_levels)
+        co = func.__code__
         full_name = co.co_name
         if isinstance(func, MethodType):
             full_name = '%s.%s' % (func.im_class.DESCRIPTOR.name, full_name)
@@ -182,7 +187,7 @@ def trace_method(level=logging.INFO,
                 raise
         return _
     if isinstance(level, str):
-        level = levelnames[level]
+        level = logging_names[level]
         return wrapper
     elif isinstance(level, int):
         return wrapper
@@ -197,7 +202,7 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
         from pymaid.conf import settings
         if not settings.DEBUG:
             return rpc
-        assert level in levelnames, level
+        assert level in logging_levels, (level, logging_levels)
 
         @wraps(rpc)
         def _(request=None, conn=None, broadcaster=None, **kwargs):
@@ -211,7 +216,7 @@ def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
             return rpc(request, conn, broadcaster, **kwargs)
         return _
     if isinstance(level, str):
-        level = levelnames[level]
+        level = logging_names[level]
         return wrapper
     elif isinstance(level, int):
         return wrapper
