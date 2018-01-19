@@ -13,10 +13,10 @@ class Sender(object):
         self.target = target
 
     def send(self, meta, request):
-        self.target.send(b'{}{}{}'.format(
+        self.target.send(b''.join([
             pack_header(meta.ByteSize(), request.ByteSize()),
             meta.SerializeToString(), request.SerializeToString()
-        ))
+        ]))
 
 
 @pymaid_logger_wrapper
@@ -59,10 +59,10 @@ class ServiceStub(object):
             meta.packet_type = packet_type
             if broadcaster is not None:
                 if not isinstance(broadcaster, Broadcaster):
-                    content = b'{}{}{}'.format(
+                    content = b''.join([
                         pack_header(meta.ByteSize(), request.ByteSize()),
                         meta.SerializeToString(), request.SerializeToString()
-                    )
+                    ])
                     for sender in broadcaster:
                         sender.send(content)
                 else:
@@ -74,10 +74,10 @@ class ServiceStub(object):
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
-                conn.send(b'{}{}{}'.format(
+                conn.send(b''.join([
                     pack_header(meta.ByteSize(), request.ByteSize()),
                     meta.SerializeToString(), request.SerializeToString()
-                ))
+                ]))
 
                 if not require_response:
                     return
