@@ -165,7 +165,7 @@ class ConnectionPool(object):
 class PriorityPool(ConnectionPool):
 
     queue_class = PriorityQueue
-    empty_item = (sys.maxint, None)
+    empty_item = (sys.maxsize, None)
 
     def item_getter(self, item):
         return item[1] if item else item
