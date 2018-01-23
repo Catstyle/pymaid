@@ -584,9 +584,34 @@ goog.require('proto.pymaid.pb');
      * HttpManager, used to handle cookies/redirect things
      *
     **/
+
+    var CookieMiddleware = {
+
+        on_create: function(manager, req) {
+            req.withCredentials = true;
+            req.setRequestHeader('Cookie', manager._cookies);
+        },
+
+        on_finish: function(manager, req) {
+            manager._cookies = req.getResponseHeader('Set-Cookie') || manager._cookies;
+        },
+
+    };
+
+    var TokenMiddleware = {
+
+        on_create: function(manager, req) {
+            req.setRequestHeader("Authorization", 'Basic'+" "+ manager._userToken);
+        },
+
+        on_finish: function(manager, req) {
+        },
+
+    };
+
     var HttpManager = function(rootUrl, webimpl, requestClass, timeout) {
         this.setRootUrl(rootUrl)
-        this._cookies = '';
+        this.middlewares = [];
         requestClass = requestClass || XMLHttpRequest;
         if (!requestClass) {
             throw Error('invalid requestClass for HttpManager');
@@ -606,6 +631,8 @@ goog.require('proto.pymaid.pb');
 
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
     pymaid.HttpManager = HttpManager;
+    HttpManager.CookieMiddleware = CookieMiddleware;
+    HttpManager.TokenMiddleware = TokenMiddleware;
 
     var getParams = function(data) {
         var params = [], attr;
@@ -652,18 +679,29 @@ goog.require('proto.pymaid.pb');
         console.log('pymaid HttpManager became not authenticated');
     };
 
+    HMPrototype.on_req_create = function(req) {
+        for (var mid = 0, length = this.middlewares.length; mid < length; ++mid) {
+            this.middlewares[mid].on_create(this, req);
+        }
+    }
+
+    HMPrototype.on_req_finish = function(req) {
+        for (var mid = 0, length = this.middlewares.length; mid < length; ++mid) {
+            this.middlewares[mid].on_finish(this, req);
+        }
+    }
+
     HMPrototype.newRequest = function(type, url, cb, timeout, async) {
         async = async || true;
         var self = this;
 
         var req = new this._requestClass();
-        req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
-        req.setRequestHeader('Cookie', this._cookies);
         req.timeout = timeout || this.timeout;
+        this.on_req_create(req);
 
         req.onload = function() {
-            self.setCookies(req.getResponseHeader('Set-Cookie'));
+            self.on_req_finish(req);
 
             var status = req.status;
             var response = req.responseText;
