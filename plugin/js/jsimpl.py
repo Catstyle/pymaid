@@ -24,11 +24,16 @@ SERVICE_TEMPLATE = Template("""${requires}
         listeners: [],
 
         registerListener: function(listener) {
-            this.listeners.push(listener);
+            if (this.listeners.indexOf(listener) == -1) {
+                this.listeners.push(listener);
+            }
         },
 
         unregisterListener: function(listener) {
-            this.listeners.splice(this.listeners.indexOf(listener), 1);
+            var idx = this.listeners.indexOf(listener);
+            if (idx != -1) {
+                this.listeners.splice(idx, 1);
+            }
         },
 ${methods}
     }
