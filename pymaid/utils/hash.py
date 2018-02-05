@@ -23,7 +23,7 @@ def md5_hash_func(key):
 
 class HashNode(object):
 
-    def __init__(self, key, weight=1, enabled=True):
+    def __init__(self, key, weight=16, enabled=True):
         self.key = key
         self.hashed_key = md5_hash_func(key)
         self.weight = weight
@@ -104,16 +104,19 @@ class BaseHashManager(object):
     def get_node(self, key):
         raise NotImplementedError
 
+    def clone(self):
+        # return a copy of this manager
+        raise NotImplementedError
+
     def __str__(self):
         return '<{}: {}>'.format(self.__class__.__name__, self.name)
 
 
 class HashRing(BaseHashManager):
 
-    def __init__(self, name, hash_func=md5_hash_func, virtual_entry_count=16):
+    def __init__(self, name, hash_func=md5_hash_func):
         super(HashRing, self).__init__(name, hash_func)
         self.lookup_table = {}
-        self.virtual_entry_count = virtual_entry_count
         self.sorted_keys = []
 
     def rehash(self):
@@ -127,11 +130,10 @@ class HashRing(BaseHashManager):
         self.sorted_keys = []
 
         hash_func = self.hash_func
-        virtual_entry_count = self.virtual_entry_count
         lookup_table = self.lookup_table
         for node in self.nodes:
             key = node.key
-            for idx in range(virtual_entry_count):
+            for idx in range(node.weight):
                 virtual_key = hash_func('%s-%s' % (key, idx))
                 if virtual_key in lookup_table:
                     # TODO: what to do?
@@ -152,6 +154,14 @@ class HashRing(BaseHashManager):
         super(HashRing, self).reset()
         self.lookup_table.clear()
         del self.sorted_keys[:]
+
+    def clone(self):
+        obj = self.__class__(self.name, self.hash_func)
+        obj.objects = self.objects.copy()
+        obj.nodes = self.nodes[:]
+        obj.lookup_table = self.lookup_table.copy()
+        obj.sorted_keys = self.sorted_keys[:]
+        return obj
 
 
 class MaglevHash(BaseHashManager):
@@ -211,3 +221,12 @@ class MaglevHash(BaseHashManager):
         super(MaglevHash, self).reset()
         del self.lookup_table[:]
         self.lookup_table_size = 0
+
+    def clone(self):
+        obj = self.__class__(self.name, self.hash_func)
+        obj.objects = self.objects.copy()
+        obj.nodes = self.nodes[:]
+        obj.lookup_table = self.lookup_table[:]
+        obj.lookup_table_size = self.lookup_table_size
+        obj.virtual_entry_count = self.virtual_entry_count
+        return obj
