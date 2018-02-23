@@ -1,10 +1,10 @@
 from _socket import error as socket_error
 
-from gevent.queue import Queue
+from six.moves.queue import Queue
 
 from pymaid.conf import settings
 from pymaid.error import RpcError
-from pymaid.utils import greenlet_pool
+from pymaid.hub import greenlet_pool
 
 from . import unpack_header
 from .controller import Controller

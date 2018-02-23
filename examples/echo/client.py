@@ -5,8 +5,8 @@ from argparse import ArgumentParser
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
+from pymaid.hub import greenlet_pool
 from pymaid.pb import PBHandler, ServiceStub
-from pymaid.utils import greenlet_pool
 
 from echo_pb2 import EchoService_Stub
 
@@ -58,7 +58,7 @@ def main(args):
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(pool.size, len(pool.greenlets))

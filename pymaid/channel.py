@@ -5,11 +5,11 @@ from socket import error as socket_error
 
 from six import string_types
 
-from pymaid.connection import Connection
-from pymaid.conf import settings
-from pymaid.error.base import BaseEx
-from pymaid.utils import greenlet_pool, io
-from pymaid.utils.logger import pymaid_logger_wrapper
+from .conf import settings
+from .connection import Connection
+from .error.base import BaseEx
+from .hub import greenlet_pool, io
+from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['ServerChannel', 'ClientChannel']
 

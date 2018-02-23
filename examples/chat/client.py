@@ -6,8 +6,8 @@ from gevent import sleep
 from gevent.pool import Pool
 
 from pymaid.channel import BidChannel
+from pymaid.hub import greenlet_pool
 from pymaid.pb import Listener, PBHandler, ServiceStub
-from pymaid.utils import greenlet_pool
 
 from chat_pb2 import ChatService_Stub, ChatBroadcast
 
@@ -84,7 +84,7 @@ def main(args):
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(pool.size, len(pool.greenlets))

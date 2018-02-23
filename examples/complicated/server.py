@@ -4,9 +4,9 @@ from argparse import ArgumentParser
 
 import pymaid
 from pymaid.channel import ServerChannel
-from pymaid.websocket.websocket import WebSocket
+from pymaid.hub import greenlet_pool, logger
 from pymaid.pb import PBHandler, Listener
-from pymaid.utils import greenlet_pool, logger
+from pymaid.websocket.websocket import WebSocket
 
 from pb_pb2 import Service, Message
 

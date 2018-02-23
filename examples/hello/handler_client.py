@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import pymaid
 from pymaid.channel import ClientChannel
-from pymaid.utils import greenlet_pool
+from pymaid.hub import greenlet_pool
 
 
 req = '1234567890' * 100 + '\n'
@@ -28,7 +28,7 @@ def main():
 
     try:
         pymaid.serve_forever()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(handler_channel.connections))

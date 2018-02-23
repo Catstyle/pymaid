@@ -2,12 +2,11 @@ from __future__ import print_function
 import re
 from argparse import ArgumentParser
 
-from gevent.pool import Pool
 from gevent import sleep
 
 from pymaid.channel import ClientChannel
+from pymaid.hub import greenlet_pool
 from pymaid.pb import PBHandler
-from pymaid.utils import greenlet_pool
 
 channel = ClientChannel(PBHandler())
 
@@ -39,17 +38,16 @@ def wrapper(pid, address, sleep_time):
 
 
 def main(args):
-    pool = Pool()
     for x in range(args.concurrency):
-        pool.spawn(wrapper, args.address, args.sleep_time)
+        greenlet_pool.spawn(wrapper, x, args.address, args.sleep_time)
 
     try:
-        pool.join()
-    except:
+        greenlet_pool.join()
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))
-        print(pool.size, len(pool.greenlets))
+        print(greenlet_pool.size, len(greenlet_pool.greenlets))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 
 

@@ -9,10 +9,10 @@ from six import string_types
 
 from greenlet import getcurrent, greenlet as Greenlet
 
-from pymaid.conf import settings
-from pymaid.error import RpcError
-from pymaid.utils import timer, io, hub
-from pymaid.utils.logger import pymaid_logger_wrapper
+from .conf import settings
+from .error import RpcError
+from .hub import timer, io, hub
+from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['Connection']
 
