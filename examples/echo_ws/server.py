@@ -4,9 +4,9 @@ from argparse import ArgumentParser
 
 import pymaid
 from pymaid.channel import ServerChannel
-from pymaid.websocket.websocket import WebSocket
+from pymaid.hub import greenlet_pool
 from pymaid.pb import PBHandler, Listener
-from pymaid.utils import greenlet_pool
+from pymaid.websocket.websocket import WebSocket
 
 from echo_pb2 import Message, EchoService
 
@@ -41,7 +41,7 @@ def main(args):
     channel.start()
     try:
         pymaid.serve_forever()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))

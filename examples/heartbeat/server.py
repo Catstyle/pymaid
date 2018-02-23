@@ -4,8 +4,8 @@ from argparse import ArgumentParser
 
 from pymaid import serve_forever
 from pymaid.channel import ServerChannel
+from pymaid.hub import greenlet_pool
 from pymaid.pb import Listener, PBHandler
-from pymaid.utils import greenlet_pool
 
 from pymaid.apps.monitor.service import MonitorServiceImpl
 from pymaid.apps.monitor.middleware import MonitorMiddleware
@@ -41,7 +41,7 @@ def main(args):
     channel.start()
     try:
         serve_forever()
-    except:
+    except Exception:
         print(len(channel.connections))
         print(greenlet_pool.size, len(greenlet_pool.greenlets))
 

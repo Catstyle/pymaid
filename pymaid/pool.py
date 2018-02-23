@@ -3,7 +3,7 @@ import sys
 import threading
 from contextlib import contextmanager
 
-from gevent.queue import LifoQueue, PriorityQueue, Full, Empty
+from six.moves.queue import LifoQueue, PriorityQueue, Full, Empty
 
 
 class ConnectionPool(object):

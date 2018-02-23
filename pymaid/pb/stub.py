@@ -1,10 +1,11 @@
 from gevent.event import AsyncResult
 
 from pymaid.utils.functional import Broadcaster
-from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 from . import pack_header
 from .pymaid_pb2 import Void, Controller
+from .utils import trace_stub
 
 
 class Sender(object):

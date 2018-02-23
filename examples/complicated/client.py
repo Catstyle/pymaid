@@ -6,9 +6,9 @@ from argparse import ArgumentParser
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
-from pymaid.websocket.websocket import WebSocket
+from pymaid.hub import greenlet_pool
 from pymaid.pb import PBHandler, ServiceStub
-from pymaid.utils import greenlet_pool
+from pymaid.websocket.websocket import WebSocket
 
 from .pb_pb2 import Service_Stub
 

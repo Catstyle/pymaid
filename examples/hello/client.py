@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from gevent.pool import Pool
 
 from pymaid.channel import ClientChannel
-from pymaid.utils import greenlet_pool
+from pymaid.hub import greenlet_pool
 
 
 req = '1234567890' * 100 + '\n'
@@ -51,7 +51,7 @@ def main(args):
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))

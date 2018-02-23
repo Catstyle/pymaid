@@ -1,4 +1,4 @@
-from pymaid.utils import implall
+from pymaid.pb.utils import implall
 
 from .monitor_pb2 import MonitorService
 
