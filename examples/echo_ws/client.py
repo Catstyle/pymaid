@@ -38,14 +38,14 @@ def parse_args():
 def wrapper(pid, address, count, message=message):
     conn = channel.connect(address)
     for x in range(count):
-        response = service.echo(request, conn=conn).get(30)
+        response = service.Echo(request, conn=conn).get(30)
         assert response.message == message, len(response.message)
     conn.close()
 
 
 channel = ClientChannel(PBHandler(), WebSocket)
 service = ServiceStub(EchoService_Stub(None))
-method = service.stub.DESCRIPTOR.FindMethodByName('echo')
+method = service.stub.DESCRIPTOR.FindMethodByName('Echo')
 request_class = service.stub.GetRequestClass(method)
 request = request_class(message=message)
 
@@ -58,7 +58,7 @@ def main(args):
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))

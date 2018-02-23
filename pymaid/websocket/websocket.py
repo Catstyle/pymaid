@@ -5,13 +5,13 @@ from functools import partial
 
 from io import BytesIO
 from hashlib import sha1
+import socket
 from socket import AF_INET
 from socket import error as socket_error
 
 from six import text_type, string_types
 from six.moves.urllib.parse import urlparse
 
-from gevent.socket import socket as realsocket
 from gevent.event import Event
 
 from pymaid.connection import Connection
@@ -378,7 +378,7 @@ class WebSocket(Connection):
     def connect(cls, address, client_side=True, timeout=None, _type=None):
         if not isinstance(address, string_types):
             raise ValueError('address should be string')
-        sock = realsocket(AF_INET)
+        sock = socket.socket(AF_INET)
         # donot support wss yet
         hostname, port, resource, is_secure = parse_url(address)
         sock.connect((hostname, port))
