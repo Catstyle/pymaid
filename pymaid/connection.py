@@ -7,9 +7,7 @@ from socket import AF_INET, AF_UNIX
 
 from six import string_types
 
-from gevent import getcurrent
-from gevent.greenlet import Greenlet
-from gevent.socket import socket as realsocket
+from greenlet import getcurrent, greenlet as Greenlet
 
 from pymaid.conf import settings
 from pymaid.error import RpcError
@@ -216,7 +214,7 @@ class Connection(object):
     def connect(cls, address, client_side=True, timeout=None,
                 type_=socket.SOCK_STREAM):
         assert getcurrent() != hub, 'could not call block func in main loop'
-        sock = realsocket(
+        sock = socket.socket(
             AF_UNIX if isinstance(address, string_types) else AF_INET, type_
         )
         sock.connect(address)
