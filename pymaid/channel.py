@@ -4,7 +4,6 @@ import socket
 from socket import error as socket_error
 
 from six import string_types
-from gevent.socket import socket as realsocket
 
 from pymaid.connection import Connection
 from pymaid.conf import settings
@@ -125,7 +124,7 @@ class ServerChannel(BaseChannel):
                 os.unlink(address)
         else:
             family = socket.AF_INET
-        sock = realsocket(family, type_)
+        sock = socket.socket(family, type_)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # should explicitly set SO_REUSEPORT
         # sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
