@@ -43,7 +43,7 @@ class ChatServiceImpl(ChatService):
 
     def Publish(self, controller, request, done):
         self.broadcast_stub.Publish(
-            request, connections=six.itervalues(self.members)
+            request, broadcaster=six.itervalues(self.members)
         )
         done()
 
@@ -62,7 +62,7 @@ def main(args):
     channel.start()
     try:
         pymaid.serve_forever()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))
