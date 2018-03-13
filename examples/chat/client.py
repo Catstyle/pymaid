@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from gevent import sleep
 from gevent.pool import Pool
 
-from pymaid.channel import BidChannel
+from pymaid.channel import ClientChannel
 from pymaid.pb import Listener, PBHandler, ServiceStub
 from pymaid.utils import greenlet_pool
 
@@ -64,7 +64,7 @@ def wrapper(conn, n, total, message=message):
 
 listener = Listener()
 listener.append_service(ChatBroadcastImpl())
-channel = BidChannel(PBHandler(listener))
+channel = ClientChannel(PBHandler(listener))
 connections = []
 
 service = ServiceStub(ChatService_Stub(None))
@@ -84,7 +84,7 @@ def main(args):
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(pool.size, len(pool.greenlets))
