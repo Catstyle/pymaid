@@ -1,5 +1,4 @@
-from gevent.event import AsyncResult
-
+from pymaid.core import AsyncResult
 from pymaid.utils.functional import Broadcaster
 from pymaid.utils.logger import pymaid_logger_wrapper
 

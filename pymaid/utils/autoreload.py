@@ -45,7 +45,7 @@ except ImportError:
         # Should we look for .pyw files?
         return basename + '.py'
 
-from pymaid.hub import signal
+from pymaid.core import signal
 
 if sys.version_info[0] >= 3:
     PY3 = True

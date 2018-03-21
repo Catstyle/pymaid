@@ -1,9 +1,8 @@
 import re
 from argparse import ArgumentParser
 
-from gevent.pool import Pool
-
 from pymaid.channel import ClientChannel
+from pymaid.core import Pool
 from pymaid.pb import ServiceStub, PBHandler
 
 from rpc_pb2 import RemoteError_Stub

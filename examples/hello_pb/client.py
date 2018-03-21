@@ -2,10 +2,8 @@ from __future__ import print_function
 import re
 from argparse import ArgumentParser
 
-from gevent.pool import Pool
-
 from pymaid.channel import ClientChannel
-from pymaid.hub import greenlet_pool
+from pymaid.core import greenlet_pool, Pool
 from pymaid.pb import PBHandler, ServiceStub
 
 from hello_pb2 import HelloService_Stub

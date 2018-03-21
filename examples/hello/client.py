@@ -2,10 +2,8 @@ from __future__ import print_function
 import re
 from argparse import ArgumentParser
 
-from gevent.pool import Pool
-
 from pymaid.channel import ClientChannel
-from pymaid.hub import greenlet_pool
+from pymaid.core import greenlet_pool, Pool
 
 
 req = '1234567890' * 100 + '\n'

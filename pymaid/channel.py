@@ -7,8 +7,8 @@ from six import string_types
 
 from .conf import settings
 from .connection import Connection
+from .core import greenlet_pool, io
 from .error.base import BaseEx
-from .hub import greenlet_pool, io
 from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['ServerChannel', 'ClientChannel']

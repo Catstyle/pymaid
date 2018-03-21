@@ -8,7 +8,7 @@ import traceback
 from collections import Mapping
 import warnings
 
-from pymaid.hub import signal
+from pymaid.core import signal
 
 __all__ = ['create_project_logger', 'logger_wrapper']
 
