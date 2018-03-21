@@ -43,7 +43,7 @@ class ChatServiceImpl(ChatService):
 
     def Publish(self, controller, request, done):
         self.broadcast_stub.Publish(
-            request, connections=six.itervalues(self.members)
+            request, broadcaster=six.itervalues(self.members)
         )
         done()
 

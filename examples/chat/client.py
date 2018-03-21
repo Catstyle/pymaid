@@ -5,7 +5,7 @@ from argparse import ArgumentParser
 from gevent import sleep
 from gevent.pool import Pool
 
-from pymaid.channel import BidChannel
+from pymaid.channel import ClientChannel
 from pymaid.hub import greenlet_pool
 from pymaid.pb import Listener, PBHandler, ServiceStub
 
@@ -64,7 +64,7 @@ def wrapper(conn, n, total, message=message):
 
 listener = Listener()
 listener.append_service(ChatBroadcastImpl())
-channel = BidChannel(PBHandler(listener))
+channel = ClientChannel(PBHandler(listener))
 connections = []
 
 service = ServiceStub(ChatService_Stub(None))
