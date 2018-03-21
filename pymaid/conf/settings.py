@@ -3,9 +3,7 @@ from __future__ import absolute_import
 from importlib import import_module
 from ujson import loads
 
-from gevent.event import AsyncResult
-
-from pymaid.utils.core import greenlet_worker
+from pymaid.core import greenlet_worker, AsyncResult
 from pymaid.utils.logger import configure_logging, pymaid_logger_wrapper
 
 from . import defaults

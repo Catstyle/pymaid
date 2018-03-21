@@ -10,8 +10,8 @@ from six import string_types
 from greenlet import getcurrent, greenlet as Greenlet
 
 from .conf import settings
+from .core import timer, io, hub
 from .error import RpcError
-from .hub import timer, io, hub
 from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['Connection']

@@ -9,6 +9,7 @@ from . import pool
 from . import error
 from . import utils
 from . import conf
+from .core import serve_forever
 
 __all__ = [
     'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
@@ -28,8 +29,3 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
             'https://github.com/google/protobuf/blob/master/python/README.md\n'
         )
 del os, sys
-
-
-def serve_forever():
-    import gevent
-    gevent.wait()

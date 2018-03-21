@@ -1,5 +1,5 @@
 from pymaid.apps.middleware import BaseMiddleware
-from pymaid.hub import timer
+from pymaid.core import timer
 
 from .error import MonitorError
 

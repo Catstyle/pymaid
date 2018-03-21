@@ -2,11 +2,8 @@ from __future__ import print_function
 import re
 from argparse import ArgumentParser
 
-from gevent import sleep
-from gevent.pool import Pool
-
+from pymaid.core import sleep, greenlet_pool, Pool
 from pymaid.channel import ClientChannel
-from pymaid.hub import greenlet_pool
 from pymaid.pb import Listener, PBHandler, ServiceStub
 
 from chat_pb2 import ChatService_Stub, ChatBroadcast

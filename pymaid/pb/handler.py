@@ -3,8 +3,8 @@ from _socket import error as socket_error
 from six.moves.queue import Queue
 
 from pymaid.conf import settings
+from pymaid.core import greenlet_pool
 from pymaid.error import RpcError
-from pymaid.hub import greenlet_pool
 
 from . import unpack_header
 from .controller import Controller

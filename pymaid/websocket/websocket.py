@@ -12,10 +12,9 @@ from socket import error as socket_error
 from six import text_type, string_types
 from six.moves.urllib.parse import urlparse
 
-from gevent.event import Event
-
 from pymaid.connection import Connection
 from pymaid.conf import settings
+from pymaid.core import Event
 from pymaid.utils.logger import pymaid_logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError, FrameTooLargeException
