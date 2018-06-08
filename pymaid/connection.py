@@ -17,6 +17,33 @@ from .utils.logger import pymaid_logger_wrapper
 __all__ = ['Connection']
 
 
+def set_socket_default_options(sock):
+    if sock.family == socket.AF_INET:
+        setsockopt = sock.setsockopt
+        getsockopt = sock.getsockopt
+        SOL_SOCKET, SOL_TCP = socket.SOL_SOCKET, socket.SOL_TCP
+
+        setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+        setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < settings.SO_SNDBUF:
+            setsockopt(SOL_SOCKET, socket.SO_SNDBUF, settings.SO_SNDBUF)
+            sock.chunk_size = max(settings.SO_SNDBUF, 1024 * 1024)
+        if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < settings.SO_RCVBUF:
+            setsockopt(SOL_SOCKET, socket.SO_RCVBUF, settings.SO_RCVBUF)
+        if getsockopt(SOL_SOCKET, socket.SO_SNDTIMEO) < settings.SO_SNDTIMEO:
+            setsockopt(SOL_SOCKET, socket.SO_SNDTIMEO, settings.SO_SNDTIMEO)
+        if getsockopt(SOL_SOCKET, socket.SO_RCVTIMEO) < settings.SO_RCVTIMEO:
+            setsockopt(SOL_SOCKET, socket.SO_RCVTIMEO, settings.SO_RCVTIMEO)
+
+        if settings.PM_KEEPALIVE:
+            setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
+            setsockopt(
+                SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
+            )
+            setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
+
+
 @pymaid_logger_wrapper
 class Connection(object):
 
@@ -25,13 +52,18 @@ class Connection(object):
     def __init__(self, sock, client_side=False):
         self._socket = sock
         sock.setblocking(0)
-        self._setsockopt(sock)
         self.client_side = client_side
+        self.chunk_size = max(
+            sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF),
+            1024 * 1024
+        )
 
         self.buf = BytesIO()
         self.transmission_id, self.transmissions = 1, {}
         self.is_closed, self.close_callbacks = False, []
         self.is_connected = True
+
+        set_socket_default_options(sock)
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
@@ -42,48 +74,28 @@ class Connection(object):
         self._send_queue = []
         # 1: READ, 2: WRITE
         self.r_io, self.w_io = io(fd, 1), io(fd, 2)
-        self.w_retry = 0
         self.r_timer = None
-
-    def _setsockopt(self, sock):
-        setsockopt = sock.setsockopt
-        if sock.family == socket.AF_INET:
-            SOL_TCP = socket.SOL_TCP
-            setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            if settings.PM_KEEPALIVE:
-                setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
-                setsockopt(
-                    SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
-                )
-                setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
 
     def _send(self):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
-            self.w_retry = 0
             self.w_io.stop()
             return
 
         membuf = memoryview(''.join(self._send_queue))
+        del self._send_queue[:]
+        len_of_membuf = len(membuf)
+        sent = 0
+        chunk_size = self.chunk_size
         try:
-            # see pydoc of socket.send
-            sent = self._socket.send(membuf)
-            del self._send_queue[:]
-            if sent < len(membuf):
-                self._send_queue.append(membuf[sent:].tobytes())
-                self.w_io.start(self._send)
-            else:
-                self.w_retry = 0
-                self.w_io.stop()
+            while sent < len_of_membuf:
+                # see pydoc of socket.send
+                sent += self._socket.send(membuf[sent:sent + chunk_size])
         except socket_error as ex:
+            if sent < len_of_membuf:
+                self._send_queue.append(membuf[sent:].tobytes())
             if ex.errno == errno.EWOULDBLOCK:
-                self.w_retry += 1
-                if self.w_retry > settings.WRETRY:
-                    self.close('max retried: %d' % self.w_retry, reset=True)
-                else:
-                    self.w_io.start(self._send)
+                self.w_io.start(self._send)
             else:
                 self.close(ex, reset=True)
 
