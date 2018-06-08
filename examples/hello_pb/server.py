@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 
 from pymaid import serve_forever
 from pymaid.channel import ServerChannel
-from pymaid.hub import greenlet_pool
+from pymaid.core import greenlet_pool
 from pymaid.pb import Listener, PBHandler
 
 from hello_pb2 import HelloResponse
