@@ -83,12 +83,8 @@ class ServiceStub(object):
                     return
 
                 async_result = AsyncResult()
-                conn.transmissions[tid] = (async_result, response_class)
-
-                def cleanup(result):
-                    conn.transmissions.pop(tid, None)
-                cleanup.auto_unlink = True
-                async_result.rawlink(cleanup)
+                conn.transmissions[tid] = async_result
+                async_result._response_class = response_class
 
                 return async_result
         return rpc

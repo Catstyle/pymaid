@@ -1,4 +1,5 @@
 from io import BytesIO
+from weakref import WeakValueDictionary
 
 import errno
 import socket
@@ -59,7 +60,7 @@ class Connection(object):
         )
 
         self.buf = BytesIO()
-        self.transmission_id, self.transmissions = 1, {}
+        self.transmission_id, self.transmissions = 1, WeakValueDictionary()
         self.is_closed, self.close_callbacks = False, []
         self.is_connected = True
 
@@ -297,7 +298,7 @@ class Connection(object):
         for async_result in self.transmissions.values():
             # we should not reach here with async_result left
             # that should be an exception
-            async_result[0].set_exception(ex)
+            async_result.set_exception(ex)
         self.transmissions.clear()
 
         callbacks = self.close_callbacks[::-1]
