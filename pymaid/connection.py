@@ -31,10 +31,6 @@ def set_socket_default_options(sock):
             sock.chunk_size = max(settings.SO_SNDBUF, 1024 * 1024)
         if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < settings.SO_RCVBUF:
             setsockopt(SOL_SOCKET, socket.SO_RCVBUF, settings.SO_RCVBUF)
-        if getsockopt(SOL_SOCKET, socket.SO_SNDTIMEO) < settings.SO_SNDTIMEO:
-            setsockopt(SOL_SOCKET, socket.SO_SNDTIMEO, settings.SO_SNDTIMEO)
-        if getsockopt(SOL_SOCKET, socket.SO_RCVTIMEO) < settings.SO_RCVTIMEO:
-            setsockopt(SOL_SOCKET, socket.SO_RCVTIMEO, settings.SO_RCVTIMEO)
 
         if settings.PM_KEEPALIVE:
             setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
