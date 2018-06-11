@@ -5,6 +5,7 @@ from sys import _getframe as getframe
 
 class BaseEx(Exception):
 
+    code = None
     message = 'BaseEx'
 
     def __init__(self, *args, **kwargs):
@@ -52,7 +53,8 @@ class ErrorManager(object):
     def add(cls, name, ex):
         setattr(cls, name, ex)
         if issubclass(ex, BaseEx):
-            assert ex.code not in cls.codes, (ex.code, cls.codes)
+            if ex.code in cls.codes:
+                raise ValueError('duplicated exception code: %d', ex.code)
             cls.codes[ex.code] = ex
             cls.exceptions[name] = ex
         elif issubclass(ex, ErrorManager):
@@ -69,8 +71,6 @@ class ErrorManager(object):
         cls.register(error)
         cls.add(name, error)
         return error
-    # compability
-    build_error = add_error
 
     @classmethod
     def add_warning(cls, name, code, message):
@@ -83,8 +83,6 @@ class ErrorManager(object):
         cls.register(warning)
         cls.add(name, warning)
         return warning
-    # compability
-    build_warning = add_warning
 
     @classmethod
     def get_exception(cls, code):
