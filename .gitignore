@@ -42,3 +42,4 @@ nosetests.xml
 *.lua
 *_pb2.py
 protos/
+coverage_html
