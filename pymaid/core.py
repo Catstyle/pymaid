@@ -17,6 +17,10 @@ io = hub.loop.io
 timer = hub.loop.timer
 signal = hub.loop.signal
 
+serve_forever = gevent.wait
+sleep = gevent.sleep
+spawn = gevent.spawn
+
 
 def greenlet_worker(func):
     @wraps(func)
@@ -25,6 +29,6 @@ def greenlet_worker(func):
     return wrapper
 
 
-serve_forever = gevent.wait
-sleep = gevent.sleep
-spawn = gevent.spawn
+class AsyncResult(AsyncResult):
+    # need to set attribute to AsyncResult
+    pass
