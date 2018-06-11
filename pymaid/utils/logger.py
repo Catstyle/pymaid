@@ -46,7 +46,8 @@ def configure_logging(settings):
 
 def create_project_logger(name):
     global project_logger
-    assert not project_logger
+    if project_logger and project_logger.name == name:
+        return
     project_logger = logging.getLogger(name)
     for cls in root_logger.wrappers:
         cls.logger = project_logger.getChild(cls.__name__)
