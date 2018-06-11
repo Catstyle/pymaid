@@ -79,7 +79,7 @@ class Listener(object):
         if not result:
             # invalid transmission_id, do nothing
             return
-        result, response_class = result
+        response_class = result._response_class
 
         if meta.is_failed:
             try:
