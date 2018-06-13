@@ -1,5 +1,5 @@
-import six
 import abc
+import six
 from sys import _getframe as getframe
 
 
@@ -51,7 +51,6 @@ class ErrorManager(object):
 
     @classmethod
     def add(cls, name, ex):
-        setattr(cls, name, ex)
         if issubclass(ex, BaseEx):
             if ex.code in cls.codes:
                 raise ValueError('duplicated exception code: %d', ex.code)
@@ -59,6 +58,7 @@ class ErrorManager(object):
             cls.exceptions[name] = ex
         elif issubclass(ex, ErrorManager):
             cls.managers[ex.__name__] = ex
+        setattr(cls, name, ex)
 
     @classmethod
     def add_error(cls, name, code, message):
@@ -68,8 +68,8 @@ class ErrorManager(object):
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        cls.register(error)
         cls.add(name, error)
+        cls.register(error)
         return error
 
     @classmethod
@@ -80,8 +80,8 @@ class ErrorManager(object):
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        cls.register(warning)
         cls.add(name, warning)
+        cls.register(warning)
         return warning
 
     @classmethod
@@ -102,7 +102,6 @@ class ErrorManager(object):
         kwargs = dict(ErrorManager.__dict__)
         kwargs['__module__'] = frame.f_locals.get('__name__', '')
         manager = type(name, (ErrorManager,), kwargs)
-        manager = six.add_metaclass(abc.ABCMeta)(manager)
         manager.index = index
         manager.codes = {}
         manager.exceptions = {}
