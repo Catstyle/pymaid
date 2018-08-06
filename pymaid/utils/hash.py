@@ -120,9 +120,6 @@ class HashRing(BaseHashManager):
         self.sorted_keys = []
 
     def rehash(self):
-        self.lookup_table = {}
-        self.sorted_keys = []
-
         if not self.nodes:
             return
 
@@ -173,11 +170,11 @@ class MaglevHash(BaseHashManager):
         self.lookup_table = []
 
     def rehash(self):
-        self.lookup_table = []
-        self.lookup_table_size = 0
-
         if not self.nodes:
             return
+
+        self.lookup_table = []
+        self.lookup_table_size = 0
 
         permutation = []
         hash_func = self.hash_func
