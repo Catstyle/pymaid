@@ -95,11 +95,11 @@ if __name__ == '__main__':
             '': ['*.proto'],
         },
         install_requires=[
-            'gevent==1.2.2',
-            'protobuf==3.5.1',
-            'six',
-            'ujson',
-            'wsaccel',
+            'gevent==1.3.5',
+            'protobuf==3.6.0',
+            'six==1.11.0',
+            'ujson==1.35',
+            'wsaccel==0.6.2',
         ],
         tests_require=[
             'websocket-client',
