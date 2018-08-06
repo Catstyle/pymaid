@@ -1,6 +1,8 @@
 from __future__ import absolute_import
 
 from importlib import import_module
+import os
+import re
 from ujson import loads
 
 from pymaid.core import greenlet_worker, AsyncResult
@@ -21,7 +23,30 @@ class Settings(object):
             return
         self.watchers.append(watcher)
 
-    def load_from_module(self, module_name):
+    def load_from_object(self, obj, trace=False):
+        data = {}
+        if isinstance(obj, dict):
+            data.update({
+                key: value for key, value in obj.items() if key == key.upper()
+            })
+        else:
+            data.update({
+                key: getattr(obj, key)
+                for key in dir(obj) if key == key.upper()
+            })
+        self.data.update(data)
+        for key, value in data.items():
+            setattr(self, key, value)
+        if trace:
+            self.logger.debug(
+                '[pymaid][settings] configured [%s]',
+                [(key, value) for key, value in sorted(self.data.items())
+                 if 'SECRET' not in key]
+            )
+        for watcher in self.watchers:
+            watcher(self)
+
+    def load_from_module(self, module_name, trace=True):
         """Load the settings module pointed to by the module_name.
 
         This is used the first time we need any settings at all,
@@ -37,38 +62,38 @@ class Settings(object):
                     module_name, e
                 )
             )
-        self.load_from_object(mod)
+        self.load_from_object(mod, trace)
 
-    def load_from_object(self, obj):
-        data = {}
-        if isinstance(obj, dict):
-            data.update({
-                key: value for key, value in obj.items() if key == key.upper()
-            })
-        else:
-            data.update({
-                key: getattr(obj, key)
-                for key in dir(obj) if key == key.upper()
-            })
-        self.data.update(data)
-        for key, value in data.items():
-            setattr(self, key, value)
-        self.logger.debug(
-            '[pymaid][settings] configured [%s]',
-            [(key, value) for key, value in sorted(self.data.items())
-             if 'SECRET' not in key]
-        )
-        for watcher in self.watchers:
-            watcher(self)
+    def load_from_root_path(self, path, trace=True):
+        for root, dirs, files in os.walk(path):
+            if '__init__.py' not in files:
+                continue
+            try:
+                # import settings explicitly
+                import_module(root.replace('/', '.') + '.settings')
+            except ImportError as ex:
+                if re.match('No module named .*settings$', str(ex)):
+                    continue
+                else:
+                    raise
+        self.data.update({
+            key: getattr(self, key) for key in dir(self) if key == key.upper()
+        })
+        if trace:
+            self.logger.debug(
+                '[pymaid][settings] configured [%s]',
+                [(key, value) for key, value in sorted(self.data.items())
+                 if 'SECRET' not in key]
+            )
 
     @greenlet_worker
-    def load_from_backend(self, backend):
+    def load_from_backend(self, backend, trace=True):
         for data in backend:
             self.logger.debug(
                 '[pymaid][settings][backend|%s] receive [data|%r]',
                 backend, data
             )
-            self.load_from_object(data)
+            self.load_from_object(data, trace)
 
 
 class SettingsBackend(object):
