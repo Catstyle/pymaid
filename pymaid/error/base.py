@@ -11,33 +11,34 @@ class BaseEx(Exception):
     def __init__(self, *args, **kwargs):
         if args or kwargs:
             self.message = self.message.format(*args, **kwargs)
+        self.data = kwargs
 
 
 class Error(BaseEx):
 
     def __str__(self):
-        return u'[ERROR][{}][code|{}][message|{}]'.format(
-            self.__class__.__name__, self.code, self.message
+        return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+            self.__class__.__name__, self.code, self.message, self.data
         ).encode('utf-8')
     __repr__ = __str__
 
     def __unicode__(self):
-        return u'[ERROR][{}][code|{}][message|{}]'.format(
-            self.__class__.__name__, self.code, self.message
+        return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+            self.__class__.__name__, self.code, self.message, self.data
         )
 
 
 class Warning(BaseEx):
 
     def __str__(self):
-        return u'[WARN][{}][code|{}][message|{}]'.format(
-            self.__class__.__name__, self.code, self.message
+        return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+            self.__class__.__name__, self.code, self.message, self.data
         ).encode('utf-8')
     __repr__ = __str__
 
     def __unicode__(self):
-        return u'[WARN][{}][code|{}][message|{}]'.format(
-            self.__class__.__name__, self.code, self.message
+        return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+            self.__class__.__name__, self.code, self.message, self.data
         )
 
 

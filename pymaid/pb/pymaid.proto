@@ -27,4 +27,5 @@ message Void {
 message ErrorMessage {
     uint32 code = 1;
     string message = 2;
+    string data = 3;
 }
