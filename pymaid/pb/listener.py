@@ -1,3 +1,5 @@
+from ujson import loads, dumps
+
 from google.protobuf.message import DecodeError
 
 from pymaid.error import BaseEx, Error, RpcError, ErrorManager
@@ -66,6 +68,8 @@ class Listener(object):
         except BaseEx as ex:
             meta.is_failed = True
             packet = ErrorMessage(code=ex.code, message=ex.message)
+            if ex.data:
+                packet.data = dumps(ex.data)
             conn.send(b'{}{}{}'.format(
                 pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
@@ -94,6 +98,8 @@ class Listener(object):
                     )
                 ex = ex()
                 ex.message = err.message
+                if err.data:
+                    ex.data = loads(err.data)
             result.set_exception(ex)
         else:
             try:
