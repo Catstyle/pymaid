@@ -469,6 +469,9 @@ goog.require('proto.pymaid.pb');
                             var err = null, content;
                             if (controller.is_failed) {
                                 err = content = pb.deserialize(pb.ErrorMessage, resp);
+                                if (err.data) {
+                                    err.data = JSON.parse(err.data);
+                                }
                             } else {
                                 resp = content = pb.deserialize(responseType, resp);
                             }
