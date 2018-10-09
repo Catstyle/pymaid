@@ -293,7 +293,7 @@ proto.complicated.ComplicatedMessage.deserializeBinaryFromReader = function(msg,
     case 3:
       var value = msg.getMessagesMap();
       reader.readMessage(value, function(message, reader) {
-        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readUint32, jspb.BinaryReader.prototype.readMessage, proto.complicated.Message.deserializeBinaryFromReader);
+        jspb.Map.deserializeBinary(message, reader, jspb.BinaryReader.prototype.readUint32, jspb.BinaryReader.prototype.readMessage, proto.complicated.Message.deserializeBinaryFromReader, 0);
          });
       break;
     case 4:
