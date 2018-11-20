@@ -28,7 +28,6 @@ def set_socket_default_options(sock):
         setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < settings.SO_SNDBUF:
             setsockopt(SOL_SOCKET, socket.SO_SNDBUF, settings.SO_SNDBUF)
-            sock.chunk_size = max(settings.SO_SNDBUF, 1024 * 1024)
         if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < settings.SO_RCVBUF:
             setsockopt(SOL_SOCKET, socket.SO_RCVBUF, settings.SO_RCVBUF)
 
