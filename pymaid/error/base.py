@@ -43,7 +43,7 @@ class Warning(BaseEx):
 
 
 @six.add_metaclass(abc.ABCMeta)
-class ErrorManager(object):
+class ErrorManager(Exception):
 
     index = 0
     codes = {}
