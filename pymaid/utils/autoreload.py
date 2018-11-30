@@ -45,6 +45,8 @@ except ImportError:
         # Should we look for .pyw files?
         return basename + '.py'
 
+from pymaid.core import signal
+
 if sys.version_info[0] >= 3:
     PY3 = True
 else:
@@ -177,7 +179,7 @@ class ModuleReloader(object):
                     superreload(m, reload, self.old_objects)
                     if py_filename in self.failed:
                         del self.failed[py_filename]
-                except:
+                except Exception:
                     print(
                         "[autoreload of %s failed: %s]" % (modname, format_exc()),  # noqa
                         file=sys.stderr
@@ -320,7 +322,7 @@ def superreload(module, reload=reload, old_objects={}):
 
     try:
         module = reload(module)
-    except:
+    except Exception:
         # restore module dictionary on failed reload
         module.__dict__.update(old_dict)
         raise
@@ -345,3 +347,12 @@ def superreload(module, reload=reload, old_objects={}):
             del old_objects[key]
 
     return module
+
+
+def enable_autoreload(signum):
+    reloader = ModuleReloader()
+    reloader.enabled = True
+
+    def autoreload(sig, frame):
+        reloader.check()
+    signal(signum, autoreload)

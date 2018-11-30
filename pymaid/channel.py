@@ -1,15 +1,15 @@
 import os
 import errno
 import socket
-from socket import socket as realsocket, error as socket_error
+from socket import error as socket_error
 
 from six import string_types
 
-from pymaid.connection import Connection
-from pymaid.conf import settings
-from pymaid.error.base import BaseEx
-from pymaid.utils import greenlet_pool, io
-from pymaid.utils.logger import pymaid_logger_wrapper
+from .conf import settings
+from .connection import Connection
+from .core import greenlet_pool, io
+from .error.base import BaseEx
+from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['ServerChannel', 'ClientChannel']
 
@@ -22,7 +22,7 @@ class BaseChannel(object):
         self.connection_class = connection_class
         self.connections = {}
 
-    def _connection_attached(self, conn):
+    def _connection_attached(self, conn, **kwargs):
         self.logger.info(
             '[conn|%d][host|%s][peer|%s] made',
             conn.connid, conn.sockname, conn.peername
@@ -30,13 +30,14 @@ class BaseChannel(object):
         assert conn.connid not in self.connections
         self.connections[conn.connid] = conn
         conn.add_close_cb(self._connection_detached)
+        conn.worker_gr = greenlet_pool.spawn(self.handler, conn, **kwargs)
+        conn.worker_gr.link_exception(conn.close)
         self.connection_attached(conn)
-        self.handler(conn)
 
     def _connection_detached(self, conn, reason=None, reset=False):
         log = self.logger.info
         if reason:
-            if isinstance(reason, (BaseEx, string_types, int)):
+            if reset or isinstance(reason, (BaseEx, string_types, int)):
                 log = self.logger.error
             else:
                 log = self.logger.exception
@@ -68,23 +69,26 @@ class ServerChannel(BaseChannel):
 
     def __init__(self, handler, connection_class=Connection):
         super(ServerChannel, self).__init__(handler, connection_class)
-        self.accept_watchers = []
+        self.accept_watchers = {}
         self.middlewares = []
         self.is_paused = False
 
     def _do_accept(self, sock):
         accept, attach_connection = sock.accept, self._connection_attached
+        node_address = sock.getsockname()
         ConnectionClass = self.connection_class
         cnt = err = 0
         while 1:
             if cnt >= settings.MAX_ACCEPT:
                 break
             if self.is_full:
-                self.pause()
+                self.pause('stop accept since channel is full')
                 break
             try:
                 peer_socket, address = accept()
                 conn = ConnectionClass(peer_socket)
+                conn.node_address = node_address
+                attach_connection(conn)
             except socket_error as ex:
                 if ex.errno == errno.EWOULDBLOCK:
                     break
@@ -99,8 +103,6 @@ class ServerChannel(BaseChannel):
                 self.logger.exception(ex)
                 break
             cnt += 1
-            conn.worker_gr = greenlet_pool.spawn(attach_connection, conn)
-            conn.worker_gr.link_exception(conn.close)
 
     def _connection_attached(self, conn):
         super(ServerChannel, self)._connection_attached(conn)
@@ -122,35 +124,47 @@ class ServerChannel(BaseChannel):
                 os.unlink(address)
         else:
             family = socket.AF_INET
-        self.logger.info(
-            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
-        )
-        sock = realsocket(family, type_)
+        sock = socket.socket(family, type_)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         # should explicitly set SO_REUSEPORT
         # sock.setsockopt(SOL_SOCKET, SO_REUSEPORT, 1)
         sock.bind(address)
         sock.listen(backlog)
         sock.setblocking(0)
-        self.accept_watchers.append((io(sock.fileno(), 1, priority=2), sock))
+        fd = sock.fileno()
+        self.accept_watchers[fd] = (io(fd, 1), sock)
+
+        address = sock.getsockname()
+        self.logger.info(
+            '[listening|%s][type|%s][backlog|%d]', address, type_, backlog
+        )
+        return address
 
     def append_middleware(self, middleware):
         self.middlewares.append(middleware)
 
+    def start_watcher(self, watcher, sock):
+        self.logger.debug('channel start: %s', sock)
+        watcher.start(self._do_accept, sock)
+
+    def stop_watcher(self, watcher, sock, reason):
+        self.logger.debug('channel pause: %s, %s', sock, reason)
+        watcher.stop()
+
     def start(self):
         self.is_paused = False
-        for watcher, sock in self.accept_watchers:
+        for watcher, sock in self.accept_watchers.values():
             if not watcher.active:
-                watcher.start(self._do_accept, sock)
+                self.start_watcher(watcher, sock)
 
-    def pause(self):
+    def pause(self, reason):
         self.is_paused = True
-        for watcher, sock in self.accept_watchers:
+        for watcher, sock in self.accept_watchers.values():
             if watcher.active:
-                watcher.stop()
+                self.stop_watcher(watcher, sock, reason)
 
     def stop(self, reason='ServerChannel calls stop'):
-        self.pause()
+        self.pause(reason)
         super(ServerChannel, self).stop(reason)
 
 
@@ -160,8 +174,8 @@ class ClientChannel(BaseChannel):
     def __init__(self, handler=lambda conn: '', connection_class=Connection):
         super(ClientChannel, self).__init__(handler, connection_class)
 
-    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None):
+    def connect(self, address, type_=socket.SOCK_STREAM, timeout=None,
+                **kwargs):
         conn = self.connection_class.connect(address, True, timeout, type_)
-        conn.worker_gr = greenlet_pool.spawn(self._connection_attached, conn)
-        conn.worker_gr.link_exception(conn.close)
+        self._connection_attached(conn, **kwargs)
         return conn

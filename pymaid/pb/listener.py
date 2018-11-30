@@ -1,4 +1,8 @@
-from pymaid.error import BaseEx, Error, RpcError
+from ujson import loads, dumps
+
+from google.protobuf.message import DecodeError
+
+from pymaid.error import BaseEx, Error, RpcError, ErrorManager
 
 from . import pack_header
 from .pymaid_pb2 import Void, ErrorMessage, Controller as PBC
@@ -14,10 +18,13 @@ class Listener(object):
     def append_service(self, service):
         service_methods = self.service_methods
         for method in service.DESCRIPTOR.methods:
+            impl_method = getattr(service, method.name)
+            if '.<lambda>' in str(impl_method):
+                continue
             full_name = method.full_name
             assert full_name not in service_methods
             tuples = (
-                getattr(service, method.name),
+                impl_method,
                 service.GetRequestClass(method),
                 service.GetResponseClass(method)
             )
@@ -35,7 +42,7 @@ class Listener(object):
         rpc = self.service_methods.get(service_method)
         if not rpc:
             meta.is_failed = True
-            err = RpcError.RPCNotExist(service_method=service_method)
+            err = RpcError.RPCNotExist(service_method)
             packet = ErrorMessage(code=err.code, message=err.message)
             conn.send(b'{}{}{}'.format(
                 pack_header(meta.ByteSize(), packet.ByteSize()),
@@ -61,12 +68,44 @@ class Listener(object):
         except BaseEx as ex:
             meta.is_failed = True
             packet = ErrorMessage(code=ex.code, message=ex.message)
+            if ex.data:
+                packet.data = dumps(ex.data)
             conn.send(b'{}{}{}'.format(
                 pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
             if isinstance(ex, Error) and conn.close_conn_onerror:
                 conn.delay_close(ex)
+
+    def handle_response(self, controller, content):
+        meta = controller.meta
+        result = controller.conn.transmissions.pop(meta.transmission_id, None)
+        if not result:
+            # invalid transmission_id, do nothing
+            return
+        response_class = result._response_class
+
+        if meta.is_failed:
+            try:
+                err = ErrorMessage.FromString(content)
+            except (DecodeError, ValueError) as ex:
+                ex = ex
+            else:
+                ex = ErrorManager.get_exception(err.code)
+                if ex is None:
+                    ex = ErrorManager.add_warning(
+                        'Unknown%d' % err.code, err.code, err.message
+                    )
+                ex = ex()
+                ex.message = err.message
+                if err.data:
+                    ex.data = loads(err.data)
+            result.set_exception(ex)
+        else:
+            try:
+                result.set(response_class.FromString(content))
+            except (DecodeError, ValueError) as ex:
+                result.set_exception(ex)
 
     def handle_notification(self, controller, content):
         service_method = controller.meta.service_method

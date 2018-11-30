@@ -9,13 +9,14 @@ from . import pool
 from . import error
 from . import utils
 from . import conf
+from .core import serve_forever
 
 __all__ = [
     'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
     'conf', 'serve_forever'
 ]
 
-__version__ = '0.3.7rc1'
+__version__ = '0.4.0b1'
 
 if 'linux' in sys.platform or 'darwin' in sys.platform:
     # if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
@@ -28,8 +29,3 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
             'https://github.com/google/protobuf/blob/master/python/README.md\n'
         )
 del os, sys
-
-
-def serve_forever():
-    import gevent
-    gevent.wait()

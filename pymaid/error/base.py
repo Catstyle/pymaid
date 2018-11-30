@@ -1,90 +1,135 @@
-import six
 import abc
+import six
 from sys import _getframe as getframe
 
 
-_cached_classes = {}
-
-
-class ErrorMeta(type):
-
-    def __init__(cls, name, bases, attrs):
-        super(ErrorMeta, cls).__init__(name, bases, attrs)
-        if name in ['BaseEx', 'Error', 'Warning']:
-            return
-
-        assert cls.code not in _cached_classes, (cls.code, _cached_classes)
-        _cached_classes[cls.code] = cls
-        assert hasattr(cls, 'message')
-
-
-@six.add_metaclass(ErrorMeta)
 class BaseEx(Exception):
+
+    code = None
+    message = 'BaseEx'
 
     def __init__(self, *args, **kwargs):
         if args or kwargs:
             self.message = self.message.format(*args, **kwargs)
+        self.data = kwargs
 
 
 class Error(BaseEx):
 
-    def __unicode__(self):
-        return u'[ERROR][code|{}][message|{}]'.format(self.code, self.message)
-    __repr__ = __str__ = __unicode__
+    if six.PY2:
+        def __str__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
+        __repr__ = __str__
+
+        def __unicode__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+    else:
+        def __str__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+        __repr__ = __str__
+
+        def __bytes__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
 
 
 class Warning(BaseEx):
 
-    def __unicode__(self):
-        return u'[WARN][code|{}][message|{}]'.format(self.code, self.message)
-    __repr__ = __str__ = __unicode__
+    if six.PY2:
+        def __str__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
+        __repr__ = __str__
+
+        def __unicode__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+    else:
+        def __str__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+        __repr__ = __str__
+
+        def __bytes__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
 
 
-class Builder(object):
+@six.add_metaclass(abc.ABCMeta)
+class ErrorManager(Exception):
 
     index = 0
+    codes = {}
+    exceptions = {}
+    managers = {}
 
     @classmethod
-    def build_error(cls, name, code, message):
+    def add(cls, name, ex):
+        if issubclass(ex, BaseEx):
+            if ex.code in cls.codes:
+                raise ValueError('duplicated exception code: %d', ex.code)
+            cls.codes[ex.code] = ex
+            cls.exceptions[name] = ex
+        elif issubclass(ex, ErrorManager):
+            cls.managers[ex.__name__] = ex
+        setattr(cls, name, ex)
+
+    @classmethod
+    def add_error(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         error = type(
             name, (Error,),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        setattr(cls, name, error)
+        cls.add(name, error)
         cls.register(error)
+        return error
 
     @classmethod
-    def build_warning(cls, name, code, message):
+    def add_warning(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         warning = type(
             name, (Warning,),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
-        setattr(cls, name, warning)
+        cls.add(name, warning)
         cls.register(warning)
+        return warning
 
+    @classmethod
+    def get_exception(cls, code):
+        ex = None
+        if code in cls.codes:
+            ex = cls.codes[code]
+        else:
+            for manager in cls.managers.values():
+                ex = manager.get_exception(code)
+                if ex is not None:
+                    return ex
+        return ex
 
-def get_exception(code, message):
-    if code in _cached_classes:
-        cls = _cached_classes[code]
-    else:
-        cls = type(
-            'Unknown%s' % code, (Warning,), {'code': code, 'message': message}
-        )
-        _cached_classes[code] = cls
-    ins = cls()
-    ins.message = message
-    return ins
-
-
-def create_manager(name, index):
-    frame = getframe(1)  # get caller frame
-    kwargs = dict(Builder.__dict__)
-    kwargs['__module__'] = frame.f_locals.get('__name__', '')
-    manager = type(name, (Builder,), kwargs)
-    manager = six.add_metaclass(abc.ABCMeta)(manager)
-    manager.index = index
-    return manager
+    @classmethod
+    def create_manager(cls, name, index):
+        frame = getframe(1)  # get caller frame
+        kwargs = dict(ErrorManager.__dict__)
+        kwargs['__module__'] = frame.f_locals.get('__name__', '')
+        manager = type(name, (ErrorManager,), kwargs)
+        manager.index = index
+        manager.codes = {}
+        manager.exceptions = {}
+        manager.managers = {}
+        cls.add(name, manager)
+        return manager

@@ -37,11 +37,6 @@ PYMAID_LOGGING = {
     },
 }
 
-PM_KEEPALIVE = True
-PM_KEEPIDLE = 60
-PM_KEEPINTVL = 5
-PM_KEEPCNT = 3
-
 # Sets the maximum number of consecutive accepts that a process may perform
 # on a single wake up. High values give higher priority to high connection
 # rates, while lower values give higher priority to already established
@@ -54,4 +49,17 @@ MAX_TASKS = 32
 MAX_RECV_SIZE = 8 * 1024
 MAX_CONCURRENCY = 10000
 
-WRETRY = 3
+# connection/socket related settings
+PM_PB_HEADER = '!HH'
+
+PM_KEEPALIVE = True
+PM_KEEPIDLE = 60
+PM_KEEPINTVL = 5
+PM_KEEPCNT = 3
+
+PM_WEBSOCKET_TIMEOUT = 15
+
+SO_SNDBUF = 512 * 1024
+SO_RCVBUF = 512 * 1024
+SO_SNDTIMEO = 30
+SO_RCVTIMEO = 30

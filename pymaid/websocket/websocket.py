@@ -1,12 +1,21 @@
+import os
 import struct
 import base64
+from functools import partial
 
 from io import BytesIO
 from hashlib import sha1
+import socket
+from socket import AF_INET
 from socket import error as socket_error
 
+from six import text_type, string_types
+from six.moves.urllib.parse import urlparse
+
 from pymaid.connection import Connection
-from pymaid.utils import logger_wrapper
+from pymaid.conf import settings
+from pymaid.core import Event
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError, FrameTooLargeException
 from .utf8validator import Utf8Validator
@@ -14,9 +23,48 @@ from .utf8validator import Utf8Validator
 __all__ = ['WebSocket']
 
 
-@logger_wrapper
+def parse_url(url):
+    if ":" not in url:
+        raise ValueError("url is invalid")
+
+    scheme, url = url.split(":", 1)
+
+    is_secure = False
+    port = 0
+    if scheme == "ws":
+        if not port:
+            port = 80
+    elif scheme == "wss":
+        is_secure = True
+        if not port:
+            port = 443
+    else:
+        raise ValueError("scheme %s is invalid" % scheme)
+
+    parsed = urlparse(url, scheme="ws")
+    if parsed.hostname:
+        hostname = parsed.hostname
+    else:
+        raise ValueError("hostname is invalid")
+
+    if parsed.port:
+        port = parsed.port
+
+    if parsed.path:
+        resource = parsed.path
+    else:
+        resource = "/"
+
+    if parsed.query:
+        resource += "?" + parsed.query
+
+    return hostname, port, resource, is_secure
+
+
+@pymaid_logger_wrapper
 class WebSocket(Connection):
 
+    VERSION = 13
     SUPPORTED_VERSIONS = ('13', '8', '7')
     GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
@@ -27,6 +75,13 @@ class WebSocket(Connection):
     OPCODE_PING = 0x09
     OPCODE_PONG = 0x0a
 
+    HANDSHAKE_REQ = (
+        'GET {} HTTP/1.1\r\n'
+        'Upgrade: websocket\r\n'
+        'Connection: Upgrade\r\n'
+        'Sec-WebSocket-Key: {}\r\n'
+        'Sec-WebSocket-Version: {}\r\n\r\n'
+    )
     HANDSHAKE_RESP = (
         'HTTP/1.1 101 Switching Protocols\r\n'
         'Upgrade: websocket\r\n'
@@ -34,60 +89,80 @@ class WebSocket(Connection):
         'Sec-WebSocket-Accept: {}\r\n\r\n'
     )
 
-    def __init__(self, sock):
-        super(WebSocket, self).__init__(sock)
+    def __init__(self, sock, client_side=False, resource='/'):
+        super(WebSocket, self).__init__(sock, client_side)
         self.message = BytesIO()
         self.utf8validator = Utf8Validator()
+        self.timeout = settings.PM_WEBSOCKET_TIMEOUT
+        self.resource = resource
+        if client_side:
+            self.connecting_event = Event()
+            self.is_connected = self._do_handshake()
+            self.connecting_event.set()
 
-    def _decode_bytes(self, bytestring):
-        if not bytestring:
-            return u''
+    def _read_headers(self):
+        headers = {}
+        raw_readline = super(WebSocket, self).readline
+        while 1:
+            line = raw_readline(1024, self.timeout).strip()
+            if not line:
+                break
+            key, value = line.split(':', 1)
+            headers[key] = value.strip()
+        return headers
 
-        try:
-            return bytestring.decode('utf-8')
-        except UnicodeDecodeError:
-            self.close(1007)
-            raise
+    def _do_handshake(self):
+        key = base64.b64encode(os.urandom(16)).decode('utf-8').strip()
+        self._send_queue.append(
+            self.HANDSHAKE_REQ.format(self.resource, key, self.VERSION)
+        )
+        self._send()
+        line = super(WebSocket, self).readline(1024, self.timeout)
+        if not line:
+            self.close(reset=True)
+            return False
+        status = line.split(' ', 2)
+        if len(status) != 3:
+            self.close('invalid response line')
+            return False
+        status = int(status[1])
+        if status != 101:
+            self.close('handshake failed with status: %r' % status)
+            return False
 
-    def _encode_bytes(self, text):
-        if isinstance(text, str):
-            return text
+        headers = self._read_headers()
 
-        if not isinstance(text, unicode):  # noqa
-            text = unicode(text or '')  # noqa
-        return text.encode('utf-8')
+        if ('websocket' != headers.get('Upgrade') or
+                'Upgrade' != headers.get('Connection')):
+            self.close('invalid websocket handshake header')
+            return False
 
-    def _is_valid_close_code(self, code):
-        # code == 1000: not sure about this but the autobahn fuzzer requires it
-        if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
-                code == 1100 or 2000 <= code <= 2999):
+        accept = headers.get("Sec-WebSocket-Accept", '').lower()
+        if isinstance(accept, text_type):
+            accept = accept.encode('utf-8')
+        value = (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode('utf-8')
+        hashed = base64.b64encode(sha1(value).digest()).strip().lower()
+        if hashed != accept:
+            self.close('invalid accept value')
             return False
         return True
 
-    def oninit(self):
-        """ Called by handler once handler start on a greenlet."""
-        raw_readline = super(WebSocket, self).readline
-        line = raw_readline(1024)
+    def _upgrade_connection(self):
+        line = super(WebSocket, self).readline(1024, self.timeout)
         if not line:
-            self.close()
+            self.close(reset=True)
             return False
 
         datas = line.split()
         if len(datas) != 3:
-            self.close('invalid request line')
+            self.close('invalid request line: %r' % line)
             return False
         method, path, version = datas
         if method != 'GET' or version != 'HTTP/1.1':
             self.close('websocket requried GET HTTP/1.1, got `%s`' % line)
             return False
 
-        headers = {}
-        while 1:
-            line = raw_readline(1024).strip()
-            if not line:
-                break
-            key, value = line.split(':', 1)
-            headers[key] = value.strip()
+        headers = self._read_headers()
 
         sec_key = headers.get('Sec-WebSocket-Key', '')
         if not sec_key:
@@ -109,6 +184,14 @@ class WebSocket(Connection):
         self._send_queue.append(header + packet_buffer)
         self._send()
 
+    def oninit(self):
+        """ Called by handler once handler start on a greenlet."""
+        if self.client_side:
+            self.connecting_event.wait()
+            return self.is_connected
+        else:
+            return self._upgrade_connection()
+
     def handle_close(self, header, payload):
         """Called when a close frame has been decoded from the stream.
 
@@ -128,12 +211,12 @@ class WebSocket(Connection):
         payload = payload[2:]
 
         if payload:
-            validator = Utf8Validator()
-            val = validator.validate(payload)
+            val = self.utf8validator.validate(payload)
             if not val[0]:
                 raise UnicodeError
 
-        if not self._is_valid_close_code(code):
+        if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
+                code == 1100 or 2000 <= code <= 2999):
             raise ProtocolError('Invalid close code {0}'.format(code))
         self.close(code, payload)
 
@@ -143,17 +226,6 @@ class WebSocket(Connection):
     def handle_pong(self, header, payload):
         pass
 
-    def validate_utf8(self, payload):
-        # Make sure the frames are decodable independently
-        self.utf8validate_last = self.utf8validator.validate(payload)
-        if not self.utf8validate_last[0]:
-            raise UnicodeError(
-                "Encountered invalid UTF-8 while processing "
-                "text message at payload octet index {0:d}".format(
-                    self.utf8validate_last[3]
-                )
-            )
-
     def read_frame(self):
         """Block until a full frame has been read from the socket.
 
@@ -162,7 +234,9 @@ class WebSocket(Connection):
 
         :return: The header and payload as a tuple.
         """
-        header = Header.decode_header(super(WebSocket, self).read)
+        header = Header.decode_header(
+            partial(super(WebSocket, self).read, timeout=self.timeout)
+        )
         if not header:
             return header, ''
 
@@ -172,7 +246,7 @@ class WebSocket(Connection):
         if not header.length:
             return header, ''
 
-        payload = super(WebSocket, self).read(header.length)
+        payload = super(WebSocket, self).read(header.length, self.timeout)
         if len(payload) != header.length:
             raise WebSocketError('Unexpected EOF reading frame payload')
 
@@ -205,7 +279,6 @@ class WebSocket(Connection):
 
                 # Start reading a new message, reset the validator
                 self.utf8validator.reset()
-                self.utf8validate_last = (True, True, 0, 0)
                 opcode = f_opcode
             elif f_opcode == self.OPCODE_CONTINUATION:
                 if not opcode:
@@ -227,7 +300,12 @@ class WebSocket(Connection):
                 break
 
         if opcode == self.OPCODE_TEXT:
-            self.validate_utf8(message)
+            stat = self.utf8validator.validate(message)
+            if not stat[0]:
+                raise UnicodeError(
+                    "Encountered invalid UTF-8 while processing "
+                    "text message at payload octet index {0:d}".format(stat[3])
+                )
             return message
         else:
             return bytearray(message)
@@ -279,8 +357,8 @@ class WebSocket(Connection):
 
     def send_frame(self, message, opcode):
         """Send a frame over the websocket with message as its payload."""
-        if opcode == self.OPCODE_TEXT:
-            message = self._encode_bytes(message)
+        if opcode == self.OPCODE_TEXT and isinstance(message, text_type):
+            message = message.encode('utf-8')
         elif opcode == self.OPCODE_BINARY:
             message = str(message)
         self._write(message, opcode)
@@ -294,6 +372,16 @@ class WebSocket(Connection):
             binary = not isinstance(message, (str, unicode))  # noqa
         opcode = self.OPCODE_BINARY if binary else self.OPCODE_TEXT
         self.send_frame(message, opcode)
+
+    @classmethod
+    def connect(cls, address, client_side=True, timeout=None, _type=None):
+        if not isinstance(address, string_types):
+            raise ValueError('address should be string')
+        sock = socket.socket(AF_INET)
+        # donot support wss yet
+        hostname, port, resource, is_secure = parse_url(address)
+        sock.connect((hostname, port))
+        return cls(sock, client_side, resource)
 
 
 class Header(object):

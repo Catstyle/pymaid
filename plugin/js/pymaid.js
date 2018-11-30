@@ -1,119 +1,138 @@
+goog.require('proto.pymaid.pb');
+
 (function(global, factory) {
     global['pymaid'] = factory();
 })(this, function() {
     var pymaid = {};
 
     var pb = pymaid.pb = {};
-    var pbJson = {
-        "syntax": "proto3",
-        "package": "pymaid.pb",
-        "messages": [
-            {
-                "name": "Controller",
-                "fields": [
-                    {
-                        "rule": "optional",
-                        "type": "string",
-                        "name": "service_method",
-                        "id": 1
-                    },
-                    {
-                        "rule": "optional",
-                        "type": "PacketType",
-                        "name": "packet_type",
-                        "id": 2
-                    },
-                    {
-                        "rule": "optional",
-                        "type": "uint32",
-                        "name": "transmission_id",
-                        "id": 3
-                    },
-                    {
-                        "rule": "optional",
-                        "type": "bool",
-                        "name": "is_canceled",
-                        "id": 4
-                    },
-                    {
-                        "rule": "optional",
-                        "type": "bool",
-                        "name": "is_failed",
-                        "id": 5
-                    }
-                ],
-                "enums": [
-                    {
-                        "name": "PacketType",
-                        "values": [
-                            {
-                                "name": "UNKNOWN",
-                                "id": 0
-                            },
-                            {
-                                "name": "REQUEST",
-                                "id": 1
-                            },
-                            {
-                                "name": "RESPONSE",
-                                "id": 2
-                            },
-                            {
-                                "name": "NOTIFICATION",
-                                "id": 3
-                            }
-                        ]
-                    }
-                ]
-            },
-            {
-                "name": "Void",
-                "fields": []
-            },
-            {
-                "name": "RpcAck",
-                "fields": []
-            },
-            {
-                "name": "ErrorMessage",
-                "fields": [
-                    {
-                        "rule": "optional",
-                        "type": "uint32",
-                        "name": "code",
-                        "id": 1
-                    },
-                    {
-                        "rule": "optional",
-                        "type": "string",
-                        "name": "message",
-                        "id": 2
-                    }
-                ]
-            }
-        ]
-    };
-    var builder = dcodeIO.ProtoBuf.loadJson(pbJson).build('pymaid');
-    pb.Controller = builder.pb.Controller;
-    pb.Void = builder.pb.Void;
-    pb.ErrorMessage = builder.pb.ErrorMessage;
+    pb.Controller = proto.pymaid.pb.Controller;
+    pb.Void = proto.pymaid.pb.Void;
+    pb.ErrorMessage = proto.pymaid.pb.ErrorMessage;
 
-    getBuilder = function(pb_json, builders) {
-        if (typeof pb_json !== 'object') {
-            console.log('registerBuilder got argument is not json/object');
-            return;
-        }
-        if (!pb_json.hasOwnProperty('syntax')) {
-            for (var attr in pb_json) {
-                if (!pb_json.hasOwnProperty(attr)) {
-                    continue;
+    /**
+     * Serialization/Deserialization utils
+     *
+     */
+    pb.instantiate = pb.serialize = pb.deserialize = pb.format = undefined;
+
+    var underscore = function(ins) {
+        switch (goog.typeOf(ins)) {
+            case 'array':
+                return ins.map(underscore);
+            case 'object':
+                var obj = {};
+                for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                    var attr = attrs[idx];
+                    if (ins.hasOwnProperty(attr)) {
+                        obj[attr.replace(/([A-Z])/g, '_$1').toLowerCase()] = underscore(ins[attr]);
+                    }
                 }
-                getBuilder(pb_json[attr], builders);
-            }
-            return;
+                return obj;
+            default:
+                return ins;
         }
-        builders.push(dcodeIO.ProtoBuf.loadJson(pb_json));
     }
+
+    var camel = function(ins) {
+        switch (goog.typeOf(ins)) {
+            case 'array':
+                return ins.map(camel);
+            case 'object':
+                var obj = {};
+                for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                    var attr = attrs[idx];
+                    if (ins.hasOwnProperty(attr)) {
+                        obj[attr.replace(/_(\w)/g, function(all, letter) {return letter.toUpperCase()})] = camel(ins[attr]);
+                    }
+                }
+                return obj;
+            default:
+                return ins;
+        }
+    }
+
+    var jspb_instantiate = function(proto, data) {
+        var transform = function(ins) {
+            switch (goog.typeOf(ins)) {
+                case 'array':
+                    return ins.map(transform);
+                case 'object':
+                    for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                        var attr = attrs[idx];
+                        if (ins.hasOwnProperty(attr)) {
+                            var value = ins[attr];
+                            if (goog.isArray(value) && !attr.endsWith('_list')) {
+                                ins[attr + '_list'] = transform(value);
+                                delete ins[attr];
+                            } else if (value.pbmap === true) {
+                                delete value['pbmap'];
+                                var arr = [];
+                                for (var ks = Object.keys(value), idx = 0; idx < ks.length; ++idx) {
+                                    arr.push([ks[idx], transform(value[ks[idx]])]);
+                                }
+                                ins[attr + '_map'] = arr;
+                                delete ins[attr];
+                            }
+                        }
+                    }
+                    return ins;
+                default:
+                    return ins;
+            }
+        }
+        return proto.fromObject(camel(transform(data)));
+    }
+
+    var jspb_serialize = function(ins) {
+        return ins.serializeBinary();
+    }
+
+    var jspb_deserialize = function(proto, data) {
+        var ins = underscore(proto.deserializeBinary(data).toObject());
+
+        var transform = function(ins) {
+            switch (goog.typeOf(ins)) {
+                case 'array':
+                    return ins.map(transform);
+                case 'object':
+                    for (var attrs = Object.keys(ins), idx = 0; idx < attrs.length; ++idx) {
+                        var attr = attrs[idx]
+                        if (ins.hasOwnProperty(attr)) {
+                            if (attr.endsWith('_list')) {
+                                ins[attr.substr(0, attr.length - 5)] = transform(ins[attr]);
+                                delete ins[attr];
+                            } else if (attr.endsWith('_map') && goog.isArray(ins[attr])) {
+                                var obj = {};
+                                var arr = ins[attr];
+                                for (var idx = 0, size = arr.length; idx < size; ++idx) {
+                                    obj[arr[idx][0]] = transform(arr[idx][1]);
+                                }
+                                ins[attr.substr(0, attr.length - 4)] = obj;
+                                delete ins[attr];
+                            }
+                        }
+                    }
+                    return ins;
+                default:
+                    return ins;
+            }
+        }
+        return transform(ins);
+    }
+
+    var jspb_format = function(ins) {
+        if (ins.toObject !== undefined) {
+            return JSON.stringify(underscore(ins.toObject()));
+        } else {
+            return JSON.stringify(underscore(ins));
+        }
+    }
+
+    pb.instantiate = jspb_instantiate;
+    pb.serialize = jspb_serialize;
+    pb.deserialize = jspb_deserialize;
+    pb.format = jspb_format;
 
     /**
      * Parser, encode/decode packet
@@ -126,71 +145,75 @@
     // 4 is for '!HH'
     PBParser._headerSize = JSONParser._headerSize = 4;
 
-    PBParser.pack = function(controller, content) {
-        var ctrlSize = controller.calculate();
-        var contentSize = content.calculate();
+    PBParser.pack = function(controllerBinary, contentBinary) {
+        var ctrlSize = controllerBinary.byteLength;
+        var contentSize = contentBinary.byteLength;
 
-        var bb = new dcodeIO.ByteBuffer(this._headerSize + ctrlSize + contentSize);
-        bb.writeUint16(ctrlSize);
-        bb.writeUint16(contentSize);
-        bb.append(controller.toBuffer());
-        bb.append(content.toBuffer());
-        bb.flip();
-        return bb.toBuffer();
+        var ab = new ArrayBuffer(this._headerSize + ctrlSize + contentSize);
+        var dv = new DataView(ab, 0, 4);
+        var ctrl = new Uint8Array(ab, 4, ctrlSize);
+        var content = new Uint8Array(ab, 4 + ctrlSize, contentSize);
+        dv.setUint16(0, ctrlSize);
+        dv.setUint16(2, contentSize);
+        ctrl.set(controllerBinary);
+        content.set(contentBinary);
+        return ab;
     };
 
     PBParser.unpack = function(ab) {
-        var bb = dcodeIO.ByteBuffer.wrap(ab);
-        var ctrlSize = bb.readUint16();
-        var contentSize = bb.readUint16();
+        var dv = new DataView(ab, 0, 4);
+        var ctrlSize = dv.getUint16(0);
+        var contentSize = dv.getUint16(2);
 
         var ctrlLimit = this._headerSize + ctrlSize;
-        var controllerBuf = bb.slice(this._headerSize, ctrlLimit);
         return {
-            controller: pb.Controller.decode(controllerBuf),
-            content: bb.slice(ctrlLimit, ctrlLimit + contentSize)
+            controller: pb.deserialize(pb.Controller, ab.slice(this._headerSize, ctrlLimit)),
+            content: ab.slice(ctrlLimit, ctrlLimit + contentSize)
         };
     };
 
-    JSONParser.pack = function(controller, content) {
-        var ctrlSize = controller.calculate();
-        var contentSize = content.calculate();
+    // haibin: comment out for now
+    // JSONParser.pack = function(controller, content) {
+    //     var ctrlJson = JSON.stringify(controller.toObject());
+    //     var contentJson = JSON.stringify(content.toObject());
+    //     var ctrlSize = ctrlJson.byteLength;
+    //     var contentSize = contentJson.byteLength;
 
-        var bb = new dcodeIO.ByteBuffer(this._headerSize + ctrlSize + contentSize);
-        bb.writeUint16(ctrlSize);
-        bb.writeUint16(contentSize);
-        bb.append(controller.encodeJSON());
-        bb.append(content.encodeJSON());
-        bb.flip();
-        return bb.toBuffer();
-    };
+    //     var ab = new ArrayBuffer(this._headerSize + ctrlSize + contentSize);
+    //     var header = new Uint16Array(ab, 0, 2);
+    //     var ctrl = new Uint8Array(ab, 4, ctrlSize);
+    //     var content = new Uint8Array(ab, 4 + ctrlSize, contentSize);
+    //     header[0] = ctrlSize;
+    //     header[1] = contentSize;
+    //     bb.append(controller.encodeJSON());
+    //     bb.append(content.encodeJSON());
+    //     bb.flip();
+    //     return bb.toBuffer();
+    // };
 
-    JSONParser.unpack = function(ab) {
-        var bb = dcodeIO.ByteBuffer.wrap(ab);
-        var ctrlSize = bb.readUint16();
-        var contentSize = bb.readUint16();
+    // JSONParser.unpack = function(ab) {
+    //     var bb = dcodeIO.ByteBuffer.wrap(ab);
+    //     var ctrlSize = bb.readUint16();
+    //     var contentSize = bb.readUint16();
 
-        var controllerBuf = bb.readString(ctrlSize);
-        return {
-            controller: pb.Controller.decode(JSON.parse(controllerBuf)),
-            content: JSON.parse(bb.readString(contentSize))
-        };
-    };
+    //     var controllerBuf = bb.readString(ctrlSize);
+    //     return {
+    //         controller: pb.Controller.decode(JSON.parse(controllerBuf)),
+    //         content: JSON.parse(bb.readString(contentSize))
+    //     };
+    // };
 
 
     /**
      * Channel, implement rpc pack/unpack
      *
     **/
-    var Channel = function(protos, pbimpl, broadcasts, parser) {
+    var Channel = function(parser) {
         this.conn = null;
         this.parser = parser || PBParser;
         this.is_closed = true;
-
-        var builders = [];
-        getBuilder(protos, builders);
-        this.init_stubs(builders);
-        this.init_listener(builders, pbimpl, broadcasts);
+        this.stubs = new pymaid.StubManager();
+        this.listener = new pymaid.Listener();
     };
 
     var ChannelPrototype = Channel.prototype = Object.create(Channel.prototype);
@@ -260,26 +283,23 @@
         this.stubs.conn = null;
     };
 
-    ChannelPrototype.init_stubs = function(builders) {
+    ChannelPrototype.init_stubs = function(pbrpc) {
         var stubs = this.stubs = new pymaid.StubManager();
-        for (var idx = 0, length = builders.length; idx < length; idx++) {
-            stubs.registerBuilder(builders[idx]);
+        for (var attr in pbrpc) {
+            if (pbrpc.hasOwnProperty(attr)) {
+                stubs.register(attr, pbrpc[attr]);
+            }
         }
+        stubs.bindConnection(this.conn);
     };
 
-    ChannelPrototype.init_listener = function(builders, pbimpl, broadcasts) {
+    ChannelPrototype.init_listener = function(pbimpl) {
         var listener = this.listener = new pymaid.Listener();
         for (var impl in pbimpl) {
             if (!pbimpl.hasOwnProperty(impl)) {
                 continue;
             }
-            listener.registerImpl(pbimpl[impl]);
-        }
-
-        for (var idx = 0, length = builders.length; idx < length; idx++) {
-            listener.registerBuilder(builders[idx], function(name) {
-                return broadcasts.indexOf(name) != -1;
-            });
+            listener.register(pbimpl[impl]);
         }
     };
 
@@ -330,9 +350,15 @@
     WSConnectionPrototype.cleanup = function(reason) {
         for (var idx in this.transmissions) {
             var cb = this.transmissions[idx];
-            cb({message: 'pymaid: rpc conn closed with [reason|' + reason + ']'});
+            cb({is_failed: true},
+               pb.serialize(pb.instantiate(pb.ErrorMessage, {
+                   code: 400,
+                   message: 'pymaid: rpc conn closed with [reason|' + reason + ']'
+               }))
+            );
             delete this.transmissions[idx];
         }
+        this.transmissions = {};
     }
 
     WSConnectionPrototype.onmessage = function(evt) {
@@ -380,24 +406,6 @@
         this.onerror_callback(this, evt);
     };
 
-    var getBuilderServices = function(result, filter) {
-        var services = []
-        for (var name in result) {
-            var attr = result[name];
-            if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Service) {
-                if (filter && !(filter(name))) {
-                    continue;
-                }
-                services.push(attr.$type);
-            } else if (attr.$type instanceof dcodeIO.ProtoBuf.Reflect.Namespace) {
-                services = services.concat(getBuilderServices(attr, filter));
-            } else if (typeof attr === 'object' && Object.keys(attr)) {
-                services = services.concat(getBuilderServices(attr, filter));
-            }
-        }
-        return services;
-    };
-
 
     /**
      * Stub, used for client side services stubs
@@ -412,17 +420,18 @@
     pymaid.Stub = Stub;
 
     StubPrototype._buildRpc = function(service) {
-        var rpc = service.$type.getChildren(dcodeIO.ProtoBuf.Reflect.Service.RPCMethod);
-        for (var idx in rpc) {
-            (function(method) {
-                var methodName = method.fqn();
-                var requestType = method.resolvedRequestType;
-                var responseType = method.resolvedResponseType;
+        var serviceName = service.name;
+        for (var rpc in service) {
+            if (rpc === 'name' || !service.hasOwnProperty(rpc)) {
+                continue;
+            }
+            (function(name, method) {
+                var requestType = method.input_type;
+                var responseType = method.output_type;
 
-                var requireResponse = responseType.name !== 'Void';
-                var illegalResponse = {message: "Illegal response received in: " + methodName};
+                var requireResponse = responseType !== pb.Void;
 
-                this[method.name] = function(req, cb, conn) {
+                this[name] = function(req, cb, conn) {
                     var conn = conn || this._manager.conn;
                     if (!cb || cb.constructor.name != 'Function') {
                         throw Error(
@@ -434,52 +443,48 @@
                         return;
                     }
 
-                    var controller = new pb.Controller({
-                        service_method: methodName,
+                    var data = {
+                        service_method: serviceName + '.' + name,
                         packet_type: pb.Controller.PacketType.REQUEST,
-                    });
+                    };
                     if (requireResponse) {
                         var tid = conn.transmissionId;
-                        controller.transmission_id = tid;
+                        data['transmission_id'] = tid;
                         conn.transmissionId++;
                     }
-                    if (!(req instanceof requestType.clazz)) {
-                        req = new requestType.clazz(req);
+                    var controller = pb.instantiate(pb.Controller, data);
+                    if (!(req instanceof requestType)) {
+                        req = pb.instantiate(requestType, req);
                     }
                     console.log(
-                        'pymaid: [Stub][controller|'+controller.encodeJSON()+']'+
-                        '[req|'+req.encodeJSON()+']'
+                        'pymaid: [Stub][controller|'+pb.format(controller)+']'+
+                        '[req|'+pb.format(req)+']'
                     );
-                    conn.send(conn.parser.pack(controller, req));
+                    conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(req)));
 
                     if (!requireResponse) {
                         setTimeout(cb.bind(this, null, null), 0);
                     } else {
                         conn.transmissions[tid] = function(controller, resp) {
                             var err = null, content;
-                            if (!controller) {
-                                err = content = illegalResponse;
-                            } else if (controller.is_failed) {
-                                err = content = pb.ErrorMessage.decode(resp);
+                            if (controller.is_failed) {
+                                err = content = pb.deserialize(pb.ErrorMessage, resp);
+                                if (err.data) {
+                                    err.data = JSON.parse(err.data);
+                                }
                             } else {
-                                try {
-                                    resp = content = responseType.clazz.decode(resp);
-                                } catch (notABuffer) {
-                                }
-                                if (!(resp instanceof responseType.clazz)) {
-                                    err = content = illegalResponse;
-                                }
+                                resp = content = pb.deserialize(responseType, resp);
                             }
                             console.log(
                                 'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-                                '[onmessage][controller|'+JSON.stringify(controller)+']'+
-                                '[content|'+JSON.stringify(content)+']'
+                                '[onmessage][controller|'+pb.format(controller)+']'+
+                                '[content|'+pb.format(content)+']'
                             );
                             cb(err, resp);
                         };
                     }
                 };
-            }).bind(this)(rpc[idx]);
+            }).bind(this)(rpc, service[rpc]);
         }
     };
 
@@ -496,21 +501,10 @@
     StubManager.prototype = StubManagerPrototype;
     pymaid.StubManager = StubManager;
 
-    StubManagerPrototype._registerStub = function(stub) {
-        var name = stub.name;
+    StubManagerPrototype.register = function(name, service) {
         console.log('pymaid: registering stub: ' + name);
         name = name[0].toLowerCase() + name.slice(1);
-        this[name] = new Stub(this, stub.clazz);
-    };
-
-    StubManagerPrototype.registerBuilder = function(builder) {
-        if (!builder.resolved) {
-            builder.build();
-        }
-        var services = getBuilderServices(builder.result);
-        for (var idx in services) {
-            this._registerStub(services[idx]);
-        }
+        this[name] = new Stub(this, service);
     };
 
     StubManagerPrototype.bindConnection = function(conn) {
@@ -527,7 +521,6 @@
      *
     **/
     var Listener = function() {
-        this.classes = {};
         this.implementations = {};
     };
 
@@ -536,35 +529,12 @@
     pymaid.Listener = Listener;
 
     ListenerPrototype._registerService = function(service) {
-        var serviceName = service.fqn();
-        console.log('pymaid: listener registering service: ' + serviceName);
-        var rpc = service.getChildren(dcodeIO.ProtoBuf.Reflect.Service.RPCMethod);
-        for (var idx = 0; idx < rpc.length; ++idx) {
-            var method = rpc[idx], serviceMethod = method.fqn();
-            var impl = this.implementations[serviceName][method.name];
-            if (!impl || impl.constructor.name != 'Function') {
-                throw Error('pymaid: listener has no method: ' + method.name);
-            }
-            // '.package.service.method' and 'package.service.method'
-            this.classes[serviceMethod] = this.classes[serviceMethod.slice(1)] = {
-                req: method.resolvedRequestType,
-                resp: method.resolvedResponseType
-            };
-        }
     };
 
-    ListenerPrototype.registerImpl = function(impl) {
-        this.implementations[impl.name] = this.implementations['.'+impl.name] = impl;
-    };
-
-    ListenerPrototype.registerBuilder = function(builder, filter) {
-        if (!builder.resolved) {
-            builder.build();
-        }
-        var services = getBuilderServices(builder.result, filter);
-        for (var idx in services) {
-            this._registerService(services[idx]);
-        }
+    ListenerPrototype.register = function(impl) {
+        var name = impl.name;
+        console.log('pymaid: listener registering service: ' + name);
+        this.implementations[name] = this.implementations['.'+name] = impl;
     };
 
     ListenerPrototype.onmessage = function(controller, content, conn) {
@@ -578,29 +548,32 @@
             this.onNoSuchImpl(serviceMethod);
             return;
         }
-        var clazz = this.classes[serviceMethod];
-        var req = clazz.req.clazz.decode(content), resp = clazz.resp;
+        var method = impl[methodName];
+        var req = pb.deserialize(method.input_type, content), respType = method.output_type;
         console.log(
             'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-            '[onmessage][controller|'+controller.encodeJSON()+'][content|'+req.encodeJSON()+']'
+            '[onmessage][controller|'+pb.format(controller)+']'+'[content|'+pb.format(req)+']'
         );
         impl[methodName](controller, req, function(err, content) {
-            if (resp.name == 'Void') {
+            if (respType === pb.Void) {
                 // when handle notification
                 return;
             }
-            controller.packet_type = pb.Controller.PacketType.RESPONSE;
+            controller.setPacketType(pb.Controller.PacketType.RESPONSE);
             if (err) {
-                controller.is_failed = true;
-                conn.send(conn.parser.pack(controller, new pb.ErrorMessage(err)));
+                controller.setIsFailed(true);
+                conn.send(conn.parser.pack(
+                    pb.serialize(controller),
+                    pb.serialize(pb.instantiate(pb.ErrorMessage, err))
+                ));
             } else {
                 if (content === null) {
                     throw Error('pymaid: impl: '+serviceMethod+' got null content');
                 }
-                if (!(content instanceof resp)) {
-                    content = new resp(content);
+                if (!(content instanceof respType)) {
+                    content = pb.deserialize(respType, content);
                 }
-                conn.send(conn.parser.pack(controller, content));
+                conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(content)));
             }
         });
     };
@@ -614,9 +587,34 @@
      * HttpManager, used to handle cookies/redirect things
      *
     **/
+
+    var CookieMiddleware = {
+
+        on_create: function(manager, req) {
+            req.withCredentials = true;
+            req.setRequestHeader('Cookie', manager._cookies);
+        },
+
+        on_finish: function(manager, req) {
+            manager._cookies = req.getResponseHeader('Set-Cookie') || manager._cookies;
+        },
+
+    };
+
+    var TokenMiddleware = {
+
+        on_create: function(manager, req) {
+            req.setRequestHeader("Authorization", 'Basic'+" "+ manager._userToken);
+        },
+
+        on_finish: function(manager, req) {
+        },
+
+    };
+
     var HttpManager = function(rootUrl, webimpl, requestClass, timeout) {
         this.setRootUrl(rootUrl)
-        this._cookies = '';
+        this.middlewares = [];
         requestClass = requestClass || XMLHttpRequest;
         if (!requestClass) {
             throw Error('invalid requestClass for HttpManager');
@@ -636,13 +634,21 @@
 
     var HMPrototype = HttpManager.prototype = Object.create(HttpManager.prototype);
     pymaid.HttpManager = HttpManager;
+    HttpManager.CookieMiddleware = CookieMiddleware;
+    HttpManager.TokenMiddleware = TokenMiddleware;
 
     var getParams = function(data) {
         var params = [], attr;
-        if (data) {
-            for (attr in data) {
-                if (data.hasOwnProperty(attr)) {
-                    params.push(attr+'='+data[attr]);
+        for (attr in data) {
+            if (data.hasOwnProperty(attr)) {
+                switch (goog.typeOf(data[attr])) {
+                    case 'array':
+                        // do some format like ?a=1&a=2...
+                        params = params.concat(data[attr].map(function(x) {return attr+'='+x;}));
+                        break;
+                    default:
+                        params.push(attr+'='+data[attr]);
+                        break;
                 }
             }
         }
@@ -676,18 +682,29 @@
         console.log('pymaid HttpManager became not authenticated');
     };
 
+    HMPrototype.on_req_create = function(req) {
+        for (var mid = 0, length = this.middlewares.length; mid < length; ++mid) {
+            this.middlewares[mid].on_create(this, req);
+        }
+    }
+
+    HMPrototype.on_req_finish = function(req) {
+        for (var mid = 0, length = this.middlewares.length; mid < length; ++mid) {
+            this.middlewares[mid].on_finish(this, req);
+        }
+    }
+
     HMPrototype.newRequest = function(type, url, cb, timeout, async) {
         async = async || true;
         var self = this;
 
         var req = new this._requestClass();
-        req.withCredentials = true;
         req.open(type.toUpperCase(), this._realUrl(url), async);
-        req.setRequestHeader('Cookie', this._cookies);
         req.timeout = timeout || this.timeout;
+        this.on_req_create(req);
 
         req.onload = function() {
-            self.setCookies(req.getResponseHeader('Set-Cookie'));
+            self.on_req_finish(req);
 
             var status = req.status;
             var response = req.responseText;
@@ -759,7 +776,7 @@
         return req;
     };
 
-    HMPrototype.delete = function(url, data, cb, timeout) {
+    HMPrototype.del = function(url, data, cb, timeout) {
         var params = getParams(data);
         if (params) {
             url += '?' + params;

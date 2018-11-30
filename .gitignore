@@ -39,6 +39,7 @@ nosetests.xml
 *.swp
 
 # pb
-*_pb2.py
 *.lua
+*_pb2.py
 protos/
+coverage_html

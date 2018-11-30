@@ -86,6 +86,8 @@ if __name__ == '__main__':
             # In particular, ensure that you indicate whether you support
             # Python 2, Python 3 or both.
             'Programming Language :: Python :: 2.7',
+            'Programming Language :: Python :: 3.5',
+            'Programming Language :: Python :: 3.6',
         ],
 
         packages=find_packages(),
@@ -93,11 +95,11 @@ if __name__ == '__main__':
             '': ['*.proto'],
         },
         install_requires=[
-            'gevent>=1.2',
-            'protobuf>=3.2.0',
-            'six',
-            'ujson',
-            'wsaccel',
+            'gevent==1.3.5',
+            'protobuf==3.6.1',
+            'six==1.11.0',
+            'ujson==1.35',
+            'wsaccel==0.6.2',
         ],
         tests_require=[
             'websocket-client',

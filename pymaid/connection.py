@@ -1,38 +1,65 @@
-import struct
-from os import strerror
 from io import BytesIO
+from weakref import WeakValueDictionary
 
 import errno
 import socket
-from socket import socket as realsocket, error as socket_error
+from socket import error as socket_error
 from socket import AF_INET, AF_UNIX
 
 from six import string_types
 
-from gevent import getcurrent, Timeout
-from gevent.greenlet import Greenlet
+from greenlet import getcurrent, greenlet as Greenlet
 
-from pymaid.conf import settings
-from pymaid.error import RpcError
-from pymaid.utils import timer, io, hub
+from .conf import settings
+from .core import timer, io, hub
+from .error import RpcError
+from .utils.logger import pymaid_logger_wrapper
 
 __all__ = ['Connection']
 
 
+def set_socket_default_options(sock):
+    if sock.family == socket.AF_INET:
+        setsockopt = sock.setsockopt
+        getsockopt = sock.getsockopt
+        SOL_SOCKET, SOL_TCP = socket.SOL_SOCKET, socket.SOL_TCP
+
+        setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
+        setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < settings.SO_SNDBUF:
+            setsockopt(SOL_SOCKET, socket.SO_SNDBUF, settings.SO_SNDBUF)
+        if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < settings.SO_RCVBUF:
+            setsockopt(SOL_SOCKET, socket.SO_RCVBUF, settings.SO_RCVBUF)
+
+        if settings.PM_KEEPALIVE:
+            setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+            setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
+            setsockopt(
+                SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
+            )
+            setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
+
+
+@pymaid_logger_wrapper
 class Connection(object):
 
     CONNID = 1
-    LINGER_PACK = struct.pack('ii', 1, 1)
 
     def __init__(self, sock, client_side=False):
         self._socket = sock
         sock.setblocking(0)
-        self._setsockopt(sock)
         self.client_side = client_side
+        self.chunk_size = max(
+            sock.getsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF),
+            1024 * 1024
+        )
 
         self.buf = BytesIO()
-        self.transmission_id, self.transmissions = 1, {}
+        self.transmission_id, self.transmissions = 1, WeakValueDictionary()
         self.is_closed, self.close_callbacks = False, []
+        self.is_connected = True
+
+        set_socket_default_options(sock)
 
         self.connid = Connection.CONNID
         Connection.CONNID += 1
@@ -43,48 +70,28 @@ class Connection(object):
         self._send_queue = []
         # 1: READ, 2: WRITE
         self.r_io, self.w_io = io(fd, 1), io(fd, 2)
-        self.w_retry = 0
-
-    def _setsockopt(self, sock):
-        setsockopt = sock.setsockopt
-        if sock.family == socket.AF_INET:
-            SOL_TCP = socket.SOL_TCP
-            setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            if settings.PM_KEEPALIVE:
-                setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
-                setsockopt(
-                    SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
-                )
-                setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
-        setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, self.LINGER_PACK)
+        self.r_timer = None
 
     def _send(self):
         '''try to send all packets to reduce system call'''
         if not self._send_queue:
-            self.w_retry = 0
             self.w_io.stop()
             return
 
         membuf = memoryview(''.join(self._send_queue))
+        del self._send_queue[:]
+        len_of_membuf = len(membuf)
+        sent = 0
+        chunk_size = self.chunk_size
         try:
-            # see pydoc of socket.send
-            sent = self._socket.send(membuf)
-            del self._send_queue[:]
-            if sent < len(membuf):
-                self._send_queue.append(membuf[sent:].tobytes())
-                self.w_io.start(self._send)
-            else:
-                self.w_retry = 0
-                self.w_io.stop()
+            while sent < len_of_membuf:
+                # see pydoc of socket.send
+                sent += self._socket.send(membuf[sent:sent + chunk_size])
         except socket_error as ex:
+            if sent < len_of_membuf:
+                self._send_queue.append(membuf[sent:].tobytes())
             if ex.errno == errno.EWOULDBLOCK:
-                self.w_retry += 1
-                if self.w_retry > settings.WRETRY:
-                    self.close('max retried: %d' % self.w_retry, reset=True)
-                else:
-                    self.w_io.start(self._send)
+                self.w_io.start(self._send)
             else:
                 self.close(ex, reset=True)
 
@@ -125,7 +132,7 @@ class Connection(object):
                     self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
-                    except Timeout:
+                    except RpcError.Timeout:
                         self.buf = buf
                         raise
                     finally:
@@ -176,7 +183,7 @@ class Connection(object):
                     self.r_io.start(gr.switch)
                     try:
                         gr.parent.switch()
-                    except Timeout:
+                    except RpcError.Timeout:
                         self.buf = buf
                         raise
                     finally:
@@ -212,32 +219,13 @@ class Connection(object):
         return buf.getvalue()
 
     @classmethod
-    def connect(cls, address, client_side=False, timeout=None,
+    def connect(cls, address, client_side=True, timeout=None,
                 type_=socket.SOCK_STREAM):
         assert getcurrent() != hub, 'could not call block func in main loop'
-        sock = realsocket(
+        sock = socket.socket(
             AF_UNIX if isinstance(address, string_types) else AF_INET, type_
         )
-        err = sock.connect_ex(address)
-        # 11: EWOULDBLOCK, 115: EINPROGRESS
-        if err in {11, 115}:
-            # 1: READ, 2: WRITE
-            rw_io = io(sock.fileno(), 1 | 2)
-            rw_gr = getcurrent()
-            rw_io.start(rw_gr.switch)
-            if timeout:
-                rw_timer = timer(timeout)
-                rw_timer.start(rw_gr.throw, Timeout)
-            try:
-                rw_gr.parent.switch()
-            finally:
-                if timeout:
-                    rw_timer.stop()
-                rw_io.stop()
-                rw_timer = rw_io = None
-            err = sock.connect_ex(address)
-        if err != 0 and err != errno.EISCONN:
-            raise socket_error(err, strerror(err))
+        sock.connect(address)
         return cls(sock, client_side)
 
     def read(self, size, timeout=None):
@@ -247,7 +235,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(getcurrent().throw, Timeout)
+            self.r_timer.start(getcurrent().throw, RpcError.Timeout(timeout))
             try:
                 return self._read(size)
             finally:
@@ -261,7 +249,7 @@ class Connection(object):
         else:
             assert not self.r_timer, 'duplicated r_timer'
             self.r_timer = timer(timeout)
-            self.r_timer.start(getcurrent().throw, Timeout)
+            self.r_timer.start(getcurrent().throw, RpcError.Timeout(timeout))
             try:
                 return self._readline(size)
             finally:
@@ -293,6 +281,9 @@ class Connection(object):
         self.buf = BytesIO()
         self._socket.close()
 
+        if self.r_timer:
+            self.r_timer.stop()
+
         self.is_closed = True
 
         if isinstance(reason, Greenlet):
@@ -302,7 +293,7 @@ class Connection(object):
         for async_result in self.transmissions.values():
             # we should not reach here with async_result left
             # that should be an exception
-            async_result[0].set_exception(ex)
+            async_result.set_exception(ex)
         self.transmissions.clear()
 
         callbacks = self.close_callbacks[::-1]
@@ -338,3 +329,6 @@ class DisconnectedConnection(Connection):
     def read(self, size, timeout=None):
         pass
     readline = read
+
+    def close(self, reason=None, reset=False):
+        pass

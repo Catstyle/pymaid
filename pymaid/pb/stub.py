@@ -1,9 +1,10 @@
-from gevent.event import AsyncResult
-
-from pymaid.utils.logger import pymaid_logger_wrapper, trace_stub
+from pymaid.core import AsyncResult
+from pymaid.utils.functional import Broadcaster
+from pymaid.utils.logger import pymaid_logger_wrapper
 
 from . import pack_header
 from .pymaid_pb2 import Void, Controller
+from .utils import trace_stub
 
 
 class Sender(object):
@@ -12,10 +13,10 @@ class Sender(object):
         self.target = target
 
     def send(self, meta, request):
-        self.target.send(b'{}{}{}'.format(
+        self.target.send(b''.join([
             pack_header(meta.ByteSize(), request.ByteSize()),
             meta.SerializeToString(), request.SerializeToString()
-        ))
+        ]))
 
 
 @pymaid_logger_wrapper
@@ -49,8 +50,7 @@ class ServiceStub(object):
 
         @trace_stub(stub=self, stub_name=service_method.split('.')[-1],
                     request_name=request_class.__name__)
-        def rpc(request=None, extension=None, conn=None, broadcaster=None,
-                **kwargs):
+        def rpc(request=None, conn=None, broadcaster=None, **kwargs):
             request = request or request_class(**kwargs)
 
             meta = self.meta
@@ -58,31 +58,33 @@ class ServiceStub(object):
             meta.service_method = service_method
             meta.packet_type = packet_type
             if broadcaster is not None:
-                for sender in broadcaster:
-                    sender.send(meta, request)
+                if not isinstance(broadcaster, Broadcaster):
+                    content = b''.join([
+                        pack_header(meta.ByteSize(), request.ByteSize()),
+                        meta.SerializeToString(), request.SerializeToString()
+                    ])
+                    for sender in broadcaster:
+                        sender.send(content)
+                else:
+                    for sender in broadcaster:
+                        sender.send(meta, request)
             else:
                 conn = conn or self.conn
                 assert conn, conn
                 if require_response:
                     tid = meta.transmission_id = conn.transmission_id
                     conn.transmission_id += 1
-                if extension:
-                    meta.extension.Pack(extension)
-                conn.send(b'{}{}{}'.format(
+                conn.send(b''.join([
                     pack_header(meta.ByteSize(), request.ByteSize()),
                     meta.SerializeToString(), request.SerializeToString()
-                ))
+                ]))
 
                 if not require_response:
                     return
 
                 async_result = AsyncResult()
-                conn.transmissions[tid] = (async_result, response_class)
-
-                def cleanup(result):
-                    conn.transmissions.pop(tid, None)
-                cleanup.auto_unlink = True
-                async_result.rawlink(cleanup)
+                conn.transmissions[tid] = async_result
+                async_result._response_class = response_class
 
                 return async_result
         return rpc

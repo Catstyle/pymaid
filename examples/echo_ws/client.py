@@ -1,39 +1,62 @@
 from __future__ import print_function
-from gevent.pool import Pool
+import re
+from argparse import ArgumentParser
 
 from pymaid.channel import ClientChannel
+from pymaid.core import greenlet_pool, Pool
 from pymaid.pb import PBHandler, ServiceStub
-from pymaid.utils import greenlet_pool
+from pymaid.websocket.websocket import WebSocket
 
 from echo_pb2 import EchoService_Stub
 
 message = 'a' * 8000
 
 
-def wrapper(pid, n, message=message):
-    conn = channel.connect('ws://127.0.0.1:8888/')
-    for x in range(n):
-        response = service.echo(request, conn=conn).get(30)
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        '-c', dest='concurrency', type=int, default=100, help='concurrency'
+    )
+    parser.add_argument(
+        '-r', dest='request', type=int, default=100, help='request per client'
+    )
+    parser.add_argument(
+        '--address', type=str, default='ws://127.0.0.1:8888/',
+        help='connect address'
+    )
+
+    args = parser.parse_args()
+    if re.search(r':\d+$', args.address):
+        address, port = args.address.split(':')
+        args.address = (address, int(port))
+    print(args)
+    return args
+
+
+def wrapper(pid, address, count, message=message):
+    conn = channel.connect(address)
+    for x in range(count):
+        response = service.Echo(request, conn=conn).get(30)
         assert response.message == message, len(response.message)
     conn.close()
 
 
-channel = ClientChannel(PBHandler())
+channel = ClientChannel(PBHandler(), WebSocket)
 service = ServiceStub(EchoService_Stub(None))
-method = service.stub.DESCRIPTOR.FindMethodByName('echo')
+method = service.stub.DESCRIPTOR.FindMethodByName('Echo')
 request_class = service.stub.GetRequestClass(method)
 request = request_class(message=message)
 
 
-def main():
+def main(args):
     pool = Pool()
     # pool.spawn(wrapper, 111111, 10000)
-    for x in range(10):
-        pool.spawn(wrapper, x, 10)
+    for x in range(args.concurrency):
+        pool.spawn(wrapper, x, args.address, args.request)
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(len(channel.connections))
@@ -42,4 +65,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)

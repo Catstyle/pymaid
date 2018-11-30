@@ -1,14 +1,35 @@
 from __future__ import print_function
-from gevent import sleep
-from gevent.pool import Pool
+import re
+from argparse import ArgumentParser
 
-from pymaid.channel import BidChannel
+from pymaid.core import sleep, greenlet_pool, Pool
+from pymaid.channel import ClientChannel
 from pymaid.pb import Listener, PBHandler, ServiceStub
-from pymaid.utils import greenlet_pool
 
 from chat_pb2 import ChatService_Stub, ChatBroadcast
 
 message = 'a' * 512
+
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument(
+        '-c', dest='concurrency', type=int, default=100, help='concurrency'
+    )
+    parser.add_argument(
+        '-r', dest='request', type=int, default=100, help='request per client'
+    )
+    parser.add_argument(
+        '--address', type=str, default='/tmp/pymaid_chat.sock',
+        help='connect address'
+    )
+
+    args = parser.parse_args()
+    if re.search(r':\d+$', args.address):
+        address, port = args.address.split(':')
+        args.address = (address, int(port))
+    print(args)
+    return args
 
 
 class ChatBroadcastImpl(ChatBroadcast):
@@ -18,8 +39,8 @@ class ChatBroadcastImpl(ChatBroadcast):
         controller.conn.count += 1
 
 
-def prepare():
-    conn = channel.connect('/tmp/pymaid_chat.sock')
+def prepare(address):
+    conn = channel.connect(address)
     conn.count = 0
     service.Join(conn=conn).get()
     connections.append(conn)
@@ -40,7 +61,7 @@ def wrapper(conn, n, total, message=message):
 
 listener = Listener()
 listener.append_service(ChatBroadcastImpl())
-channel = BidChannel(PBHandler(listener))
+channel = ClientChannel(PBHandler(listener))
 connections = []
 
 service = ServiceStub(ChatService_Stub(None))
@@ -48,19 +69,19 @@ method = service.stub.DESCRIPTOR.FindMethodByName('Publish')
 request = service.stub.GetRequestClass(method)(message=message)
 
 
-def main():
+def main(args):
     pool = Pool()
-    concurrency, times = 100, 100
-    total = concurrency * times
+    concurrency, request = args.concurrency, args.request
+    total = concurrency * request
     for x in range(concurrency):
-        pool.spawn(prepare)
+        pool.spawn(prepare, args.address)
     pool.join()
     for conn in connections:
-        pool.spawn(wrapper, conn, times, total)
+        pool.spawn(wrapper, conn, request, total)
 
     try:
         pool.join()
-    except:
+    except Exception:
         import traceback
         traceback.print_exc()
         print(pool.size, len(pool.greenlets))
@@ -71,4 +92,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    args = parse_args()
+    main(args)

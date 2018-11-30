@@ -1,18 +1,15 @@
 import sys
 from functools import wraps
 
-import gevent
-from gevent.queue import JoinableQueue
-from gevent.event import AsyncResult
-
-from .core import hub
+from pymaid.core import hub, sleep, spawn
+from pymaid.core import AsyncResult, JoinableQueue
 
 
 class Worker(object):
 
     def __init__(self):
         self.queue = JoinableQueue()
-        self._worker = gevent.spawn(self._run)
+        self._worker = spawn(self._run)
 
     @property
     def pending_tasks(self):
@@ -43,7 +40,7 @@ class Worker(object):
         return self._apply(func, *args, **kwargs)
 
     def apply_delay(self, func, delay, *args, **kwargs):
-        self._apply(gevent.sleep, delay)
+        self._apply(sleep, delay)
         return self._apply(func, *args, **kwargs)
 
     def join(self):
