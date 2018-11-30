@@ -16,30 +16,54 @@ class BaseEx(Exception):
 
 class Error(BaseEx):
 
-    def __str__(self):
-        return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
-            self.__class__.__name__, self.code, self.message, self.data
-        ).encode('utf-8')
-    __repr__ = __str__
+    if six.PY2:
+        def __str__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
+        __repr__ = __str__
 
-    def __unicode__(self):
-        return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
-            self.__class__.__name__, self.code, self.message, self.data
-        )
+        def __unicode__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+    else:
+        def __str__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+        __repr__ = __str__
+
+        def __bytes__(self):
+            return u'[ERROR][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
 
 
 class Warning(BaseEx):
 
-    def __str__(self):
-        return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
-            self.__class__.__name__, self.code, self.message, self.data
-        ).encode('utf-8')
-    __repr__ = __str__
+    if six.PY2:
+        def __str__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
+        __repr__ = __str__
 
-    def __unicode__(self):
-        return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
-            self.__class__.__name__, self.code, self.message, self.data
-        )
+        def __unicode__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+    else:
+        def __str__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            )
+        __repr__ = __str__
+
+        def __bytes__(self):
+            return u'[WARN][{}][code|{}][message|{}][data|{}]'.format(
+                self.__class__.__name__, self.code, self.message, self.data
+            ).encode('utf-8')
 
 
 @six.add_metaclass(abc.ABCMeta)
