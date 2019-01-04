@@ -95,9 +95,9 @@ if __name__ == '__main__':
             '': ['*.proto'],
         },
         install_requires=[
-            'gevent==1.3.5',
+            'gevent==1.3.7',
             'protobuf==3.6.1',
-            'six==1.11.0',
+            'six==1.12.0',
             'ujson==1.35',
             'wsaccel==0.6.2',
         ],
