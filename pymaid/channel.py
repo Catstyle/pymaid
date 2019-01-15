@@ -59,7 +59,7 @@ class BaseChannel(object):
         pass
 
     def stop(self, reason='Channel calls stop'):
-        for conn in self.connections.values()[:]:
+        for conn in list(self.connections.values())[:]:
             conn.delay_close(reason)
         self.connections.clear()
 

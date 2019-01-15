@@ -1,6 +1,5 @@
 from bisect import bisect
 from hashlib import md5
-from six import binary_type
 
 
 primes = (
@@ -19,7 +18,7 @@ primes = (
 
 
 def md5_hash_func(key):
-    return int(md5(binary_type(key, 'utf-8')).hexdigest(), 16)
+    return int(md5(key.encode('utf-8')).hexdigest(), 16)
 
 
 class HashNode(object):
