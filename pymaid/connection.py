@@ -78,7 +78,7 @@ class Connection(object):
             self.w_io.stop()
             return
 
-        membuf = memoryview(''.join(self._send_queue))
+        membuf = memoryview(b''.join(self._send_queue))
         del self._send_queue[:]
         len_of_membuf = len(membuf)
         sent = 0
@@ -197,7 +197,7 @@ class Connection(object):
             if not data:
                 break
             remain = size - bufsize
-            nl = data.find('\n', 0, remain)
+            nl = data.find(b'\n', 0, remain)
             if nl >= 0:
                 nl += 1
                 self.buf.write(data[nl:])

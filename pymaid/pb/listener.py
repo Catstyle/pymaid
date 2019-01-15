@@ -44,7 +44,7 @@ class Listener(object):
             meta.is_failed = True
             err = RpcError.RPCNotExist(service_method)
             packet = ErrorMessage(code=err.code, message=err.message)
-            conn.send(b'{}{}{}'.format(
+            conn.send(b'%s%s%s' % (
                 pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
@@ -57,7 +57,7 @@ class Listener(object):
                 # do not send_response when response_class is Void
                 return
             packet = response or response_class(**kwargs)
-            conn.send(b'{}{}{}'.format(
+            conn.send(b'%s%s%s' % (
                 pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))
@@ -70,7 +70,7 @@ class Listener(object):
             packet = ErrorMessage(code=ex.code, message=ex.message)
             if ex.data:
                 packet.data = dumps(ex.data)
-            conn.send(b'{}{}{}'.format(
+            conn.send(b'%s%s%s' % (
                 pack_header(meta.ByteSize(), packet.ByteSize()),
                 meta.SerializeToString(), packet.SerializeToString()
             ))

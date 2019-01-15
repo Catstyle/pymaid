@@ -9,7 +9,7 @@ import socket
 from socket import AF_INET
 from socket import error as socket_error
 
-from six import text_type, string_types
+from six import binary_type, text_type, string_types
 from six.moves.urllib.parse import urlparse
 
 from pymaid.connection import Connection
@@ -64,9 +64,9 @@ def parse_url(url):
 @pymaid_logger_wrapper
 class WebSocket(Connection):
 
-    VERSION = 13
-    SUPPORTED_VERSIONS = ('13', '8', '7')
-    GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+    VERSION = b'13'
+    SUPPORTED_VERSIONS = (b'13', b'8', b'7')
+    GUID = b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
     OPCODE_CONTINUATION = 0x00
     OPCODE_TEXT = 0x01
@@ -76,17 +76,17 @@ class WebSocket(Connection):
     OPCODE_PONG = 0x0a
 
     HANDSHAKE_REQ = (
-        'GET {} HTTP/1.1\r\n'
-        'Upgrade: websocket\r\n'
-        'Connection: Upgrade\r\n'
-        'Sec-WebSocket-Key: {}\r\n'
-        'Sec-WebSocket-Version: {}\r\n\r\n'
+        b'GET %s HTTP/1.1\r\n'
+        b'Upgrade: websocket\r\n'
+        b'Connection: Upgrade\r\n'
+        b'Sec-WebSocket-Key: %s\r\n'
+        b'Sec-WebSocket-Version: %s\r\n\r\n'
     )
     HANDSHAKE_RESP = (
-        'HTTP/1.1 101 Switching Protocols\r\n'
-        'Upgrade: websocket\r\n'
-        'Connection: Upgrade\r\n'
-        'Sec-WebSocket-Accept: {}\r\n\r\n'
+        b'HTTP/1.1 101 Switching Protocols\r\n'
+        b'Upgrade: websocket\r\n'
+        b'Connection: Upgrade\r\n'
+        b'Sec-WebSocket-Accept: %s\r\n\r\n'
     )
 
     def __init__(self, sock, client_side=False, resource='/'):
@@ -94,7 +94,7 @@ class WebSocket(Connection):
         self.message = BytesIO()
         self.utf8validator = Utf8Validator()
         self.timeout = settings.PM_WEBSOCKET_TIMEOUT
-        self.resource = resource
+        self.resource = resource.encode('utf-8')
         if client_side:
             self.connecting_event = Event()
             self.is_connected = self._do_handshake()
@@ -107,21 +107,21 @@ class WebSocket(Connection):
             line = raw_readline(1024, self.timeout).strip()
             if not line:
                 break
-            key, value = line.split(':', 1)
+            key, value = line.split(b':', 1)
             headers[key] = value.strip()
         return headers
 
     def _do_handshake(self):
-        key = base64.b64encode(os.urandom(16)).decode('utf-8').strip()
+        key = base64.b64encode(os.urandom(16)).strip()
         self._send_queue.append(
-            self.HANDSHAKE_REQ.format(self.resource, key, self.VERSION)
+            self.HANDSHAKE_REQ % (self.resource, key, self.VERSION)
         )
         self._send()
         line = super(WebSocket, self).readline(1024, self.timeout)
         if not line:
             self.close(reset=True)
             return False
-        status = line.split(' ', 2)
+        status = line.split(b' ', 2)
         if len(status) != 3:
             self.close('invalid response line')
             return False
@@ -132,15 +132,15 @@ class WebSocket(Connection):
 
         headers = self._read_headers()
 
-        if ('websocket' != headers.get('Upgrade') or
-                'Upgrade' != headers.get('Connection')):
+        if (b'websocket' != headers.get(b'Upgrade') or
+                b'Upgrade' != headers.get(b'Connection')):
             self.close('invalid websocket handshake header')
             return False
 
-        accept = headers.get("Sec-WebSocket-Accept", '').lower()
+        accept = headers.get(b"Sec-WebSocket-Accept", '').lower()
         if isinstance(accept, text_type):
             accept = accept.encode('utf-8')
-        value = (key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode('utf-8')
+        value = key + b"258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
         hashed = base64.b64encode(sha1(value).digest()).strip().lower()
         if hashed != accept:
             self.close('invalid accept value')
@@ -158,29 +158,29 @@ class WebSocket(Connection):
             self.close('invalid request line: %r' % line)
             return False
         method, path, version = datas
-        if method != 'GET' or version != 'HTTP/1.1':
+        if method != b'GET' or version != b'HTTP/1.1':
             self.close('websocket requried GET HTTP/1.1, got `%s`' % line)
             return False
 
         headers = self._read_headers()
 
-        sec_key = headers.get('Sec-WebSocket-Key', '')
+        sec_key = headers.get(b'Sec-WebSocket-Key', '')
         if not sec_key:
             self.close('no Sec-WebSocket-Key')
             return False
 
-        version = headers.get('Sec-WebSocket-Version')
+        version = headers.get(b'Sec-WebSocket-Version')
         if version not in self.SUPPORTED_VERSIONS:
             self.close('not supported version: %r' % version)
             return False
 
         resp_key = base64.b64encode(sha1(sec_key + self.GUID).digest())
-        self._send_queue.append(self.HANDSHAKE_RESP.format(resp_key))
+        self._send_queue.append(self.HANDSHAKE_RESP % resp_key)
         self._send()
         return True
 
     def _write(self, packet_buffer, opcode):
-        header = Header.encode_header(True, opcode, '', len(packet_buffer), 0)
+        header = Header.encode_header(True, opcode, b'', len(packet_buffer), 0)
         self._send_queue.append(header + packet_buffer)
         self._send()
 
@@ -238,13 +238,13 @@ class WebSocket(Connection):
             partial(super(WebSocket, self).read, timeout=self.timeout)
         )
         if not header:
-            return header, ''
+            return header, b''
 
         if header.flags:
-            raise ProtocolError
+            raise ProtocolError('invalid flags: %s' % header.flags)
 
         if not header.length:
-            return header, ''
+            return header, b''
 
         payload = super(WebSocket, self).read(header.length, self.timeout)
         if len(payload) != header.length:
@@ -261,7 +261,7 @@ class WebSocket(Connection):
         if an exception is called. Use `receive` instead.
         """
         opcode = None
-        message = ""
+        message = b""
 
         while 1:
             header, payload = self.read_frame()
@@ -306,9 +306,9 @@ class WebSocket(Connection):
                     "Encountered invalid UTF-8 while processing "
                     "text message at payload octet index {0:d}".format(stat[3])
                 )
-            return message
+            return message.decode('utf-8')
         else:
-            return bytearray(message)
+            return message
 
     def receive(self):
         """Read and return a message from the stream.
@@ -357,21 +357,18 @@ class WebSocket(Connection):
 
     def send_frame(self, message, opcode):
         """Send a frame over the websocket with message as its payload."""
-        if opcode == self.OPCODE_TEXT and isinstance(message, text_type):
+        # no mater what opcode, message should be binary type
+        if isinstance(message, text_type):
             message = message.encode('utf-8')
-        elif opcode == self.OPCODE_BINARY:
-            message = str(message)
         self._write(message, opcode)
 
-    def send(self, message, binary=True):
-        """Send a frame over the websocket with message as its payload.
-
-        pymaid need binary = True
-        """
-        if binary is None:
-            binary = not isinstance(message, (str, unicode))  # noqa
-        opcode = self.OPCODE_BINARY if binary else self.OPCODE_TEXT
-        self.send_frame(message, opcode)
+    def send(self, message):
+        """Send a frame over the websocket with message as its payload."""
+        self.send_frame(
+            message,
+            self.OPCODE_BINARY if isinstance(message, binary_type) else
+            self.OPCODE_TEXT
+        )
 
     @classmethod
     def connect(cls, address, client_side=True, timeout=None, _type=None):
@@ -492,7 +489,7 @@ class Header(object):
         """
         first_byte = opcode
         second_byte = 0
-        extra = ''
+        extra = b''
 
         if fin:
             first_byte |= cls.FIN_MASK
@@ -518,4 +515,4 @@ class Header(object):
         if mask:
             second_byte |= cls.MASK_MASK
             extra += mask
-        return chr(first_byte) + chr(second_byte) + extra
+        return struct.pack('!BB', first_byte, second_byte) + extra
