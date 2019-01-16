@@ -10,7 +10,7 @@ class BaseEx(Exception):
     def __init__(self, *args, **kwargs):
         if args or kwargs:
             self.message = self.message.format(*args, **kwargs)
-        self.data = kwargs
+        self.data = kwargs.get('data', {})
 
 
 class Error(BaseEx):
