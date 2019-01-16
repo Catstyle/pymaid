@@ -22,13 +22,14 @@ class ErrorTest(TestCase):
         self.assertEquals(Error1.code, 1)
         self.assertEquals(Error1.message, 'Error1: {}')
 
-        ex = Error1('Oops', number=1)
+        ex = Error1('Oops', number=1, data={'name': 'Whatever'})
         self.assertEquals(ex.code, 1)
         self.assertEquals(ex.message, 'Error1: Oops')
-        self.assertDictEqual(ex.data, {'number': 1})
+        self.assertDictEqual(ex.data, {'name': 'Whatever'})
         self.assertEquals(
             str(ex),
-            "[ERROR][Error1][code|1][message|Error1: Oops][data|{'number': 1}]"
+            "[ERROR][Error1][code|1][message|Error1: Oops]"
+            "[data|{'name': 'Whatever'}]"
         )
 
         self.assertIsInstance(ex, error.Error)
@@ -43,14 +44,14 @@ class ErrorTest(TestCase):
         self.assertEquals(Warning1.code, 1)
         self.assertEquals(Warning1.message, 'Warning1: {}')
 
-        ex = Warning1('Oops', number=1)
+        ex = Warning1('Oops', number=1, data={'age': 18})
         self.assertEquals(ex.code, 1)
         self.assertEquals(ex.message, 'Warning1: Oops')
-        self.assertDictEqual(ex.data, {'number': 1})
+        self.assertDictEqual(ex.data, {'age': 18})
         self.assertEquals(
             str(ex),
             "[WARN][Warning1][code|1][message|Warning1: Oops]"
-            "[data|{'number': 1}]"
+            "[data|{'age': 18}]"
         )
 
         self.assertIsInstance(ex, error.Warning)
