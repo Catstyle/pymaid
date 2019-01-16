@@ -207,7 +207,7 @@ class WebSocket(Connection):
                 'Invalid close frame: {0} {1}'.format(header, payload)
             )
 
-        code = struct.unpack('!H', str(payload[:2]))[0]
+        code = struct.unpack('!H', payload[:2])[0]
         payload = payload[2:]
 
         if payload:
@@ -408,10 +408,12 @@ class Header(object):
         payload = bytearray(payload)
         mask = bytearray(self.mask)
 
-        for i in xrange(self.length):  # noqa
+        i = 0
+        while i < self.length:
             payload[i] ^= mask[i % 4]
+            i += 1
 
-        return str(payload)
+        return binary_type(payload)
 
     # it's the same operation
     unmask_payload = mask_payload
