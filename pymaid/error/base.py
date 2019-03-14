@@ -67,7 +67,7 @@ class Warning(BaseEx):
 
 
 @six.add_metaclass(abc.ABCMeta)
-class ErrorManager(Exception):
+class ErrorManager(BaseEx):
 
     index = 0
     codes = {}
@@ -76,20 +76,22 @@ class ErrorManager(Exception):
 
     @classmethod
     def add(cls, name, ex):
-        if issubclass(ex, BaseEx):
-            if ex.code in cls.codes:
-                raise ValueError('duplicated exception code: %d', ex.code)
-            cls.codes[ex.code] = ex
-            cls.exceptions[name] = ex
-        elif issubclass(ex, ErrorManager):
-            cls.managers[ex.__name__] = ex
+        if ex.code in cls.codes:
+            raise ValueError('duplicated exception code: %d', ex.code)
+        cls.codes[ex.code] = ex
+        cls.exceptions[name] = ex
         setattr(cls, name, ex)
+
+    @classmethod
+    def add_manager(cls, name, manager):
+        cls.managers[manager.__name__] = manager
+        setattr(cls, name, manager)
 
     @classmethod
     def add_error(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         error = type(
-            name, (Error,),
+            name, (Error, cls),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
@@ -101,7 +103,7 @@ class ErrorManager(Exception):
     def add_warning(cls, name, code, message):
         frame = getframe(1)  # get caller frame
         warning = type(
-            name, (Warning,),
+            name, (Warning, cls),
             {'code': cls.index + code, 'message': message,
              '__module__': frame.f_locals.get('__name__', '')}
         )
@@ -131,5 +133,5 @@ class ErrorManager(Exception):
         manager.codes = {}
         manager.exceptions = {}
         manager.managers = {}
-        cls.add(name, manager)
+        cls.add_manager(name, manager)
         return manager
