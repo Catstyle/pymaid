@@ -74,14 +74,29 @@ class ErrorTest(TestCase):
         self.assertIn('Error1', ErrorManager.exceptions)
         self.assertEquals(len(ErrorManager.codes), 1)
         self.assertEquals(len(ErrorManager.exceptions), 1)
+        self.assertTrue(issubclass(ErrorManager.Error1, error.Error))
+        self.assertTrue(issubclass(ErrorManager.Error1, ErrorManager))
 
         ex = ErrorManager.Error1('Manager', number=1)
         self.assertIsInstance(ex, error.Error)
         self.assertIsInstance(ex, ErrorManager)
+
         with self.assertRaises(error.Error):
             raise ex
         with self.assertRaises(ErrorManager):
             raise ex
+
+        try:
+            raise ex
+        except ErrorManager.Error1:
+            # should catch this exception
+            pass
+
+        try:
+            raise ex
+        except ErrorManager:
+            # should catch this exception
+            pass
 
         ErrorManager.add_warning(
             'Warning1', 2, 'Manager {} has {number} exceptions'
@@ -90,14 +105,29 @@ class ErrorTest(TestCase):
         self.assertIn('Warning1', ErrorManager.exceptions)
         self.assertEquals(len(ErrorManager.codes), 2)
         self.assertEquals(len(ErrorManager.exceptions), 2)
+        self.assertTrue(issubclass(ErrorManager.Warning1, error.Warning))
+        self.assertTrue(issubclass(ErrorManager.Warning1, ErrorManager))
 
         ex = ErrorManager.Warning1('Manager', number=2)
         self.assertIsInstance(ex, error.Warning)
         self.assertIsInstance(ex, ErrorManager)
+
         with self.assertRaises(error.Warning):
             raise ex
         with self.assertRaises(ErrorManager):
             raise ex
+
+        try:
+            raise ex
+        except ErrorManager.Warning1:
+            # should catch this exception
+            pass
+
+        try:
+            raise ex
+        except ErrorManager:
+            # should catch this exception
+            pass
 
         SubManager = ErrorManager.create_manager('SubManager', 1100)
         self.assertIn('SubManager', ErrorManager.managers)
