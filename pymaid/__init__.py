@@ -25,7 +25,7 @@ if 'linux' in sys.platform or 'darwin' in sys.platform:
     #     )
     if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION') != 'cpp':
         sys.stdout.write(
-            'C++ implementation protocol buffer has overall performance, see'
+            'C++ implementation protocol buffer has overall performance, see '
             'https://github.com/google/protobuf/blob/master/python/README.md\n'
         )
 del os, sys

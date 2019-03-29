@@ -6,7 +6,7 @@ from pymaid.conf import settings
 from pymaid.core import greenlet_pool
 from pymaid.error import RpcError
 
-from . import unpack_header
+from . import header_size, unpack_header
 from .controller import Controller
 from .listener import Listener
 from .pymaid_pb2 import Controller as PBC
@@ -30,13 +30,14 @@ class PBHandler(object):
         try:
             if not conn.oninit():
                 return
+            max_packet = settings.get('MAX_PACKET_LENGTH', ns='pymaid')
             while 1:
-                header = conn.read(4)
+                header = conn.read(header_size)
                 if not header:
                     conn.close(reset=True)
                     break
                 packet_length, content_length = unpack_header(header)
-                if packet_length + content_length > settings.MAX_PACKET_LENGTH:
+                if packet_length + content_length > max_packet:
                     conn.close(RpcError.PacketTooLarge(
                         packet_length + content_length
                     ))
@@ -70,7 +71,7 @@ class PBHandlerWithWorker(object):
             return
         conn.close_conn_onerror = self.close_conn_onerror
 
-        tasks_queue = Queue(settings.MAX_TASKS)
+        tasks_queue = Queue(settings.get('MAX_TASKS', ns='pymaid'))
         new_task = tasks_queue.put
         gr = greenlet_pool.spawn(self.sequential_worker, tasks_queue)
         gr.link_exception(conn.close)
@@ -82,13 +83,14 @@ class PBHandlerWithWorker(object):
         }
         handle_response = self.listener.handle_response
         try:
+            max_packet = settings.get('MAX_PACKET_LENGTH', ns='pymaid')
             while 1:
-                header = conn.read(4)
+                header = conn.read(header_size)
                 if not header:
                     conn.close(reset=True)
                     break
                 packet_length, content_length = unpack_header(header)
-                if packet_length + content_length > settings.MAX_PACKET_LENGTH:
+                if packet_length + content_length > max_packet:
                     conn.close(RpcError.PacketTooLarge(
                         packet_length + content_length
                     ))

@@ -93,7 +93,7 @@ class WebSocket(Connection):
         super(WebSocket, self).__init__(sock, client_side)
         self.message = BytesIO()
         self.utf8validator = Utf8Validator()
-        self.timeout = settings.PM_WEBSOCKET_TIMEOUT
+        self.timeout = settings.namespaces['pymaid']['PM_WEBSOCKET_TIMEOUT']
         self.resource = resource.encode('utf-8')
         if client_side:
             self.connecting_event = Event()

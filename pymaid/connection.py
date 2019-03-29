@@ -26,18 +26,19 @@ def set_socket_default_options(sock):
 
         setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
         setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < settings.SO_SNDBUF:
-            setsockopt(SOL_SOCKET, socket.SO_SNDBUF, settings.SO_SNDBUF)
-        if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < settings.SO_RCVBUF:
-            setsockopt(SOL_SOCKET, socket.SO_RCVBUF, settings.SO_RCVBUF)
+        ns = settings.namespaces['pymaid']  # should always exists
+        if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < ns['SO_SNDBUF']:
+            setsockopt(SOL_SOCKET, socket.SO_SNDBUF, ns['SO_SNDBUF'])
+        if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < ns['SO_RCVBUF']:
+            setsockopt(SOL_SOCKET, socket.SO_RCVBUF, ns['SO_RCVBUF'])
 
-        if settings.PM_KEEPALIVE:
+        if ns['PM_KEEPALIVE']:
             setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, settings.PM_KEEPIDLE)
+            setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, ns['PM_KEEPIDLE'])
             setsockopt(
-                SOL_TCP, socket.TCP_KEEPINTVL, settings.PM_KEEPINTVL
+                SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL']
             )
-            setsockopt(SOL_TCP, socket.TCP_KEEPCNT, settings.PM_KEEPCNT)
+            setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
 
 
 @pymaid_logger_wrapper
@@ -122,7 +123,7 @@ class Connection(object):
             return data
 
         recv = self._socket.recv
-        recvsize = settings.MAX_RECV_SIZE
+        recvsize = settings.namespaces['pymaid']['MAX_RECV_SIZE']
         while 1:
             try:
                 data = recv(recvsize)
@@ -173,7 +174,7 @@ class Connection(object):
             buf.seek(0, 2)
 
         recv = self._socket.recv
-        recvsize = settings.MAX_RECV_SIZE
+        recvsize = settings.namespaces['pymaid']['MAX_RECV_SIZE']
         while 1:
             try:
                 data = recv(recvsize)
