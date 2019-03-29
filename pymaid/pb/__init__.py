@@ -1,9 +1,11 @@
-import struct
+from struct import Struct
 
 from pymaid.conf import settings
 
-pack_header = struct.Struct(settings.PM_PB_HEADER).pack  # noqa
-unpack_header = struct.Struct(settings.PM_PB_HEADER).unpack  # noqa
+st = Struct(settings.get('PM_PB_HEADER', ns='pymaid'))  # noqa
+header_size = st.size  # noqa
+pack_header = st.pack  # noqa
+unpack_header = st.unpack  # noqa
 
 from .controller import Controller as PBController
 from .handler import PBHandler

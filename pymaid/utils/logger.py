@@ -19,8 +19,15 @@ pymaid_logger.wrappers = []
 project_logger = None
 
 
-def configure_logging(settings):
-    """Setup logging from PYMAID_LOGGING and LOGGING settings."""
+def configure_logging(settings, ns):
+    """Setup logging from pymaid.LOGGING and logging.LOGGING settings.
+
+    Do nothing if `ns` not in (pymaid, logging)
+    """
+
+    if ns not in ('pymaid', 'logging'):
+        return
+
     import logging
     import logging.config
     try:
@@ -33,15 +40,13 @@ def configure_logging(settings):
         # DeprecationWarnings are on anyway
         pass
 
-    if not hasattr(settings, 'PYMAID_LOGGING'):
-        settings.PYMAID_LOGGING = {}
-    if hasattr(settings, 'LOGGING'):
-        for key, value in settings.LOGGING.items():
-            if not isinstance(value, Mapping):
-                settings.PYMAID_LOGGING[key] = value
-            else:
-                settings.PYMAID_LOGGING[key].update(value)
-    logging.config.dictConfig(settings.PYMAID_LOGGING)
+    config = settings.get('LOGGING', {}, ns='pymaid')
+    for key, value in settings.get('LOGGING', {}, ns='logging').items():
+        if not isinstance(value, Mapping):
+            config[key] = value
+        else:
+            config[key].update(value)
+    logging.config.dictConfig(config)
 
 
 def create_project_logger(name):

@@ -50,7 +50,10 @@ class BaseChannel(object):
 
     @property
     def is_full(self):
-        return len(self.connections) >= settings.MAX_CONCURRENCY
+        return (
+            len(self.connections) >=
+            settings.namespaces['pymaid']['MAX_CONCURRENCY']
+        )
 
     def connection_attached(self, conn):
         pass
@@ -79,7 +82,7 @@ class ServerChannel(BaseChannel):
         ConnectionClass = self.connection_class
         cnt = err = 0
         while 1:
-            if cnt >= settings.MAX_ACCEPT:
+            if cnt >= settings.namespaces['pymaid']['MAX_ACCEPT']:
                 break
             if self.is_full:
                 self.pause('stop accept since channel is full')

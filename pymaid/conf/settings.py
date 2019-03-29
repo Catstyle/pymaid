@@ -1,11 +1,10 @@
 from __future__ import absolute_import
 
+from collections import defaultdict
 from importlib import import_module
 import os
 import re
-from ujson import loads
 
-from pymaid.core import greenlet_worker, AsyncResult
 from pymaid.utils.logger import configure_logging, pymaid_logger_wrapper
 
 from . import defaults
@@ -14,39 +13,55 @@ from . import defaults
 @pymaid_logger_wrapper
 class Settings(object):
 
-    def __init__(self):
-        self.watchers = []
-        self.data = {}
+    def __init__(self, name):
+        self.name = name
+        self.namespaces = {}
+        self.watchers = defaultdict(list)
 
-    def add_watcher(self, watcher):
-        if watcher in self.watchers:
+    def filter(self, key, value):
+        return key == key.upper()
+
+    def get(self, key, default=None, ns='common'):
+        """Return specified config value in local namespaces cache.
+
+        This method will not block and return default value if key not exists.
+        User should initiate settings manually by calling `load_from_*` apis.
+        """
+        try:
+            return self.namespaces[ns][key]
+        except KeyError:
+            return default
+
+    def add_watcher(self, watcher, ns='common'):
+        if watcher in self.watchers[ns]:
             return
-        self.watchers.append(watcher)
+        self.watchers[ns].append(watcher)
 
-    def load_from_object(self, obj, trace=False):
+    def load_from_object(self, obj, ns='common', mutable=True):
+        if (ns in self.namespaces and
+                not self.namespaces[ns].get('__MUTABLE__', mutable)):
+            self.logger.warn('[pymaid][settings][ns|%s] not mutable', ns)
+            return False
+
         data = {}
+        filter = self.filter
         if isinstance(obj, dict):
             data.update({
-                key: value for key, value in obj.items() if key == key.upper()
+                key: value for key, value in obj.items() if filter(key, value)
             })
         else:
             data.update({
                 key: getattr(obj, key)
-                for key in dir(obj) if key == key.upper()
+                for key in dir(obj) if filter(key, getattr(obj, key))
             })
-        self.data.update(data)
-        for key, value in data.items():
-            setattr(self, key, value)
-        if trace:
-            self.logger.debug(
-                '[pymaid][settings] configured [%s]',
-                [(key, value) for key, value in sorted(self.data.items())
-                 if 'SECRET' not in key]
-            )
-        for watcher in self.watchers:
-            watcher(self)
+        self.namespaces.setdefault(ns, {}).update(data)
+        self.namespaces[ns].setdefault('__MUTABLE__', mutable)
 
-    def load_from_module(self, module_name, trace=True):
+        for watcher in self.watchers[ns]:
+            watcher(self, ns)
+        return True
+
+    def load_from_module(self, module_name, ns='common'):
         """Load the settings module pointed to by the module_name.
 
         This is used the first time we need any settings at all,
@@ -62,9 +77,9 @@ class Settings(object):
                     module_name, e
                 )
             )
-        self.load_from_object(mod, trace)
+        self.load_from_object(mod, ns)
 
-    def load_from_root_path(self, path, trace=True):
+    def load_from_root_path(self, path, ns='common'):
         for root, dirs, files in os.walk(path):
             if '__init__.py' not in files:
                 continue
@@ -76,72 +91,13 @@ class Settings(object):
                     continue
                 else:
                     raise
-        self.data.update({
-            key: getattr(self, key) for key in dir(self) if key == key.upper()
-        })
-        if trace:
-            self.logger.debug(
-                '[pymaid][settings] configured [%s]',
-                [(key, value) for key, value in sorted(self.data.items())
-                 if 'SECRET' not in key]
-            )
-
-    @greenlet_worker
-    def load_from_backend(self, backend, trace=True):
-        for data in backend:
-            self.logger.debug(
-                '[pymaid][settings][backend|%s] receive [data|%r]',
-                backend, data
-            )
-            self.load_from_object(data, trace)
-
-
-class SettingsBackend(object):
-
-    def __iter__(self):
-        raise NotImplementedError
 
     def __str__(self):
-        return self.__class__.__name__
+        return '[%s][namespaces|%d]' % (self.name, len(self.namespaces))
     __repr__ = __str__
 
 
-@pymaid_logger_wrapper
-class RedisBackend(SettingsBackend):
-
-    def __init__(self, rdb, channel):
-        subscriber = rdb.pubsub()
-        subscriber.subscribe(channel)
-        self.generator = subscriber.listen()
-
-    def __iter__(self):
-        # first resp is subscribe info
-        self.generator.next()
-        for resp in self.generator:
-            if resp['data']:
-                yield loads(resp['data'])
-
-
-@pymaid_logger_wrapper
-class ZooKeeperBackend(SettingsBackend):
-
-    def __init__(self, zk, path):
-        self.zk = zk
-        self.path = path
-
-    def __iter__(self):
-        result = AsyncResult()
-
-        @self.zk.DataWatch(self.path)
-        def watcher(data, stat):
-            if data:
-                result.set(data)
-
-        while 1:
-            yield loads(result.get())
-            result = AsyncResult()
-
-
-settings = Settings()
-settings.add_watcher(configure_logging)
-settings.load_from_object(defaults)
+settings = Settings('global')
+settings.add_watcher(configure_logging, ns='pymaid')
+settings.add_watcher(configure_logging, ns='logging')
+settings.load_from_object(defaults, ns='pymaid', mutable=False)

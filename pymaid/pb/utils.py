@@ -127,7 +127,7 @@ def trace_method(level=logging.INFO,
 def trace_stub(level=logging.DEBUG, stub=None, stub_name='', request_name=''):
     def wrapper(rpc):
         from pymaid.conf import settings
-        if not settings.DEBUG:
+        if not settings.get('DEBUG', False, ns='pymaid'):
             return rpc
         assert level in logging_levels, (level, logging_levels)
 
