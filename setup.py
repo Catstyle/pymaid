@@ -13,7 +13,7 @@ from distutils.command.clean import clean
 
 pwd = path.abspath(path.dirname(__file__))
 __version__ = re.search(
-    "__version__\s*=\s*'(.*)'", open('pymaid/__init__.py').read(), re.M
+    "__version__ = '(.*)'", open('pymaid/__init__.py').read(), re.M
 ).group(1)
 assert __version__
 
@@ -105,5 +105,10 @@ if __name__ == '__main__':
         tests_require=[
             'websocket-client',
         ],
+        extras_require={
+            'backend': [
+                'requests==2.21.0', 'PyYAML==3.13', 'xmltodict==0.12.0'
+            ],
+        },
         cmdclass={'build_py': MyBuildPy, 'clean': MyClean},
     )

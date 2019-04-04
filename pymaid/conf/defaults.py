@@ -1,6 +1,6 @@
 DEBUG = False
 
-PYMAID_LOGGING = {
+LOGGING = {
     'version': 1,
     'formatters': {
         'standard': {

@@ -1,4 +1,5 @@
-from .settings import settings, RedisBackend, ZooKeeperBackend
+from .backend import ApolloBackend
+from .settings import settings
 
 
-__all__ = ['settings', 'RedisBackend', 'ZooKeeperBackend']
+__all__ = ['settings', 'ApolloBackend']
