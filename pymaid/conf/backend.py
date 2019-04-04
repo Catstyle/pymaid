@@ -38,15 +38,17 @@ class SettingsBackend(object):
                 '[pymaid][settings|%s] subscribed with unknown [format|%s]',
                 settings, format
             )
-            return
+            return False
 
         if ns in self.subscriptions:
             self.logger.warn(
                 '[pymaid][settings|%s] already subscribed with [ns|%s]',
                 settings, ns
             )
+            return False
         else:
             self.subscriptions[ns] = {'settings': settings, 'format': format}
+            return True
 
     def start(self):
         self.listening = True
@@ -80,11 +82,13 @@ class ApolloBackend(SettingsBackend):
         self.session = requests.Session()
 
     def subscribe(self, ns, settings, format='json'):
-        super(ApolloBackend, self).subscribe(ns, settings, format)
-        self.subscriptions[ns]['notificationId'] = -1
-        if self.listening and not self.fetching:
-            self.stop()  # stop terminate listerner
-            self.start()  # start listerner again
+        result = super(ApolloBackend, self).subscribe(ns, settings, format)
+        if result:
+            self.subscriptions[ns]['notificationId'] = -1
+            if self.listening and not self.fetching:
+                self.stop()  # stop terminate listerner
+                self.start()  # start listerner again
+        return result
 
     def run(self):
         import requests
@@ -143,6 +147,10 @@ class ApolloBackend(SettingsBackend):
                 for ns, data in delta.items():
                     settings = self.subscriptions[ns]['settings']
                     settings.load_from_object(data, ns)
+                self.logger.debug(
+                    '[pymaid][settings][backend|%s] updated [delta|%r]',
+                    self.__class__.__name__, delta.keys()
+                )
                 self.fetching = False
 
     def get_cached_data(self, ns, format):
