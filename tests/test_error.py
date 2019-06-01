@@ -7,26 +7,26 @@ class ErrorTest(TestCase):
 
     def test_base(self):
         self.assertIsNone(error.BaseEx.code)
-        self.assertEquals(error.BaseEx.message, 'BaseEx')
+        self.assertEqual(error.BaseEx.message, 'BaseEx')
 
         class Error1(error.Error):
             code = 1
             message = 'Error1: {}'
-        self.assertEquals(Error1.__module__, __name__)
+        self.assertEqual(Error1.__module__, __name__)
 
     def test_error(self):
         class Error1(error.Error):
             code = 1
             message = 'Error1: {}'
 
-        self.assertEquals(Error1.code, 1)
-        self.assertEquals(Error1.message, 'Error1: {}')
+        self.assertEqual(Error1.code, 1)
+        self.assertEqual(Error1.message, 'Error1: {}')
 
         ex = Error1('Oops', number=1, data={'name': 'Whatever'})
-        self.assertEquals(ex.code, 1)
-        self.assertEquals(ex.message, 'Error1: Oops')
+        self.assertEqual(ex.code, 1)
+        self.assertEqual(ex.message, 'Error1: Oops')
         self.assertDictEqual(ex.data, {'name': 'Whatever'})
-        self.assertEquals(
+        self.assertEqual(
             str(ex),
             "[ERROR][Error1][code|1][message|Error1: Oops]"
             "[data|{'name': 'Whatever'}]"
@@ -41,14 +41,14 @@ class ErrorTest(TestCase):
             code = 1
             message = 'Warning1: {}'
 
-        self.assertEquals(Warning1.code, 1)
-        self.assertEquals(Warning1.message, 'Warning1: {}')
+        self.assertEqual(Warning1.code, 1)
+        self.assertEqual(Warning1.message, 'Warning1: {}')
 
         ex = Warning1('Oops', number=1, data={'age': 18})
-        self.assertEquals(ex.code, 1)
-        self.assertEquals(ex.message, 'Warning1: Oops')
+        self.assertEqual(ex.code, 1)
+        self.assertEqual(ex.message, 'Warning1: Oops')
         self.assertDictEqual(ex.data, {'age': 18})
-        self.assertEquals(
+        self.assertEqual(
             str(ex),
             "[WARN][Warning1][code|1][message|Warning1: Oops]"
             "[data|{'age': 18}]"
@@ -62,7 +62,7 @@ class ErrorTest(TestCase):
         ErrorManager = error.ErrorManager.create_manager('Manager', 1000)
         self.assertIn('Manager', error.ErrorManager.managers)
 
-        self.assertEquals(ErrorManager.index, 1000)
+        self.assertEqual(ErrorManager.index, 1000)
         self.assertDictEqual(ErrorManager.codes, {})
         self.assertDictEqual(ErrorManager.exceptions, {})
         self.assertDictEqual(ErrorManager.managers, {})
@@ -72,8 +72,8 @@ class ErrorTest(TestCase):
         )
         self.assertIn(1001, ErrorManager.codes)
         self.assertIn('Error1', ErrorManager.exceptions)
-        self.assertEquals(len(ErrorManager.codes), 1)
-        self.assertEquals(len(ErrorManager.exceptions), 1)
+        self.assertEqual(len(ErrorManager.codes), 1)
+        self.assertEqual(len(ErrorManager.exceptions), 1)
         self.assertTrue(issubclass(ErrorManager.Error1, error.Error))
         self.assertTrue(issubclass(ErrorManager.Error1, ErrorManager))
 
@@ -103,8 +103,8 @@ class ErrorTest(TestCase):
         )
         self.assertIn(1002, ErrorManager.codes)
         self.assertIn('Warning1', ErrorManager.exceptions)
-        self.assertEquals(len(ErrorManager.codes), 2)
-        self.assertEquals(len(ErrorManager.exceptions), 2)
+        self.assertEqual(len(ErrorManager.codes), 2)
+        self.assertEqual(len(ErrorManager.exceptions), 2)
         self.assertTrue(issubclass(ErrorManager.Warning1, error.Warning))
         self.assertTrue(issubclass(ErrorManager.Warning1, ErrorManager))
 
