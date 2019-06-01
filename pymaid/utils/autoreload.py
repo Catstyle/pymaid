@@ -181,7 +181,7 @@ class ModuleReloader(object):
                         del self.failed[py_filename]
                 except Exception:
                     print(
-                        "[autoreload of %s failed: %s]" % (modname, format_exc()),  # noqa
+                        f"[autoreload of {modname} failed: {format_exc()}]",  # noqa
                         file=sys.stderr
                     )
                     self.failed[py_filename] = pymtime

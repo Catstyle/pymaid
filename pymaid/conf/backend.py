@@ -95,14 +95,14 @@ class ApolloBackend(SettingsBackend):
         while self.listening:
             notifications = [
                 {
-                    'namespaceName': '%s.%s' % (ns, sub['format']),
+                    'namespaceName': f'{ns}.{sub["format"]}',
                     'notificationId': sub['notificationId'],
                 }
                 for ns, sub in self.subscriptions.items()
             ]
             try:
                 resp = self.session.get(
-                    '{}/notifications/v2'.format(self.config_server),
+                    f'{self.config_server}/notifications/v2',
                     params={
                         'appId': self.app_id,
                         'cluster': self.cluster,
@@ -157,9 +157,8 @@ class ApolloBackend(SettingsBackend):
         import requests
         try:
             resp = self.session.get(
-                '{}/configfiles/json/{}/{}/{}.{}'.format(
-                    self.config_server, self.app_id, self.cluster, ns, format,
-                ),
+                f'{self.config_server}/configfiles/json/'
+                f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as ex:
@@ -175,9 +174,8 @@ class ApolloBackend(SettingsBackend):
         import requests
         try:
             resp = self.session.get(
-                '{}/configs/{}/{}/{}.{}'.format(
-                    self.config_server, self.app_id, self.cluster, ns, format,
-                ),
+                f'{self.config_server}/configs/'
+                f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as ex:

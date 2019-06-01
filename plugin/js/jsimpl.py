@@ -113,7 +113,7 @@ def parse_module(module):
 def extra_message(message, indent='    '):
     fields = []
     for field in message.fields:
-        text = '%s%s: %s ' % (indent, field.name, LABELS[field.label])
+        text = f'{indent}{field.name}: {LABELS[field.label]} '
         if field.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             fields.append(text + field.message_type.name)
             fields.extend(extra_message(field.message_type, indent + '    '))
@@ -128,7 +128,7 @@ def generate_jsimpl(service_descriptor, package, prefix):
     requires = set()
     in_out_types = []
     service_name = service_descriptor.name
-    print('generating %s' % service_descriptor.full_name)
+    print(f'generating {service_descriptor.full_name}')
     for method in service_descriptor.methods:
         req = star_indent + 'req: ' + method.input_type.name + star_indent
         req += star_indent.join(extra_message(method.input_type))
