@@ -39,7 +39,7 @@ def parse_url(url):
         if not port:
             port = 443
     else:
-        raise ValueError("scheme %s is invalid" % scheme)
+        raise ValueError(f"scheme {scheme} is invalid")
 
     parsed = urlparse(url, scheme="ws")
     if parsed.hostname:
@@ -127,7 +127,7 @@ class WebSocket(Connection):
             return False
         status = int(status[1])
         if status != 101:
-            self.close('handshake failed with status: %r' % status)
+            self.close(f'handshake failed with status: {status}')
             return False
 
         headers = self._read_headers()
@@ -155,11 +155,11 @@ class WebSocket(Connection):
 
         datas = line.split()
         if len(datas) != 3:
-            self.close('invalid request line: %r' % line)
+            self.close(f'invalid request line: {line}')
             return False
         method, path, version = datas
         if method != b'GET' or version != b'HTTP/1.1':
-            self.close('websocket requried GET HTTP/1.1, got `%s`' % line)
+            self.close(f'websocket requried GET HTTP/1.1, got `{line}`')
             return False
 
         headers = self._read_headers()
@@ -171,7 +171,7 @@ class WebSocket(Connection):
 
         version = headers.get(b'Sec-WebSocket-Version')
         if version not in self.SUPPORTED_VERSIONS:
-            self.close('not supported version: %r' % version)
+            self.close(f'not supported version: {version}')
             return False
 
         resp_key = base64.b64encode(sha1(sec_key + self.GUID).digest())
@@ -203,9 +203,7 @@ class WebSocket(Connection):
             return
 
         if len(payload) < 2:
-            raise ProtocolError(
-                'Invalid close frame: {0} {1}'.format(header, payload)
-            )
+            raise ProtocolError(f'Invalid close frame: {header} {payload}')
 
         code = struct.unpack('!H', payload[:2])[0]
         payload = payload[2:]
@@ -217,7 +215,7 @@ class WebSocket(Connection):
 
         if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016 or
                 code == 1100 or 2000 <= code <= 2999):
-            raise ProtocolError('Invalid close code {0}'.format(code))
+            raise ProtocolError(f'Invalid close code {code}')
         self.close(code, payload)
 
     def handle_ping(self, header, payload):
@@ -241,7 +239,7 @@ class WebSocket(Connection):
             return header, b''
 
         if header.flags:
-            raise ProtocolError('invalid flags: %s' % header.flags)
+            raise ProtocolError(f'invalid flags: {header.flags}')
 
         if not header.length:
             return header, b''
@@ -273,8 +271,8 @@ class WebSocket(Connection):
                 # a new frame
                 if opcode:
                     raise ProtocolError(
-                        'The opcode in non-fin frame is expected to be zero,'
-                        'got {0!r}'.format(f_opcode)
+                        f'The opcode in non-fin frame is expected to be zero,'
+                        f'got {f_opcode}'
                     )
 
                 # Start reading a new message, reset the validator
@@ -293,7 +291,7 @@ class WebSocket(Connection):
                 self.handle_close(header, payload)
                 return
             else:
-                raise ProtocolError("Unexpected opcode={0!r}".format(f_opcode))
+                raise ProtocolError(f"Unexpected opcode={f_opcode}")
 
             message += payload
             if header.fin:
@@ -303,8 +301,8 @@ class WebSocket(Connection):
             stat = self.utf8validator.validate(message)
             if not stat[0]:
                 raise UnicodeError(
-                    "Encountered invalid UTF-8 while processing "
-                    "text message at payload octet index {0:d}".format(stat[3])
+                    f"Encountered invalid UTF-8 while processing "
+                    f"text message at payload octet index {stat[3]}"
                 )
             return message
         else:
@@ -419,9 +417,8 @@ class Header(object):
     unmask_payload = mask_payload
 
     def __repr__(self):
-        return "<Header fin={} opcode={} length={} flags={} at 0x{:x}>".format(
-            self.fin, self.opcode, self.length, self.flags, id(self)
-        )
+        return (f"<Header fin={self.fin} opcode={self.opcode} "
+                f"length={self.length} flags={self.flags} at 0x{id(self):x}>")
 
     @classmethod
     def decode_header(cls, raw_read):
@@ -449,13 +446,12 @@ class Header(object):
         if header.opcode > 0x07:
             if not header.fin:
                 raise ProtocolError(
-                    "Received fragmented control frame: {0!r}".format(data)
+                    f"Received fragmented control frame: {data}"
                 )
             # Control frames MUST have a payload length of 125 bytes or less
             if header.length > 125:
                 raise FrameTooLargeException(
-                    "Control frame cannot be larger than 125 bytes: "
-                    "{0!r}".format(data)
+                    f"Control frame cannot be larger than 125 bytes: {data}"
                 )
 
         if header.length == 126:

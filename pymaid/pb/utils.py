@@ -25,7 +25,7 @@ def implall(service):
             impl_method = getattr(service, method_name, base_method)
             if base_method == impl_method:
                 raise RuntimeError(
-                    '%s.%s is not implemented' % (service_name, method_name)
+                    f'{service_name}.{method_name} is not implemented'
                 )
     return service
 
@@ -41,7 +41,7 @@ def update_record(record, level, msg, *args):
 
 
 def trace_service(level=logging.INFO,
-                  debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
+                  debug_info_func=lambda ctrl: f'[conn|{ctrl.conn.connid}]'):
     def wrapper(cls):
         assert level in logging_levels, (level, logging_levels)
         for method in cls.DESCRIPTOR.methods:
@@ -67,7 +67,7 @@ def trace_method(level=logging.INFO,
         co = func.__code__
         full_name = co.co_name
         if isinstance(func, MethodType):
-            full_name = '%s.%s' % (func.im_class.DESCRIPTOR.name, full_name)
+            full_name = f'{func.im_class.DESCRIPTOR.name}.{full_name}'
 
         # name, level, fn, lno, msg, args, exc_info, func
         record = logging.LogRecord(
@@ -99,15 +99,13 @@ def trace_method(level=logging.INFO,
                 if isinstance(ex, Warning):
                     update_record(
                         record, logging.WARN,
-                        '%s [rpc|%s] [req|%r] [warning|%s] '
-                        '[time|%.6f]',
+                        '%s [rpc|%s] [req|%r] [warning|%s] [time|%.6f]',
                         debug_info, full_name, req, ex, time() - start_time
                     )
                 else:
                     update_record(
                         record, logging.ERROR,
-                        '%s [rpc|%s] [req|%r] [exception|%s] '
-                        '[time|%.6f]',
+                        '%s [rpc|%s] [req|%r] [exception|%s] [time|%.6f]',
                         debug_info, full_name, req, ex, time() - start_time
                     )
                 self.logger.handle(record)
