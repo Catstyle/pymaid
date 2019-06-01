@@ -97,9 +97,8 @@ class Settings(object):
             mod = import_module(module_name)
         except ImportError as e:
             raise ImportError(
-                "Could not import settings '%s' (Is it on sys.path?): %s" % (
-                    module_name, e
-                )
+                f"Could not import settings '{module_name}' "
+                f"(Is it on sys.path?): {e}"
             )
         self.load_from_object(mod, getattr(mod, '__NAMESPACE__', ns), mutable)
 
@@ -120,7 +119,7 @@ class Settings(object):
                 )
 
     def __str__(self):
-        return '[%s][namespaces|%d]' % (self.name, len(self.namespaces))
+        return f'[{self.name}][namespaces|{len(self.namespaces)}]'
     __repr__ = __str__
 
 
