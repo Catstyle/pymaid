@@ -119,7 +119,7 @@ class BaseHashManager(object):
         raise NotImplementedError
 
     def __str__(self):
-        return '<{}: {}>'.format(self.__class__.__name__, self.name)
+        return f'<{self.__class__.__name__}: {self.name}>'
 
 
 class HashRing(BaseHashManager):
@@ -141,7 +141,7 @@ class HashRing(BaseHashManager):
         for node in self.nodes:
             key = node.key
             for idx in range(node.weight):
-                virtual_key = hash_func('%s-%s' % (key, idx))
+                virtual_key = hash_func(f'{key}-{idx}')
                 if virtual_key in lookup_table:
                     # TODO: what to do?
                     continue
