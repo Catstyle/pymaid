@@ -306,7 +306,7 @@ class WebSocket(Connection):
                     "Encountered invalid UTF-8 while processing "
                     "text message at payload octet index {0:d}".format(stat[3])
                 )
-            return message.decode('utf-8')
+            return message
         else:
             return message
 
