@@ -38,6 +38,11 @@ class Settings(object):
         self.watchers[ns].append(watcher)
 
     def load_from_object(self, obj, ns='common', mutable=True):
+        if isinstance(obj, dict):
+            ns = obj.get('__NAMESPACE__', ns)
+        else:
+            ns = getattr(obj, '__NAMESPACE__', ns)
+
         if (ns in self.namespaces and
                 not self.namespaces[ns].get('__MUTABLE__', mutable)):
             self.logger.warn('[pymaid][settings][ns|%s] not mutable', ns)
@@ -55,13 +60,15 @@ class Settings(object):
                 for key in dir(obj) if filter(key, getattr(obj, key))
             })
         self.namespaces.setdefault(ns, {}).update(data)
-        self.namespaces[ns].setdefault('__MUTABLE__', mutable)
+        self.namespaces[ns].setdefault(
+            '__MUTABLE__', data.get('__MUTABLE__', mutable)
+        )
 
         for watcher in self.watchers[ns]:
             watcher(self, ns)
         return True
 
-    def load_from_module(self, module_name, ns='common'):
+    def load_from_module(self, module_name, ns='common', mutable=True):
         """Load the settings module pointed to by the module_name.
 
         This is used the first time we need any settings at all,
@@ -77,20 +84,23 @@ class Settings(object):
                     module_name, e
                 )
             )
-        self.load_from_object(mod, ns)
+        self.load_from_object(mod, getattr(mod, '__NAMESPACE__', ns), mutable)
 
-    def load_from_root_path(self, path, ns='common'):
+    def load_from_root_path(self, path, ns='common', mutable=True):
         for root, dirs, files in os.walk(path):
             if '__init__.py' not in files:
                 continue
             try:
                 # import settings explicitly
-                import_module(root.replace('/', '.') + '.settings')
+                mod = import_module(root.replace('/', '.') + '.settings')
             except ImportError as ex:
-                if re.match('No module named .*settings$', str(ex)):
+                if re.search('No module named .*settings', str(ex)):
                     continue
-                else:
-                    raise
+                raise
+            else:
+                self.load_from_object(
+                    mod, getattr(mod, '__NAMESPACE__', ns), mutable
+                )
 
     def __str__(self):
         return '[%s][namespaces|%d]' % (self.name, len(self.namespaces))
