@@ -6,7 +6,7 @@ from pymaid.channel import ClientChannel
 from pymaid.core import greenlet_pool, Pool
 
 
-req = '1234567890' * 100 + '\n'
+req = b'1234567890' * 100 + b'\n'
 req_size = len(req)
 channel = ClientChannel()
 
