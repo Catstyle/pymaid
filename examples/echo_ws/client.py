@@ -1,5 +1,4 @@
 from __future__ import print_function
-import re
 from argparse import ArgumentParser
 
 from pymaid.channel import ClientChannel
@@ -26,9 +25,6 @@ def parse_args():
     )
 
     args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
     print(args)
     return args
 
