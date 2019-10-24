@@ -24,6 +24,9 @@ if path.exists(path.join(pwd, 'README.md')):
 else:
     long_description = 'not exists'
 
+with open(path.join(pwd, 'requirements.txt'), encoding='utf-8') as f:
+    requirements = [line.strip() for line in f.readlines()]
+
 
 class MyClean(clean):
 
@@ -95,13 +98,7 @@ if __name__ == '__main__':
         package_data={
             '': ['*.proto'],
         },
-        install_requires=[
-            'gevent==1.4.0',
-            'protobuf==3.6.1',
-            'six==1.12.0',
-            'ujson==1.35',
-            'wsaccel==0.6.2',
-        ],
+        install_requires=requirements,
         tests_require=[
             'websocket-client',
         ],
