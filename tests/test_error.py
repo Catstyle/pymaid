@@ -151,3 +151,18 @@ class ErrorTest(TestCase):
             ErrorManager.add_error(
                 'Error1', 1, 'Manager {} has {number} exceptions'
             )
+
+    def test_assemble(self):
+        class Error1(error.Error):
+            code = 1
+            message = 'Error1: {}'
+        error.ErrorManager.add('Error1', Error1)
+        error.ErrorManager.register(Error1)
+
+        ex = error.ErrorManager.assemble(1, 'Error1: assembled', {})
+        self.assertIsInstance(ex, Error1)
+
+        ex = error.ErrorManager.assemble(2, 'cannot find defination', {})
+        self.assertIsInstance(ex, error.Warning)
+        self.assertEqual(ex.code, 2)
+        self.assertEqual(ex.__class__.__name__, 'Unknown-2')
