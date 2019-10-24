@@ -91,15 +91,9 @@ class Listener(object):
             except (DecodeError, ValueError) as ex:
                 ex = ex
             else:
-                ex = ErrorManager.get_exception(err.code)
-                if ex is None:
-                    ex = ErrorManager.add_warning(
-                        'Unknown%d' % err.code, err.code, err.message
-                    )
-                ex = ex()
-                ex.message = err.message
-                if err.data:
-                    ex.data = loads(err.data)
+                ex = ErrorManager.assemble(
+                    err.code, err.message, err.data and loads(err.data) or {}
+                )
             result.set_exception(ex)
         else:
             try:

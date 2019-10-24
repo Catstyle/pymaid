@@ -1,6 +1,8 @@
 import abc
-import six
 from sys import _getframe as getframe
+
+import six
+from ujson import loads
 
 
 class BaseEx(Exception):
@@ -121,6 +123,17 @@ class ErrorManager(BaseEx):
                 ex = manager.get_exception(code)
                 if ex is not None:
                     return ex
+        return ex
+
+    @classmethod
+    def assemble(cls, code, message, data):
+        ex = ErrorManager.get_exception(code)
+        if ex is None:
+            ex = ErrorManager.add_warning('Unknown-%s' % code, code, message)
+        ex = ex()
+        ex.message = message
+        if data:
+            ex.data = loads(data)
         return ex
 
     @classmethod
