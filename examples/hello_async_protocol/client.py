@@ -44,7 +44,7 @@ class EchoProtocol(asyncio.Protocol):
 
     def data_received(self, data):
         self.nbytes += len(data)
-        self.receive_event.set_result(len(data))
+        self.receive_event.set_result(data)
 
     def eof_received(self):
         self.transport.close()
@@ -67,7 +67,7 @@ async def wrapper(loop, address, count):
         write(req)
         protocol.receive_event = loop.create_future()
         resp = await protocol.receive_event
-        assert resp == req_size, (resp, req_size)
+        assert len(resp) == req_size, (len(resp), req_size)
     transport.write_eof()
     assert protocol.nbytes == count * req_size, \
         (protocol.nbytes, count * req_size)
