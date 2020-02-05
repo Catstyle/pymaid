@@ -98,6 +98,16 @@ class BaseHashManager(object):
         self.objects.clear()
         del self.nodes[:]
 
+    def filter(self, keys):
+        # return a copy of this manager with filtered keys
+        obj = self.__class__(self.name, self.hash_func)
+        obj.objects = {
+            o.key: o for o in self.objects.values() if o.key in keys
+        }
+        obj.nodes = [node for node in self.nodes if node.key in keys]
+        obj.rehash()
+        return obj
+
     def rehash(self):
         raise NotImplementedError
 
@@ -166,12 +176,10 @@ class MaglevHash(BaseHashManager):
     def __init__(self, name, hash_func=md5_hash_func, virtual_entry_count=16):
         super(MaglevHash, self).__init__(name, hash_func)
         self.virtual_entry_count = virtual_entry_count
-        self.lookup_table_size = 0
         self.lookup_table = []
 
     def rehash(self):
         self.lookup_table = []
-        self.lookup_table_size = 0
 
         if not self.nodes:
             return
@@ -181,7 +189,6 @@ class MaglevHash(BaseHashManager):
         entry_count = len(self.nodes) * self.virtual_entry_count
         pos = bisect(primes, entry_count)
         entry_count = primes[pos if pos < len(primes) else -1]
-        self.lookup_table_size = entry_count
         for node in self.nodes:
             key = node.key
             offset = hash_func('cat' + key) % entry_count
@@ -212,18 +219,16 @@ class MaglevHash(BaseHashManager):
         if not self.nodes:
             return
         key = self.hash_func('cat' + key)
-        return self.nodes[self.lookup_table[key % self.lookup_table_size]]
+        return self.nodes[self.lookup_table[key % len(self.lookup_table)]]
 
     def reset(self):
         super(MaglevHash, self).reset()
         del self.lookup_table[:]
-        self.lookup_table_size = 0
 
     def clone(self):
         obj = self.__class__(self.name, self.hash_func)
         obj.objects = self.objects.copy()
         obj.nodes = self.nodes[:]
         obj.lookup_table = self.lookup_table[:]
-        obj.lookup_table_size = self.lookup_table_size
         obj.virtual_entry_count = self.virtual_entry_count
         return obj
