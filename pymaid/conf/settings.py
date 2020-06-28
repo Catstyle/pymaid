@@ -32,6 +32,20 @@ class Settings(object):
         except KeyError:
             return default
 
+    def set(self, key, value, ns='common'):
+        """Update specified config value in local namespaces cache.
+
+        This method will not block and *will not* update remote settings,
+        this change will be discarded after destory this process.
+        """
+        try:
+            self.namespaces[ns][key] = value
+        except KeyError:
+            self.logger.warn(
+                'set value: %s to key: %s, of unknown namespace: %s',
+                value, key, ns,
+            )
+
     def add_watcher(self, watcher, ns='common'):
         if watcher in self.watchers[ns]:
             return
