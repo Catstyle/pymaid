@@ -1,54 +1,37 @@
-from __future__ import print_function
-import re
-from argparse import ArgumentParser
+import pymaid
+import pymaid.rpc.pb
 
-from pymaid.channel import ClientChannel
-from pymaid.core import greenlet_pool, sleep
-from pymaid.pb import PBHandler
-
-channel = ClientChannel(PBHandler())
+from examples.template import get_client_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        '-c', dest='concurrency', type=int, default=100, help='concurrency'
-    )
-    parser.add_argument(
-        '-s', dest='sleep_time', type=int, default=5, help='wait for heartbeat'
-    )
-    parser.add_argument(
-        '--address', type=str, default='/tmp/pymaid_heartbeat.sock',
-        help='connect address'
-    )
-
-    args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
-    print(args)
-    return args
+async def wrapper(client, address, sleep_time):
+    while 1:
+        try:
+            await client.connect(address)
+        except BlockingIOError:
+            await pymaid.sleep(0)
+        else:
+            break
+    await pymaid.sleep(sleep_time)
 
 
-def wrapper(pid, address, sleep_time):
-    channel.connect(address)
-    sleep(sleep_time)
-
-
-def main(args):
+async def main(args):
+    if isinstance(args.address, str):
+        client = pymaid.rpc.pb.channel.UnixStreamChannel()
+    else:
+        client = pymaid.rpc.pb.channel.StreamChannel()
+    tasks = []
     for x in range(args.concurrency):
-        greenlet_pool.spawn(wrapper, x, args.address, args.sleep_time)
+        tasks.append(pymaid.create_task(
+            wrapper(client, args.address, args.sleep_time)
+        ))
 
-    try:
-        greenlet_pool.join()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        print(len(channel.connections))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+    # await pymaid.wait(tasks, timeout=args.timeout)
+    await pymaid.gather(*tasks)
 
 
-if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+if __name__ == '__main__':
+    parser = get_client_parser()
+    parser.add_argument('sleep_time', type=int, default=10, help='heartbeat timeout in seconds')
+    args = parse_args(parser)
+    pymaid.run(main(args))

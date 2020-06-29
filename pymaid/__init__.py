@@ -1,31 +1,12 @@
-import sys
-import os
-
-from . import channel
-from . import connection
-from . import websocket
-from . import pb
-from . import pool
-from . import error
-from . import utils
 from . import conf
-from .core import serve_forever
+from . import error
+from . import net
+from . import utils
+
+from .core import *  # noqa
 
 __all__ = [
-    'channel', 'connection', 'websocket', 'pb', 'pool', 'error', 'utils',
-    'conf', 'serve_forever'
+    'conf', 'error', 'net', 'utils',
 ]
 
-__version__ = '0.4.0b7'
-
-if 'linux' in sys.platform or 'darwin' in sys.platform:
-    # if 'ares' not in os.environ.get('GEVENT_RESOLVER', ''):
-    #     sys.stdout.write(
-    #         'ares-resolver is better, just `export GEVENT_RESOLVER=ares`\n'
-    #     )
-    if os.environ.get('PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION') != 'cpp':
-        sys.stdout.write(
-            'C++ implementation protocol buffer has overall performance, see '
-            'https://github.com/google/protobuf/blob/master/python/README.md\n'
-        )
-del os, sys
+__version__ = '1.0.0a1'

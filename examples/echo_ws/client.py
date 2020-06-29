@@ -1,65 +1,57 @@
-from __future__ import print_function
-from argparse import ArgumentParser
+import pymaid
+import pymaid.net.ws
 
-from pymaid.channel import ClientChannel
-from pymaid.core import greenlet_pool, Pool
-from pymaid.pb import PBHandler, ServiceStub
-from pymaid.websocket.websocket import WebSocket
-
-from echo_pb2 import EchoService_Stub
-
-message = 'a' * 8000
+from examples.template import get_client_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        '-c', dest='concurrency', type=int, default=100, help='concurrency'
-    )
-    parser.add_argument(
-        '-r', dest='request', type=int, default=100, help='request per client'
-    )
-    parser.add_argument(
-        '--address', type=str, default='ws://127.0.0.1:8888/',
-        help='connect address'
-    )
-
-    args = parser.parse_args()
-    print(args)
-    return args
+req = b'1234567890' * 100 + b'\n'
+req_size = len(req)
 
 
-def wrapper(pid, address, count, message=message):
-    conn = channel.connect(address)
+class EchoStream(pymaid.net.ws.WebSocket):
+
+    def init(self):
+        self.nbytes = 0
+
+    def data_received(self, data):
+        self.nbytes += len(data)
+        self.receive_event.set_result(data)
+
+    def eof_received(self):
+        # return value indicate keep_open
+        return False
+
+
+async def wrapper(loop, address, count):
+    if isinstance(address, str):
+        transport = await pymaid.create_unix_stream(EchoStream, address)
+    else:
+        transport = await pymaid.create_stream(EchoStream, *address)
+    # in this example, only use transport
+    write = transport.write
     for x in range(count):
-        response = service.Echo(request, conn=conn).get(30)
-        assert response.message == message, len(response.message)
-    conn.close()
+        write(req)
+        transport.receive_event = loop.create_future()
+        resp = await transport.receive_event
+        assert len(resp) == req_size, (len(resp), req_size)
+    transport.write_eof()
+    transport.close()
+    assert transport.nbytes == count * req_size, \
+        (transport.nbytes, count * req_size)
 
 
-channel = ClientChannel(PBHandler(), WebSocket)
-service = ServiceStub(EchoService_Stub(None))
-method = service.stub.DESCRIPTOR.FindMethodByName('Echo')
-request_class = service.stub.GetRequestClass(method)
-request = request_class(message=message)
-
-
-def main(args):
-    pool = Pool()
-    # pool.spawn(wrapper, 111111, 10000)
+async def main(args):
+    loop = pymaid.get_event_loop()
+    tasks = []
     for x in range(args.concurrency):
-        pool.spawn(wrapper, x, args.address, args.request)
+        tasks.append(pymaid.create_task(
+            wrapper(loop, args.address, args.request)
+        ))
 
-    try:
-        pool.join()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        print(len(channel.connections))
-        print(pool.size, len(pool.greenlets))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+    # await pymaid.wait(tasks, timeout=args.timeout)
+    await pymaid.gather(*tasks)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    args = parse_args(get_client_parser())
+    pymaid.run(main(args))

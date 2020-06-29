@@ -6,18 +6,13 @@ LOGGING = {
     'formatters': {
         'standard': {
             'format': (
-                u'[%(asctime)s.%(msecs).03d] [%(levelname)s] '
-                '[pid|%(process)d] [%(name)s:%(lineno)d] %(message)s'
+                u'%(asctime)s.%(msecs).03d %(levelname)s '
+                '[pid|%(process)d] %(message)s'
             ),
             'datefmt': '%m-%d %H:%M:%S'
         }
     },
     'handlers': {
-        'root': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
@@ -25,14 +20,14 @@ LOGGING = {
         },
     },
     'loggers': {
-        'root': {
-            'handlers': ['root'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
         'pymaid': {
             'handlers': ['console'],
             'level': 'DEBUG',
+            'propagate': True,
+        },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': True,
         },
     },
@@ -48,10 +43,22 @@ MAX_ACCEPT = 64
 MAX_PACKET_LENGTH = 8 * 1024
 MAX_TASKS = 32
 MAX_RECV_SIZE = 8 * 1024
+
+'''
+MAX_CONNECTIONS limits the connections
+MAX_CONCURRENCY limits the concurrency of *requests*
+MAX_METHOD_CONCURRENCY limits the concurrency of *requests* for specified rpc
+e.g.:
+1. 10000 connections, next connection will fail
+2. 100 connections, call 100 different(not the same) async rpc, next rpc call will fail
+3. 1 connections, call one async rpc for 10000 times, next the same rpc call will fail
+'''
+MAX_CONNECTIONS = 10000
 MAX_CONCURRENCY = 10000
+MAX_METHOD_CONCURRENCY = 10000
 
 # connection/socket related settings
-PM_PB_HEADER = '!HH'
+PM_PB_HEADER = '!H'
 
 PM_KEEPALIVE = True
 PM_KEEPIDLE = 60
