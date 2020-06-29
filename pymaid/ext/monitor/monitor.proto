@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package pymaid.ext.monitor;
+option py_generic_services = true;
+
+import "pymaid/rpc/pymaid.proto";
+
+message HeartbeatResp {
+}
+
+service MonitorService {
+    rpc NotifyHeartbeat(pymaid.rpc.Void) returns (HeartbeatResp);
+}

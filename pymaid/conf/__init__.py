@@ -1,5 +1,5 @@
 from .backend import ApolloBackend
-from .settings import settings
+from .base import settings
 
 
 __all__ = ['settings', 'ApolloBackend']

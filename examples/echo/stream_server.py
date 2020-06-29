@@ -1,10 +1,9 @@
 import pymaid
-import pymaid.net.ws
 
 from examples.template import get_server_parser, parse_args
 
 
-class EchoStream(pymaid.net.ws.WebSocket):
+class EchoStream(pymaid.net.Stream):
 
     def data_received(self, data: bytes):
         self.write(data)

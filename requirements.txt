@@ -1,5 +1,4 @@
-gevent==20.6.2
 protobuf==3.12.2
-six==1.15.0
 ujson==2.0.3
 wsaccel==0.6.2
+uvloop==0.14.0
