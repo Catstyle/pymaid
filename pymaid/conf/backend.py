@@ -1,8 +1,7 @@
-from six import add_metaclass
-from ujson import loads, dumps
+from orjson import loads, dumps
 
-from pymaid.core import greenlet_pool
-from pymaid.utils.logger import pymaid_logger_wrapper
+from pymaid.core import create_task
+from pymaid.utils.logger import logger_wrapper
 
 
 def formatter(*formats):
@@ -24,8 +23,7 @@ class BackendMeta(type):
         return cls
 
 
-@add_metaclass(BackendMeta)
-class SettingsBackend(object):
+class SettingsBackend(metaclass=BackendMeta):
 
     def __init__(self):
         self.listening = False
@@ -52,9 +50,9 @@ class SettingsBackend(object):
 
     def start(self):
         self.listening = True
-        self.worker = greenlet_pool.apply_async(self.run)
+        self.worker = create_task(self.run())
 
-    def run(self):
+    async def run(self):
         raise NotImplementedError('run')
 
     def stop(self):
@@ -63,7 +61,7 @@ class SettingsBackend(object):
             self.worker.kill()
 
 
-@pymaid_logger_wrapper
+@logger_wrapper
 class ApolloBackend(SettingsBackend):
 
     def __init__(self,
@@ -90,7 +88,7 @@ class ApolloBackend(SettingsBackend):
                 self.start()  # start listerner again
         return result
 
-    def run(self):
+    async def run(self):
         import requests
         while self.listening:
             notifications = [

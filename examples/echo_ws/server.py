@@ -1,53 +1,28 @@
-from __future__ import print_function
-import re
-from argparse import ArgumentParser
-
 import pymaid
-from pymaid.channel import ServerChannel
-from pymaid.core import greenlet_pool
-from pymaid.pb import PBHandler, Listener
-from pymaid.websocket.websocket import WebSocket
+import pymaid.net.ws
 
-from echo_pb2 import Message, EchoService
+from examples.template import get_server_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        '--address', type=str, default='127.0.0.1:8888', help='listen address'
-    )
+class EchoStream(pymaid.net.ws.WebSocket):
 
-    args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
-    print(args)
-    return args
+    def data_received(self, data: bytes):
+        self.write(data)
+
+    def eof_received(self):
+        # return value indicate keep_open
+        return False
 
 
-class EchoServiceImpl(EchoService):
-
-    def Echo(self, controller, request, callback):
-        response = Message()
-        response.CopyFrom(request)
-        callback(response)
-
-
-def main(args):
-    listener = Listener()
-    listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler(listener), WebSocket)
-    channel.listen(args.address)
-    channel.start()
-    try:
-        pymaid.serve_forever()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        print(len(channel.connections))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+async def main(args):
+    if isinstance(args.address, str):
+        server = await pymaid.create_unix_stream_server(EchoStream, args.address)
+    else:
+        server = await pymaid.create_stream_server(EchoStream, *args.address)
+    async with server:
+        await server.serve_forever()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    args = parse_args(get_server_parser())
+    pymaid.run(main(args))

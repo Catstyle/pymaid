@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package echo;
+option py_generic_services = true;
+
+message Message {
+    string message = 1;
+}
+
+service EchoService {
+    rpc UnaryUnaryEcho(Message) returns (Message) {};
+    rpc UnaryStreamEcho(Message) returns (stream Message) {};
+    rpc StreamUnaryEcho(stream Message) returns (Message) {};
+    rpc StreamStreamEcho(stream Message) returns (stream Message) {};
+};

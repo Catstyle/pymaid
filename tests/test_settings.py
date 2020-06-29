@@ -1,8 +1,8 @@
 import os
 from unittest import TestCase
 
-from pymaid.conf import defaults
-from pymaid.conf.settings import settings, load_from_environment
+from pymaid.conf import defaults, settings
+from pymaid.conf.base import load_from_environment
 
 
 class SettingsTest(TestCase):
