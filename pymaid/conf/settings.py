@@ -1,9 +1,12 @@
 from __future__ import absolute_import
 
 from collections import defaultdict
+from functools import partial
 from importlib import import_module
 import os
 import re
+
+from ujson import loads
 
 from pymaid.utils.logger import configure_logging, pymaid_logger_wrapper
 
@@ -22,11 +25,11 @@ class Settings(object):
         return key == key.upper()
 
     def get(self, key, default=None, ns='common'):
-        """Return specified config value in local namespaces cache.
+        '''Return specified config value in local namespaces cache.
 
         This method will not block and return default value if key not exists.
         User should initiate settings manually by calling `load_from_*` apis.
-        """
+        '''
         try:
             return self.namespaces[ns][key]
         except KeyError:
@@ -124,4 +127,82 @@ class Settings(object):
 settings = Settings('global')
 settings.add_watcher(configure_logging, ns='pymaid')
 settings.add_watcher(configure_logging, ns='logging')
-settings.load_from_object(defaults, ns='pymaid', mutable=False)
+settings.load_from_object(defaults, ns='pymaid')
+
+
+transformer = {
+    'str': str,
+    'bytes': partial(bytes, encoding='utf-8'),
+    'int': partial(int, base=10),
+    'float': float,
+    'bool': lambda x: False if x in ('False', 'false') else True,
+    'dict': loads,
+    'list': loads,
+}
+
+
+def load_from_environment():
+    '''load *special formatted* env into settings
+
+    format: PS__NS__KEY=VALUE
+    PS: pymaid settings
+    NS: namespace
+    KEY: settings key name
+    VALUE: type::value, type need to be builtin type,
+        current are %s
+        dict/list will be loaded using json.loads
+
+    NOTE: when loaded, NS will transform to lower case
+
+    e.g.: export PS__PYMAID__DEBUG='bool::True'
+    '''
+
+    import sys
+    data = {}
+    for env, value in os.environ.items():
+        # naive check
+        if not env.startswith('PS__'):
+            continue
+
+        env_ = env.split('__')
+        if len(env_) != 3:
+            sys.stderr.write('wrong special formatted env %s\n' % env)
+            continue
+        _, ns, key = env_
+
+        value_ = value.split('::')
+        if len(value_) != 2:
+            sys.stderr.write(
+                'get special formatted env %s, but wrong format value %s\n' % (
+                    env, value
+                )
+            )
+            continue
+
+        t, val = value_
+        if t not in transformer:
+            sys.stderr.write(
+                'unknown value type %s for env %s=%s\n' % (t, env, value)
+            )
+            continue
+
+        try:
+            val = transformer[t](val)
+        except (TypeError, ValueError):
+            sys.stderr.write(
+                'cannot transform value of %s=%s\n' % (env, value)
+            )
+            continue
+
+        # now we successfully get special env=value
+        ns_data = data.setdefault(ns.lower(), {})
+        ns_data[key] = val
+    sys.stderr.flush()
+
+    for ns, obj in data.items():
+        settings.load_from_object(obj, ns=ns)
+
+
+load_from_environment.__doc__ = (
+    load_from_environment.__doc__ % list(transformer.keys())
+)
