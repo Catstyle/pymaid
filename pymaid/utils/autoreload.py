@@ -45,8 +45,6 @@ except ImportError:
         # Should we look for .pyw files?
         return basename + '.py'
 
-from pymaid.core import signal
-
 if sys.version_info[0] >= 3:
     PY3 = True
 else:
@@ -355,4 +353,6 @@ def enable_autoreload(signum):
 
     def autoreload(sig, frame):
         reloader.check()
-    signal(signum, autoreload)
+
+    from pymaid import backend
+    backend.get_running_loop().add_signal_handler(signum, autoreload)

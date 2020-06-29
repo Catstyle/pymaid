@@ -4,28 +4,27 @@ import re
 import shutil
 import subprocess
 
-from os import path, walk, remove
 from codecs import open
+from os import path, walk, remove
+from pathlib import Path
 
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 from setuptools.command.build_py import build_py
 from distutils.command.clean import clean
 
-pwd = path.abspath(path.dirname(__file__))
+root_dir = Path(__file__).parent
 __version__ = re.search(
     "__version__ = '(.*)'", open('pymaid/__init__.py').read(), re.M
 ).group(1)
 assert __version__
 
 # Get the long description from the README file
-if path.exists(path.join(pwd, 'README.md')):
-    with open(path.join(pwd, 'README.md'), encoding='utf-8') as f:
-        long_description = f.read()
-else:
-    long_description = 'not exists'
+long_description = (root_dir / 'README.md').read_text(encoding='utf-8')
 
-with open(path.join(pwd, 'requirements.txt'), encoding='utf-8') as f:
-    requirements = [line.strip() for line in f.readlines()]
+requirements = [
+    line.strip()
+    for line in (root_dir / 'requirements.txt').read_text(encoding='utf-8').split('\n')
+]
 
 
 class MyClean(clean):
@@ -35,11 +34,11 @@ class MyClean(clean):
         for (dirpath, dirnames, filenames) in walk("."):
             for filename in filenames:
                 filepath = path.join(dirpath, filename)
-                if (filepath.endswith("_pb2.py") or
-                        filepath.endswith(".pyc") or
-                        filepath.endswith(".pb.js") or
-                        filepath.endswith(".so") or
-                        filepath.endswith(".o")):
+                if (filepath.endswith("_pb2.py")
+                        or filepath.endswith(".pyc")
+                        or filepath.endswith(".pb.js")
+                        or filepath.endswith(".so")
+                        or filepath.endswith(".o")):
                     remove(filepath)
             for dirname in dirnames:
                 if dirname in ('build', 'dist', 'pymaid.egg-info', 'protos'):
@@ -70,7 +69,7 @@ if __name__ == '__main__':
         version=__version__,
         license="MIT",
 
-        keywords='rpc gevent protobuf',
+        keywords='async rpc protobuf',
         classifiers=[
             # How mature is this project? Common values are
             #   3 - Alpha
@@ -88,11 +87,9 @@ if __name__ == '__main__':
             # Specify the Python versions you support here.
             # In particular, ensure that you indicate whether you support
             # Python 2, Python 3 or both.
-            'Programming Language :: Python :: 2.7',
-            'Programming Language :: Python :: 3.5',
-            'Programming Language :: Python :: 3.6',
-            'Programming Language :: Python :: 3.7',
+            'Programming Language :: Python :: 3.8',
         ],
+        python_requires='>=3.8',
 
         packages=find_packages(),
         package_data={
@@ -100,12 +97,21 @@ if __name__ == '__main__':
         },
         install_requires=requirements,
         tests_require=[
-            'websocket-client',
+            'pytest',
+            'pytest-asyncio',
         ],
         extras_require={
             'backend': [
                 'requests==2.21.0', 'PyYAML==3.13', 'xmltodict==0.12.0'
             ],
         },
+        ext_modules=[
+            Extension(
+                'pymaid.net.ws.speedups',
+                sources=['pymaid/net/ws/speedups.c'],
+                optional=not (root_dir / '.cibuildwheel').exists(),
+            )
+        ],
+
         cmdclass={'build_py': MyBuildPy, 'clean': MyClean},
     )

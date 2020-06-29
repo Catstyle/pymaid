@@ -1,5 +1,4 @@
 import pymaid
-import pymaid.net.ws
 
 from examples.template import get_client_parser, parse_args
 
@@ -8,7 +7,7 @@ req = b'1234567890' * 100 + b'\n'
 req_size = len(req)
 
 
-class EchoStream(pymaid.net.ws.WebSocket):
+class EchoStream(pymaid.net.Stream):
 
     def init(self):
         self.nbytes = 0
