@@ -20,6 +20,7 @@ class SettingsTest(TestCase):
         assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS
         settings.set('MAX_TASKS', defaults.MAX_TASKS + 1, ns='pymaid')
         assert settings.get('MAX_TASKS', ns='pymaid') != defaults.MAX_TASKS
+        assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS + 1
 
     def test_load_env(self):
         assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS
