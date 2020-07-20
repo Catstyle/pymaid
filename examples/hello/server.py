@@ -37,7 +37,7 @@ def main(args):
     channel.start()
     try:
         pymaid.serve_forever()
-    except:
+    except BaseException:
         print(len(channel.connections))
 
 

@@ -1,7 +1,16 @@
+repos:
 -   repo: git://github.com/pre-commit/pre-commit-hooks
-    sha: 5bf6c09bfa1297d3692cadd621ef95f1284e33c0
+    rev: v3.1.0
     hooks:
     -   id: trailing-whitespace
-    -   id: autopep8-wrapper
-    -   id: flake8
     -   id: check-added-large-files
+
+-   repo: https://github.com/pre-commit/mirrors-autopep8
+    rev: v1.5.3
+    hooks:
+    -   id: autopep8
+
+-   repo: https://gitlab.com/pycqa/flake8
+    rev: 3.8.3
+    hooks:
+    -   id: flake8

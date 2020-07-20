@@ -32,7 +32,7 @@
 #
 try:
     from wsaccel.utf8validator import Utf8Validator
-except:
+except ImportError:
     import six
 
     # fallback to pure Python implementation
@@ -130,10 +130,10 @@ except:
             total amount of consumed bytes.
             """
 
-            l = len(ba)
+            size = len(ba)
             DFA = Utf8Validator.UTF8VALIDATOR_DFA
 
-            for i in six.moves.range(l):
+            for i in six.moves.range(size):
                 # optimized version of decode()
                 # since we are not interested in actual code points
 
@@ -143,6 +143,6 @@ except:
                     self.i += i
                     return False, False, i, self.i
 
-            self.i += l
+            self.i += size
 
-            return True, self.state == Utf8Validator.UTF8_ACCEPT, l, self.i
+            return True, self.state == Utf8Validator.UTF8_ACCEPT, size, self.i
