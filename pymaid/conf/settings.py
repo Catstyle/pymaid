@@ -141,7 +141,7 @@ transformer = {
 }
 
 
-def load_from_environment():
+def load_from_environment(prefix='PS__'):
     '''load *special formatted* env into settings
 
     format: PS__NS__KEY=VALUE
@@ -157,11 +157,20 @@ def load_from_environment():
     e.g.: export PS__PYMAID__DEBUG='bool::True'
     '''
 
+    # cannot endswith ___
+    # can only has one '__'
+    if not (
+        prefix.endswith('__') and
+        prefix[-3] != '_' and
+        prefix.count('__') == 1
+    ):
+        raise ValueError('prefix should be in the format of `NAME__`')
+
     import sys
     data = {}
     for env, value in os.environ.items():
         # naive check
-        if not env.startswith('PS__'):
+        if not env.startswith(prefix):
             continue
 
         env_ = env.split('__')
