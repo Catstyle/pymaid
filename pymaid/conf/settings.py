@@ -5,6 +5,7 @@ from functools import partial
 from importlib import import_module
 import os
 import re
+import sys
 
 from ujson import loads
 
@@ -141,66 +142,83 @@ transformer = {
 }
 
 
-def load_from_environment(prefix='PS__'):
+def load_from_environment(prefix='SETTING__', raise_invalid_value=True):
     '''load *special formatted* env into settings
 
-    format: PS__NS__KEY=VALUE
-    PS: pymaid settings
-    NS: namespace
+    format: {PREFIX}__{NAMESPACE}__{KEY}=VALUE
+    PREFIX: pymaid settings
+    NAMESPACE: namespace
     KEY: settings key name
     VALUE: type::value, type need to be builtin type,
         current are %s
         dict/list will be loaded using json.loads
 
-    NOTE: when loaded, NS will transform to lower case
+    NOTE: when loaded, {NAMESPACE} will transform to lower case
 
-    e.g.: export PS__PYMAID__DEBUG='bool::True'
+    e.g.:
+        export SETTING__PYMAID__DEBUG='bool::True'
+        will result in below
+        settings.set('DEBUG', True, ns='pymaid')
+        settings.namespaces['pymaid']['DEBUG'] = True
     '''
 
     # cannot endswith ___
     # can only has one '__'
-    if not (
-        prefix.endswith('__') and
-        prefix[-3] != '_' and
-        prefix.count('__') == 1
-    ):
-        raise ValueError('prefix should be in the format of `NAME__`')
+    if not re.match(r'[A-Z]+__$', prefix):
+        raise ValueError(
+            'prefix should be in the format of `NAME__`, got `%s`' % prefix
+        )
 
-    import sys
+    env_regex = re.compile(
+        r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix
+    )
     data = {}
     for env, value in os.environ.items():
         # naive check
         if not env.startswith(prefix):
             continue
+        if not env_regex.match(env):
+            sys.stderr.write('wrong special formatted env `%s`\n' % env)
+            continue
 
         env_ = env.split('__')
         if len(env_) != 3:
-            sys.stderr.write('wrong special formatted env %s\n' % env)
+            sys.stderr.write('wrong special formatted env `%s`\n' % env)
             continue
         _, ns, key = env_
 
         value_ = value.split('::')
         if len(value_) != 2:
-            sys.stderr.write(
-                'get special formatted env %s, but wrong format value %s\n' % (
-                    env, value
-                )
+            err = (
+                'get special formatted env `%s`, but wrong format value `%s`, '
+                'should be in format of `type::value`\n' % (env, value)
             )
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
             continue
 
         t, val = value_
         if t not in transformer:
-            sys.stderr.write(
-                'unknown value type %s for env %s=%s\n' % (t, env, value)
+            err = (
+                'unknown value type `%s` for env `%s=%s`, available `%s`\n' %
+                (t, env, value, transformer.keys())
             )
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
             continue
 
         try:
             val = transformer[t](val)
         except (TypeError, ValueError):
-            sys.stderr.write(
-                'cannot transform value of %s=%s\n' % (env, value)
+            err = (
+                'cannot transform value of `%s=%s`, check type and value\n' %
+                (env, value)
             )
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
             continue
 
         # now we successfully get special env=value
