@@ -32,7 +32,8 @@ def configure_logging(settings, ns):
             config[key] = value
         else:
             config[key].update(value)
-    logging.config.dictConfig(config)
+    if config:
+        logging.config.dictConfig(config)
 
 
 def logger_wrapper(name=''):
