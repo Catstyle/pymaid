@@ -14,6 +14,14 @@ from pymaid.utils.logger import configure_logging, pymaid_logger_wrapper
 from . import defaults
 
 
+class Namespace(dict):
+
+    def __getattr__(self, name):
+        if name in self:
+            return self[name]
+        raise AttributeError(name)
+
+
 @pymaid_logger_wrapper
 class Settings(object):
 
@@ -77,7 +85,7 @@ class Settings(object):
                 key: getattr(obj, key)
                 for key in dir(obj) if filter(key, getattr(obj, key))
             })
-        self.namespaces.setdefault(ns, {}).update(data)
+        self.namespaces.setdefault(ns, Namespace()).update(data)
         self.namespaces[ns].setdefault(
             '__MUTABLE__', data.get('__MUTABLE__', mutable)
         )
@@ -123,6 +131,12 @@ class Settings(object):
     def __str__(self):
         return '[%s][namespaces|%d]' % (self.name, len(self.namespaces))
     __repr__ = __str__
+
+    def __getattr__(self, name):
+        '''Implemented `settings.namespace.key` usage'''
+        if name in self.namespaces:
+            return self.namespaces[name]
+        raise AttributeError(name)
 
 
 settings = Settings('global')
