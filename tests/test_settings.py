@@ -98,3 +98,14 @@ class SettingsTest(TestCase):
             load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
+
+    def test_dot_get(self):
+        assert settings.pymaid.DEBUG == defaults.DEBUG
+
+        # not exists namespace
+        with self.assertRaises(AttributeError):
+            settings.what
+
+        # not exists key
+        with self.assertRaises(AttributeError):
+            settings.pymaid.what
