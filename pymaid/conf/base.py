@@ -16,10 +16,21 @@ from . import defaults
 
 class Namespace(dict):
 
+    def __dir__(self):
+        return super(Namespace, self).__dir__() + list(self.keys())
+
     def __getattr__(self, name):
         if name in self:
             return self[name]
         raise AttributeError(name)
+
+    def __setattr__(self, name, value):
+        if not self.get('__MUTABLE__', False):
+            raise RuntimeError('settings namespace is immutable')
+        if name in self:
+            self[name] = value
+        else:
+            raise AttributeError(name)
 
 
 @logger_wrapper
@@ -49,14 +60,19 @@ class Settings(object):
 
         This method will not block and *will not* update remote settings,
         this change will be discarded after destory this process.
+
+        Fix: check __MUTABLE__ before setting settings
         '''
         try:
-            self.namespaces[ns][key] = value
+            namespace = self.namespaces[ns]
         except KeyError:
             self.logger.warn(
                 'set value: %s to key: %s, of unknown namespace: %s',
                 value, key, ns,
             )
+        if not namespace.get('__MUTABLE__', False):
+            raise RuntimeError('[pymaid][settings][ns|%s] is immutable' % ns)
+        setattr(namespace, key, value)
 
     def add_watcher(self, watcher, ns='common'):
         if watcher in self.watchers[ns]:
@@ -134,8 +150,14 @@ class Settings(object):
     def __getattr__(self, name):
         '''Implemented `settings.namespace.key` usage'''
         if name in self.namespaces:
-            return self.namespaces[name]
+            # cache
+            ns = self.namespaces[name]
+            setattr(self, name, ns)
+            return ns
         raise AttributeError(name)
+
+    def __dir__(self):
+        return super(Settings, self).__dir__() + list(self.namespaces.keys())
 
 
 settings = Settings('global')

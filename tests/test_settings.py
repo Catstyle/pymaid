@@ -12,15 +12,37 @@ class SettingsTest(TestCase):
         settings.namespaces.clear()
         settings.load_from_object(defaults, ns='pymaid')
 
+        self.other_namespace = {
+            '__NAMESPACE__': 'other',
+            '__MUTABLE__': False,
+            'key': 1,
+            'KEY': 2,
+        }
+
     def test_get(self):
         assert settings.get('DEBUG', ns='pymaid') == defaults.DEBUG
         assert settings.get('NOT_EXIST', default='what') == 'what'
+
+        settings.load_from_object(self.other_namespace)
+        assert settings.get('KEY', ns='other') == self.other_namespace['KEY']
+        # only upper key will be treated as settings
+        assert settings.get('key', ns='other') is None
 
     def test_set(self):
         assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS
         settings.set('MAX_TASKS', defaults.MAX_TASKS + 1, ns='pymaid')
         assert settings.get('MAX_TASKS', ns='pymaid') != defaults.MAX_TASKS
         assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS + 1
+
+        settings.load_from_object(self.other_namespace)
+        assert settings.get('KEY', ns='other') == self.other_namespace['KEY']
+        # cannot set immutable settings
+        with self.assertRaises(RuntimeError):
+            settings.set('KEY', 3, ns='other')
+
+        # cannot set not exist settings
+        with self.assertRaises(AttributeError):
+            settings.set('NOT_EXIST', 1, ns='pymaid')
 
     def test_load_env(self):
         assert settings.get('MAX_TASKS', ns='pymaid') == defaults.MAX_TASKS
@@ -109,3 +131,17 @@ class SettingsTest(TestCase):
         # not exists key
         with self.assertRaises(AttributeError):
             settings.pymaid.what
+
+    def test_dot_set(self):
+        assert settings.pymaid.MAX_TASKS == defaults.MAX_TASKS
+        settings.pymaid.MAX_TASKS += 1
+        assert settings.pymaid.MAX_TASKS == defaults.MAX_TASKS + 1
+
+        # cannot set not exist
+        with self.assertRaises(AttributeError):
+            settings.pymaid.NOT_EXIST = 1
+
+        settings.load_from_object(self.other_namespace)
+        # cannot set immutable
+        with self.assertRaises(RuntimeError):
+            settings.other.KEY = 1
