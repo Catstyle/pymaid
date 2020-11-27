@@ -4,7 +4,7 @@ from typing import AsyncIterable, Callable, Optional, Sequence, Type, Union
 from google.protobuf.descriptor_pb2 import MethodDescriptorProto
 from google.protobuf.message import Message
 from google.protobuf.service_reflection import GeneratedServiceType
-from ujson import dumps
+from orjson import dumps
 
 from pymaid.error import BaseEx
 from pymaid.utils.logger import logger_wrapper

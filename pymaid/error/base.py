@@ -1,7 +1,7 @@
 import abc
 from sys import _getframe as getframe
 
-from ujson import loads
+from orjson import loads
 
 
 class BaseEx(Exception):

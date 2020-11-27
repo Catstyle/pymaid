@@ -1,4 +1,4 @@
-from pymaid.pb.utils import implall
+from pymaid.rpc.utils import implall
 
 from .monitor_pb2 import MonitorService
 
@@ -6,7 +6,7 @@ from .monitor_pb2 import MonitorService
 @implall
 class MonitorServiceImpl(MonitorService):
 
-    def NotifyHeartbeat(self, controller, request, done):
+    def Ping(self, controller, request, done):
         if not controller.conn.is_closed:
             controller.conn.clear_heartbeat_counter()
         done()

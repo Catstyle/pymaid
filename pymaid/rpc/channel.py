@@ -12,7 +12,7 @@ __all__ = ['Channel']
 
 @logger_wrapper
 class Connection:
-    ''' Connection represent a communication way for client <--> server
+    '''Connection represent a communication way for client <--> server
 
     It holds transport and channel.
     '''
@@ -35,7 +35,7 @@ class Connection:
         # break cyclic
         self.transport = None
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'<{self.__class__.__name__} transport={self.transport}>'
 
 
@@ -61,10 +61,10 @@ class Channel:
     def is_full(self):
         return len(self.connections) >= settings.get('MAX_CONNECTIONS', ns='pymaid')
 
-    def make_connection(self, transport: 'TransportType'):
+    def make_connection(self, transport: 'TransportType') -> Connection:
         return self.connection_class(transport, self)
 
-    def connection_made(self, transport: 'TransportType'):
+    def connection_made(self, transport: 'TransportType') -> Connection:
         # connection_made is called within loop.call_later
         # raise an error will not terminate correctly, just close conn
         if self.is_paused:

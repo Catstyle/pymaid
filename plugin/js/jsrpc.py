@@ -72,8 +72,8 @@ def import_module(module_file):
 
 def parse_module(module):
     for attr in module.__dict__.values():
-        if (isinstance(attr, GeneratedServiceType) and
-                attr.DESCRIPTOR.name.endswith('Service')):
+        if (isinstance(attr, GeneratedServiceType)
+                and attr.DESCRIPTOR.name.endswith('Service')):
             yield attr
 
 

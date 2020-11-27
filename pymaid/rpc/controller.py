@@ -2,7 +2,7 @@ from functools import partial
 from typing import Optional, TypeVar
 
 from google.protobuf.message import DecodeError
-from ujson import loads
+from orjson import loads
 
 from pymaid.core import current_task, get_running_loop
 from pymaid.core import Future, Queue, TimeoutError

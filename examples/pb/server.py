@@ -9,7 +9,11 @@ from echo_pb2 import EchoService, Message
 @pymaid.rpc.utils.implall
 class EchoImpl(EchoService):
 
-    async def UnaryUnaryEcho(self, controller, request: Message):
+    async def UnaryUnaryEcho(
+        self,
+        controller: pymaid.rpc.pb.controller.Controller,
+        request: Message,
+    ):
         controller.send_message(request)
 
     async def UnaryStreamEcho(self, controller, request: Message):
