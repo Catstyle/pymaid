@@ -5,9 +5,9 @@ option py_generic_services = true;
 
 import "pymaid/rpc/pymaid.proto";
 
-message HeartbeatResp {
+message Pong {
 }
 
 service MonitorService {
-    rpc NotifyHeartbeat(pymaid.rpc.Void) returns (HeartbeatResp);
+    rpc Ping(pymaid.rpc.Void) returns (Pong);
 }

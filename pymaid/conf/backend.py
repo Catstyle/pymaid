@@ -1,4 +1,4 @@
-from ujson import loads, dumps
+from orjson import loads, dumps
 
 from pymaid.core import create_task
 from pymaid.utils.logger import logger_wrapper

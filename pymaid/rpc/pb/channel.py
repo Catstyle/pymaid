@@ -1,5 +1,6 @@
 import ssl as _ssl
 
+from functools import partial
 from typing import Optional, Sequence, Type, Tuple, Union
 
 from google.protobuf.service_reflection import GeneratedServiceType
@@ -84,7 +85,7 @@ class StreamChannel(Channel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         self.server = await create_stream_server(
-            lambda: transport_class(server=self, client_side=False),
+            partial(transport_class, server=self, client_side=False),
             host=address[0],
             port=address[1],
             backlog=backlog,
@@ -111,7 +112,7 @@ class StreamChannel(Channel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         transport = await create_stream(
-            lambda: transport_class(server=self, client_side=True),
+            partial(transport_class, server=self, client_side=True),
             host=address[0],
             port=address[1],
             ssl=ssl,
@@ -140,7 +141,7 @@ class UnixStreamChannel(StreamChannel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         self.server = await create_unix_stream_server(
-            lambda: transport_class(server=self, client_side=False),
+            partial(transport_class, server=self, client_side=False),
             path=address,
             backlog=backlog,
             ssl=ssl,
@@ -160,7 +161,7 @@ class UnixStreamChannel(StreamChannel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         transport = await create_unix_stream(
-            lambda: transport_class(server=self, client_side=True),
+            partial(transport_class, server=self, client_side=True),
             path=address,
             ssl=ssl,
             server_hostname=server_hostname,

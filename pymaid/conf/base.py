@@ -7,11 +7,19 @@ import os
 import re
 import sys
 
-from ujson import loads
+from orjson import loads
 
 from pymaid.utils.logger import configure_logging, logger_wrapper
 
 from . import defaults
+
+
+class Namespace(dict):
+
+    def __getattr__(self, name):
+        if name in self:
+            return self[name]
+        raise AttributeError(name)
 
 
 @logger_wrapper
@@ -37,11 +45,11 @@ class Settings(object):
             return default
 
     def set(self, key, value, ns='common'):
-        """Update specified config value in local namespaces cache.
+        '''Update specified config value in local namespaces cache.
 
         This method will not block and *will not* update remote settings,
         this change will be discarded after destory this process.
-        """
+        '''
         try:
             self.namespaces[ns][key] = value
         except KeyError:
@@ -77,7 +85,7 @@ class Settings(object):
                 key: getattr(obj, key)
                 for key in dir(obj) if filter(key, getattr(obj, key))
             })
-        self.namespaces.setdefault(ns, {}).update(data)
+        self.namespaces.setdefault(ns, Namespace()).update(data)
         self.namespaces[ns].setdefault(
             '__MUTABLE__', data.get('__MUTABLE__', mutable)
         )
@@ -87,19 +95,19 @@ class Settings(object):
         return True
 
     def load_from_module(self, module_name, ns='common', mutable=True):
-        """Load the settings module pointed to by the module_name.
+        '''Load the settings module pointed to by the module_name.
 
         This is used the first time we need any settings at all,
         if the user has not previously configured the settings manually.
 
         The user can manually configure settings prior to using them.
-        """
+        '''
         try:
             mod = import_module(module_name)
-        except ImportError as e:
+        except ImportError as ex:
             raise ImportError(
-                f"Could not import settings '{module_name}' "
-                f"(Is it on sys.path?): {e}"
+                f'Could not import settings `{module_name}` '
+                f'(Is it on sys.path?): {ex}'
             )
         self.load_from_object(mod, getattr(mod, '__NAMESPACE__', ns), mutable)
 
@@ -122,6 +130,12 @@ class Settings(object):
     def __str__(self):
         return f'[{self.name}][namespaces|{len(self.namespaces)}]'
     __repr__ = __str__
+
+    def __getattr__(self, name):
+        '''Implemented `settings.namespace.key` usage'''
+        if name in self.namespaces:
+            return self.namespaces[name]
+        raise AttributeError(name)
 
 
 settings = Settings('global')
@@ -164,33 +178,29 @@ def load_from_environment(prefix='SETTING__', raise_invalid_value=True):
     # cannot endswith ___
     # can only has one '__'
     if not re.match(r'[A-Z]+__$', prefix):
-        raise ValueError(
-            'prefix should be in the format of `NAME__`, got `%s`' % prefix
-        )
+        raise ValueError(f'prefix should be in the format of `NAME__`, got `{prefix}`')
 
-    env_regex = re.compile(
-        r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix
-    )
+    env_regex = re.compile(rf'^{prefix}[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$')
     data = {}
     for env, value in os.environ.items():
         # naive check
         if not env.startswith(prefix):
             continue
         if not env_regex.match(env):
-            sys.stderr.write('wrong special formatted env `%s`\n' % env)
+            sys.stderr.write(f'wrong special formatted env `{env}`\n')
             continue
 
         env_ = env.split('__')
         if len(env_) != 3:
-            sys.stderr.write('wrong special formatted env `%s`\n' % env)
+            sys.stderr.write(f'wrong special formatted env `{env}`\n')
             continue
         _, ns, key = env_
 
         value_ = value.split('::')
         if len(value_) != 2:
             err = (
-                'get special formatted env `%s`, but wrong format value `%s`, '
-                'should be in format of `type::value`\n' % (env, value)
+                f'get special formatted env `{env}`, but wrong format value `{value}`, '
+                f'should be in format of `type::value`\n'
             )
             if raise_invalid_value:
                 raise ValueError(err)
@@ -200,8 +210,8 @@ def load_from_environment(prefix='SETTING__', raise_invalid_value=True):
         t, val = value_
         if t not in transformer:
             err = (
-                'unknown value type `%s` for env `%s=%s`, available `%s`\n' %
-                (t, env, value, transformer.keys())
+                f'unknown value type `{t}` for env `{env}={value}`, '
+                f'available `{list(transformer.keys())}`\n'
             )
             if raise_invalid_value:
                 raise ValueError(err)
@@ -211,10 +221,7 @@ def load_from_environment(prefix='SETTING__', raise_invalid_value=True):
         try:
             val = transformer[t](val)
         except (TypeError, ValueError):
-            err = (
-                'cannot transform value of `%s=%s`, check type and value\n' %
-                (env, value)
-            )
+            err = (f'cannot transform value of `{env}={value}`, check type and value\n')
             if raise_invalid_value:
                 raise ValueError(err)
             sys.stderr.write(err)

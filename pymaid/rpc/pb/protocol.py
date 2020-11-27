@@ -3,7 +3,7 @@ from struct import Struct
 from typing import Optional, Sequence, Tuple, Union
 
 from google.protobuf.message import Message
-from ujson import dumps
+from orjson import dumps
 
 from pymaid.conf import settings
 from pymaid.core import create_task, Event
