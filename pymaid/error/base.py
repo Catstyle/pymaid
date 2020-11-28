@@ -129,7 +129,7 @@ class ErrorManager(BaseEx):
     def assemble(cls, code, message, data):
         ex = ErrorManager.get_exception(code)
         if ex is None:
-            ex = ErrorManager.add_warning('Unknown-%s' % code, code, message)
+            ex = ErrorManager.add_warning('Unknown_%s' % code, code, message)
         ex = ex()
         ex.message = message
         if data:
