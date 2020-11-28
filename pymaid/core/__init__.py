@@ -121,6 +121,7 @@ async def create_unix_stream_server(transport_class, path, **kwargs):
 iscoroutine = asyncio.iscoroutine
 iscoroutinefunction = asyncio.iscoroutinefunction
 ensure_future = asyncio.ensure_future
+wrap_future = asyncio.futures.wrap_future
 
 
 # executor
@@ -132,13 +133,13 @@ default_process_executor = ProcessPoolExecutor()
 def run_in_thread(
     func, *, args=None, kwargs=None, executor=default_thread_executor,
 ):
-    return get_running_loop().run_in_executor(executor, func, *args, **kwargs)
+    return wrap_future(executor.submit(func, *(args or ()), **(kwargs or {})))
 
 
 def run_in_process(
     func, *, args=None, kwargs=None, executor=default_process_executor,
 ):
-    return get_running_loop().run_in_executor(executor, func, *args, **kwargs)
+    return wrap_future(executor.submit(func, *(args or ()), **(kwargs or {})))
 
 
 del asyncio, uvloop
