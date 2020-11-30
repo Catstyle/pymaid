@@ -2,7 +2,7 @@ import os
 from unittest import TestCase
 
 from pymaid.conf import defaults
-from pymaid.conf.settings import settings, load_from_environment
+from pymaid.conf.settings import settings
 
 
 class SettingsTest(TestCase):
@@ -55,7 +55,7 @@ class SettingsTest(TestCase):
         os.environ['SETTING__PYMAID__BOOL'] = 'bool::False'
         os.environ['SETTING__PYMAID__DICT'] = 'dict::{"age": 18}'
         os.environ['SETTING__PYMAID__LIST'] = 'list::[1, 2, 3]'
-        load_from_environment(prefix='SETTING__')
+        settings.load_from_environment(prefix='SETTING__')
 
         assert settings.get('NOT_EXIST', ns='pymaid') == 'noway'
         assert settings.get('NOT_EXIST', default='what') == b'noway'
@@ -72,52 +72,52 @@ class SettingsTest(TestCase):
 
         os.environ['SETTING__PYMAID__LIST'] = 'list::[1, 2, 3]'
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING_')
+            settings.load_from_environment(prefix='SETTING_')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         os.environ.clear()
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING___')
+            settings.load_from_environment(prefix='SETTING___')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         # wrong namespace
         os.environ['SETTING___PYMAID__LIST'] = 'list::[1, 2, 3]'
-        load_from_environment(prefix='SETTING__')
+        settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         # wrong key
         os.environ['SETTING__PYMAID___LIST'] = 'list::[1, 2, 3]'
-        load_from_environment(prefix='SETTING__')
+        settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         # wrong value format
         os.environ['SETTING__PYMAID__LIST'] = '[1, 2, 3]'
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING__')
+            settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         os.environ['SETTING__PYMAID__LIST'] = 'list:[1, 2, 3]'
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING__')
+            settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         # wrong value type
         os.environ['SETTING__PYMAID__LIST'] = 'what_type::[1, 2, 3]'
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING__')
+            settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
         # wrong type::value
         os.environ['SETTING__PYMAID__LIST'] = 'int::[1, 2, 3]'
         with self.assertRaises(ValueError):
-            load_from_environment(prefix='SETTING__')
+            settings.load_from_environment(prefix='SETTING__')
         assert settings.get('LIST', ns='pymaid') is None
         assert not settings.namespaces
 
