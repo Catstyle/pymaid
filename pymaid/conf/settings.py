@@ -36,6 +36,16 @@ class Namespace(dict):
 @pymaid_logger_wrapper
 class Settings(object):
 
+    transformer = {
+        'str': str,
+        'bytes': partial(bytes, encoding='utf-8'),
+        'int': partial(int, base=10),
+        'float': float,
+        'bool': lambda x: False if x in ('False', 'false') else True,
+        'dict': loads,
+        'list': loads,
+    }
+
     def __init__(self, name):
         self.name = name
         self.namespaces = {}
@@ -144,6 +154,104 @@ class Settings(object):
                     mod, getattr(mod, '__NAMESPACE__', ns), mutable
                 )
 
+    def load_from_environment(
+        self,
+        prefix='SETTING__',
+        raise_invalid_value=True,
+    ):
+        '''load *special formatted* env into settings
+
+        format: {PREFIX}__{NAMESPACE}__{KEY}=VALUE
+        PREFIX: pymaid settings
+        NAMESPACE: namespace
+        KEY: settings key name
+        VALUE: type::value, type need to be builtin type,
+            current are %s
+            dict/list will be loaded using json.loads
+
+        NOTE: when loaded, {NAMESPACE} will transform to lower case
+
+        e.g.:
+            export SETTING__PYMAID__DEBUG='bool::True'
+            will result in below
+            settings.set('DEBUG', True, ns='pymaid')
+            settings.namespaces['pymaid']['DEBUG'] = True
+        '''
+
+        # cannot endswith ___
+        # can only has one '__'
+        if not re.match(r'[A-Z]+__$', prefix):
+            raise ValueError(
+                'prefix should be in the format of `NAME__`, got `%s`' % prefix
+            )
+
+        env_regex = re.compile(
+            r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix
+        )
+        data = {}
+        for env, value in os.environ.items():
+            # naive check
+            if not env.startswith(prefix):
+                continue
+            if not env_regex.match(env):
+                sys.stderr.write('wrong special formatted env `%s`\n' % env)
+                continue
+
+            env_ = env.split('__')
+            if len(env_) != 3:
+                sys.stderr.write('wrong special formatted env `%s`\n' % env)
+                continue
+            _, ns, key = env_
+
+            value_ = value.split('::')
+            if len(value_) != 2:
+                err = (
+                    'get special formatted env `%s`, '
+                    'but with wrong format value `%s`, '
+                    'should be in format of `type::value`\n' % (env, value)
+                )
+                if raise_invalid_value:
+                    raise ValueError(err)
+                sys.stderr.write(err)
+                continue
+
+            t, val = value_
+            if t not in self.transformer:
+                err = (
+                    'unknown value type `%s` for env `%s=%s`, '
+                    'available `%s`\n' %
+                    (t, env, value, self.transformer.keys())
+                )
+                if raise_invalid_value:
+                    raise ValueError(err)
+                sys.stderr.write(err)
+                continue
+
+            try:
+                val = self.transformer[t](val)
+            except (TypeError, ValueError):
+                err = (
+                    'cannot transform value of `%s=%s`, '
+                    'check type and value\n' %
+                    (env, value)
+                )
+                if raise_invalid_value:
+                    raise ValueError(err)
+                sys.stderr.write(err)
+                continue
+
+            # now we successfully get special env=value
+            ns_data = data.setdefault(ns.lower(), {})
+            ns_data[key] = val
+        sys.stderr.flush()
+
+        for ns, obj in data.items():
+            self.load_from_object(obj, ns=ns)
+
+    load_from_environment.__doc__ = (
+        load_from_environment.__doc__ % list(transformer.keys())
+    )
+
     def __str__(self):
         return '[%s][namespaces|%d]' % (self.name, len(self.namespaces))
     __repr__ = __str__
@@ -165,107 +273,3 @@ settings = Settings('global')
 settings.add_watcher(configure_logging, ns='pymaid')
 settings.add_watcher(configure_logging, ns='logging')
 settings.load_from_object(defaults, ns='pymaid')
-
-
-transformer = {
-    'str': str,
-    'bytes': partial(bytes, encoding='utf-8'),
-    'int': partial(int, base=10),
-    'float': float,
-    'bool': lambda x: False if x in ('False', 'false') else True,
-    'dict': loads,
-    'list': loads,
-}
-
-
-def load_from_environment(prefix='SETTING__', raise_invalid_value=True):
-    '''load *special formatted* env into settings
-
-    format: {PREFIX}__{NAMESPACE}__{KEY}=VALUE
-    PREFIX: pymaid settings
-    NAMESPACE: namespace
-    KEY: settings key name
-    VALUE: type::value, type need to be builtin type,
-        current are %s
-        dict/list will be loaded using json.loads
-
-    NOTE: when loaded, {NAMESPACE} will transform to lower case
-
-    e.g.:
-        export SETTING__PYMAID__DEBUG='bool::True'
-        will result in below
-        settings.set('DEBUG', True, ns='pymaid')
-        settings.namespaces['pymaid']['DEBUG'] = True
-    '''
-
-    # cannot endswith ___
-    # can only has one '__'
-    if not re.match(r'[A-Z]+__$', prefix):
-        raise ValueError(
-            'prefix should be in the format of `NAME__`, got `%s`' % prefix
-        )
-
-    env_regex = re.compile(
-        r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix
-    )
-    data = {}
-    for env, value in os.environ.items():
-        # naive check
-        if not env.startswith(prefix):
-            continue
-        if not env_regex.match(env):
-            sys.stderr.write('wrong special formatted env `%s`\n' % env)
-            continue
-
-        env_ = env.split('__')
-        if len(env_) != 3:
-            sys.stderr.write('wrong special formatted env `%s`\n' % env)
-            continue
-        _, ns, key = env_
-
-        value_ = value.split('::')
-        if len(value_) != 2:
-            err = (
-                'get special formatted env `%s`, but wrong format value `%s`, '
-                'should be in format of `type::value`\n' % (env, value)
-            )
-            if raise_invalid_value:
-                raise ValueError(err)
-            sys.stderr.write(err)
-            continue
-
-        t, val = value_
-        if t not in transformer:
-            err = (
-                'unknown value type `%s` for env `%s=%s`, available `%s`\n' %
-                (t, env, value, transformer.keys())
-            )
-            if raise_invalid_value:
-                raise ValueError(err)
-            sys.stderr.write(err)
-            continue
-
-        try:
-            val = transformer[t](val)
-        except (TypeError, ValueError):
-            err = (
-                'cannot transform value of `%s=%s`, check type and value\n' %
-                (env, value)
-            )
-            if raise_invalid_value:
-                raise ValueError(err)
-            sys.stderr.write(err)
-            continue
-
-        # now we successfully get special env=value
-        ns_data = data.setdefault(ns.lower(), {})
-        ns_data[key] = val
-    sys.stderr.flush()
-
-    for ns, obj in data.items():
-        settings.load_from_object(obj, ns=ns)
-
-
-load_from_environment.__doc__ = (
-    load_from_environment.__doc__ % list(transformer.keys())
-)
