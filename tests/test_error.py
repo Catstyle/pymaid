@@ -164,5 +164,5 @@ class ErrorTest(TestCase):
 
         ex = error.ErrorManager.assemble('Error2', 'cannot find defination', {})
         self.assertIsInstance(ex, error.Warning)
-        self.assertEqual(ex.code, 2)
-        self.assertEqual(ex.__class__.__name__, 'Unknown_2')
+        self.assertEqual(ex.code, 'ErrorManager.Unknown_Error2')
+        self.assertEqual(ex.__class__.__name__, 'Unknown_Error2')

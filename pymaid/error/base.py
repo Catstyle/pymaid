@@ -98,7 +98,7 @@ class ErrorManager(BaseEx, metaclass=abc.ABCMeta):
     def assemble(cls, code, message, data):
         ex = ErrorManager.get_exception(code)
         if ex is None:
-            ex = ErrorManager.add_warning('Unknown_%s' % code, code, message)
+            ex = ErrorManager.add_warning('Unknown_%s' % code, message)
         ex = ex()
         ex.message = message
         if data:
