@@ -43,15 +43,16 @@ class Warning(BaseEx):
         ).encode('utf-8')
 
 
-class ErrorManager(BaseEx, metaclass=abc.ABCMeta):
+class ErrorManager(metaclass=abc.ABCMeta):
 
     codes = {}
     managers = {}
+    __fullname__ = ''
 
     @classmethod
     def add(cls, name, ex):
         if ex.code in cls.codes:
-            raise ValueError('duplicated exception code: %d', ex.code)
+            raise ValueError(f'duplicated exception code: {ex.code}')
         cls.codes[ex.code] = ex
         setattr(cls, name, ex)
 
@@ -63,10 +64,18 @@ class ErrorManager(BaseEx, metaclass=abc.ABCMeta):
     @classmethod
     def add_error(cls, name, message):
         frame = getframe(1)  # get caller frame
+        if cls.__fullname__:
+            fullname = f'{cls.__fullname__}.{name}'
+        else:
+            fullname = name
         error = type(
             name, (Error, cls),
-            {'code': f'{cls.__name__}.{name}', 'message': message,
-             '__module__': frame.f_locals.get('__name__', '')}
+            {
+                'code': fullname,
+                'message': message,
+                '__module__': frame.f_locals.get('__name__', ''),
+                '__fullname__': fullname,
+            }
         )
         cls.add(name, error)
         cls.register(error)
@@ -75,10 +84,19 @@ class ErrorManager(BaseEx, metaclass=abc.ABCMeta):
     @classmethod
     def add_warning(cls, name, message):
         frame = getframe(1)  # get caller frame
+        if cls.__fullname__:
+            fullname = f'{cls.__fullname__}.{name}'
+        else:
+            fullname = name
         warning = type(
-            name, (Warning, cls),
-            {'code': f'{cls.__name__}.{name}', 'message': message,
-             '__module__': frame.f_locals.get('__name__', '')}
+            name,
+            (Warning, cls),
+            {
+                'code': fullname,
+                'message': message,
+                '__module__': frame.f_locals.get('__name__', ''),
+                '__fullname__': fullname,
+            }
         )
         cls.add(name, warning)
         cls.register(warning)
@@ -110,7 +128,12 @@ class ErrorManager(BaseEx, metaclass=abc.ABCMeta):
         frame = getframe(1)  # get caller frame
         kwargs = dict(ErrorManager.__dict__)
         kwargs['__module__'] = frame.f_locals.get('__name__', '')
-        manager = type(name, (ErrorManager,), kwargs)
+        if cls.__fullname__:
+            kwargs['__fullname__'] = f'{cls.__fullname__}.{name}'
+        else:
+            kwargs['__fullname__'] = name
+        # added BaseEx as base class for use specified :ErrorManager: in except clause
+        manager = type(name, (cls, BaseEx), kwargs)
         manager.codes = {}
         manager.managers = {}
         cls.add_manager(name, manager)
