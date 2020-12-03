@@ -58,99 +58,120 @@ class ErrorTest(TestCase):
         self.assertNotIsInstance(ex, error.Error)
 
     def test_manager(self):
-        ErrorManager = error.ErrorManager.create_manager('Manager')
-        self.assertIn('Manager', error.ErrorManager.managers)
+        UserError = error.ErrorManager.create_manager('UserError')
+        self.assertIn('UserError', error.ErrorManager.managers)
 
-        self.assertDictEqual(ErrorManager.codes, {})
-        self.assertDictEqual(ErrorManager.managers, {})
+        self.assertDictEqual(UserError.codes, {})
+        self.assertDictEqual(UserError.managers, {})
 
-        ErrorManager.add_error(
-            'Error1', 'Manager {} has {number} exceptions'
-        )
-        self.assertIn('Manager.Error1', ErrorManager.codes)
-        self.assertEqual(len(ErrorManager.codes), 1)
-        self.assertTrue(issubclass(ErrorManager.Error1, error.Error))
-        self.assertTrue(issubclass(ErrorManager.Error1, ErrorManager))
+        UserError.add_error('UserNotExist', 'User does not exist')
+        self.assertIn('UserError.UserNotExist', UserError.codes)
+        self.assertEqual(len(UserError.codes), 1)
+        self.assertTrue(issubclass(UserError.UserNotExist, error.Error))
+        self.assertTrue(issubclass(UserError.UserNotExist, UserError))
 
-        ex = ErrorManager.Error1('Manager', number=1)
+        ex = UserError.UserNotExist(data={'name': 'lucy'})
         self.assertIsInstance(ex, error.Error)
-        self.assertIsInstance(ex, ErrorManager)
+        self.assertIsInstance(ex, UserError)
+        self.assertEqual(ex.message, 'User does not exist')
+        self.assertDictEqual(ex.data, {'name': 'lucy'})
 
         with self.assertRaises(error.Error):
             raise ex
-        with self.assertRaises(ErrorManager):
+        with self.assertRaises(UserError):
             raise ex
 
         try:
             raise ex
-        except ErrorManager.Error1:
+        except UserError.UserNotExist:
             # should catch this exception
             pass
 
         try:
             raise ex
-        except ErrorManager:
+        except UserError:
             # should catch this exception
             pass
 
-        ErrorManager.add_warning(
-            'Warning1', 'Manager {} has {number} exceptions'
-        )
-        self.assertIn('Manager.Warning1', ErrorManager.codes)
-        self.assertEqual(len(ErrorManager.codes), 2)
-        self.assertTrue(issubclass(ErrorManager.Warning1, error.Warning))
-        self.assertTrue(issubclass(ErrorManager.Warning1, ErrorManager))
+        UserError.add_warning('UserBanned', 'User has been banned')
+        self.assertIn('UserError.UserBanned', UserError.codes)
+        self.assertEqual(len(UserError.codes), 2)
+        self.assertTrue(issubclass(UserError.UserBanned, error.Warning))
+        self.assertTrue(issubclass(UserError.UserBanned, UserError))
 
-        ex = ErrorManager.Warning1('Manager', number=2)
+        ex = UserError.UserBanned(data={'reason': 'illegal behaviors', 'until': 2000000000})
         self.assertIsInstance(ex, error.Warning)
-        self.assertIsInstance(ex, ErrorManager)
+        self.assertIsInstance(ex, UserError)
+        self.assertEqual(ex.message, 'User has been banned')
+        self.assertDictEqual(ex.data, {'reason': 'illegal behaviors', 'until': 2000000000})
 
         with self.assertRaises(error.Warning):
             raise ex
-        with self.assertRaises(ErrorManager):
+        with self.assertRaises(UserError):
             raise ex
 
         try:
             raise ex
-        except ErrorManager.Warning1:
+        except UserError.UserBanned:
             # should catch this exception
             pass
 
         try:
             raise ex
-        except ErrorManager:
+        except UserError:
             # should catch this exception
             pass
 
-        SubManager = ErrorManager.create_manager('SubManager')
-        self.assertIn('SubManager', ErrorManager.managers)
-        SubManager.add_warning('SubError', 'emmmmmmm')
+        ProfileError = UserError.create_manager('ProfileError')
+        assert ProfileError.__name__ == 'ProfileError'
+        self.assertIn('ProfileError', UserError.managers)
+        ProfileError.add_warning('IncompleteInfo', 'Please fill in the missing info')
+
+        ex = ProfileError.IncompleteInfo(data={'fields': ['age', 'gender']})
+        self.assertIsInstance(ex, error.Warning)
+        self.assertIsInstance(ex, ProfileError)
+        # yes, ProfileError is managed by UserError, and it should be catched by UserError
+        self.assertIsInstance(ex, UserError)
+        self.assertEqual(ex.code, 'UserError.ProfileError.IncompleteInfo')
+        self.assertEqual(ex.message, 'Please fill in the missing info')
+        self.assertDictEqual(ex.data, {'fields': ['age', 'gender']})
+
+        with self.assertRaises(error.Warning):
+            raise ex
+        with self.assertRaises(ProfileError):
+            raise ex
+        with self.assertRaises(UserError):
+            raise ex
 
         self.assertIsNotNone(
-            error.ErrorManager.get_exception('Manager.Error1'),
+            error.ErrorManager.get_exception('UserError.UserNotExist'),
             error.ErrorManager.codes,
         )
         self.assertIs(
-            error.ErrorManager.get_exception('Manager.Error1'),
-            ErrorManager.Error1,
+            error.ErrorManager.get_exception('UserError.UserNotExist'),
+            UserError.UserNotExist,
         )
         self.assertIsNotNone(
-            error.ErrorManager.get_exception('SubManager.SubError')
+            error.ErrorManager.get_exception('UserError.ProfileError.IncompleteInfo')
         )
         self.assertIs(
-            error.ErrorManager.get_exception('SubManager.SubError'),
-            SubManager.SubError,
+            error.ErrorManager.get_exception('UserError.ProfileError.IncompleteInfo'),
+            ProfileError.IncompleteInfo,
         )
 
+        # include one builtin :RpcError:
+        assert len(error.ErrorManager.managers) == 2
+        assert 'UserError' in error.ErrorManager.managers
+        assert 'ProfileError' in UserError.managers
+
     def test_invalid_action(self):
-        ErrorManager = error.ErrorManager.create_manager('Manager')
-        ErrorManager.add_error(
-            'Error1', 'Manager {} has {number} exceptions'
-        )
+        UserError = error.ErrorManager.create_manager('Manager')
+        UserError.add_error('Error1', 'Manager {} has {number} exceptions')
         with self.assertRaises(ValueError):
-            ErrorManager.add_error(
-                'Error1', 'Manager {} has {number} exceptions'
-            )
+            UserError.add_error('Error1', 'Manager {} has {number} exceptions')
+
+        error.ErrorManager.managers.pop('Manager')
+        del error.ErrorManager.Manager
 
     def test_assemble(self):
         class Error1(error.Error):
@@ -164,5 +185,5 @@ class ErrorTest(TestCase):
 
         ex = error.ErrorManager.assemble('Error2', 'cannot find defination', {})
         self.assertIsInstance(ex, error.Warning)
-        self.assertEqual(ex.code, 'ErrorManager.Unknown_Error2')
+        self.assertEqual(ex.code, 'Unknown_Error2')
         self.assertEqual(ex.__class__.__name__, 'Unknown_Error2')
