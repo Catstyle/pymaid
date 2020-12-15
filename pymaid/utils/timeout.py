@@ -89,7 +89,7 @@ class Timeout:
 
     async def __aenter__(self) -> 'Timeout':
         if self.state != State.INIT:
-            raise RuntimeError('invalid state {}'.format(self.state.value))
+            raise RuntimeError(f'invalid state {self.state.value}')
         self.state = State.ENTER
         return self
 
@@ -117,7 +117,7 @@ class Timeout:
         # cancel is maybe better name but
         # task.cancel() raises CancelledError in asyncio world.
         if self.state not in (State.INIT, State.ENTER):
-            raise RuntimeError('invalid state {}'.format(self.state.value))
+            raise RuntimeError(f'invalid state {self.state.value}')
         self._abort()
 
     def _abort(self) -> None:
@@ -138,7 +138,9 @@ class Timeout:
         If new deadline is in the past, the timeout is raised immediately.
         '''
         if self.state == State.EXIT:
-            raise RuntimeError('cannot reschedule after exit from context manager')
+            raise RuntimeError(
+                'cannot reschedule after exit from context manager'
+            )
         if self.state == State.TIMEOUT:
             raise RuntimeError('cannot reschedule expired timeout')
         if self.timeout_handler is not None:

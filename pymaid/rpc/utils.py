@@ -37,14 +37,19 @@ def update_record(record, level, msg, *args):
     record.msecs = (ct - int(ct)) * 1000
 
 
-def trace_service(level=logging.INFO,
-                  debug_info_func=lambda ctrl: f'[conn|{ctrl.conn.connid}]'):
+def trace_service(
+    level=logging.INFO,
+    debug_info_func=lambda ctx: f'[conn|{ctx.conn.conn_id}]'
+):
     def wrapper(cls):
         assert level in logging_levels, (level, logging_levels)
         for method in cls.DESCRIPTOR.methods:
             name = method.name
-            setattr(cls, name,
-                    trace_method(level, debug_info_func)(getattr(cls, name)))
+            setattr(
+                cls,
+                name,
+                trace_method(level, debug_info_func)(getattr(cls, name))
+            )
         return cls
     if isinstance(level, str):
         level = logging_names[level]
@@ -57,56 +62,68 @@ def trace_service(level=logging.INFO,
         return wrapper(cls)
 
 
-def trace_method(level=logging.INFO,
-                 debug_info_func=lambda ctrl: '[conn|%d]' % ctrl.conn.connid):
+def trace_method(
+    level=logging.INFO,
+    debug_info_func=lambda ctx: '[conn|%d]' % ctx.conn.conn_id
+):
     def wrapper(func):
         assert level in logging_levels, (level, logging_levels)
         co = func.__code__
-        full_name = co.co_name
+        method = co.co_name
         if isinstance(func, MethodType):
-            full_name = f'{func.im_class.DESCRIPTOR.name}.{full_name}'
+            method = f'{func.im_class.DESCRIPTOR.name}.{method}'
 
         # name, level, fn, lno, msg, args, exc_info, func
         record = logging.LogRecord(
-            '', level, co.co_filename, co.co_firstlineno, '', (), None,
-            full_name
+            '', level, co.co_filename, co.co_firstlineno, '', (), None, method
         )
 
         @wraps(func)
-        def _(self, controller, request, done):
+        async def _(self, request, context):
             assert isinstance(self, Service)
 
             start_time = time()
-            debug_info = debug_info_func(controller)
+            debug_info = debug_info_func(context)
             record.name = self.logger.name
             req = repr(str(request))
 
-            def done_wrapper(resp=None, **kwargs):
-                update_record(
-                    record, level,
-                    '%s [rpc|%s] [req|%r] [resp|%r] [time|%.6f]',
-                    debug_info, full_name, req, str(kwargs) or str(resp),
-                    time() - start_time
-                )
-                self.logger.handle(record)
-                done(resp, **kwargs)
             try:
-                return func(self, controller, request, done_wrapper)
+                await func(self, request, context)
             except BaseException as ex:
                 if isinstance(ex, Warning):
                     update_record(
-                        record, logging.WARN,
-                        '%s [rpc|%s] [req|%r] [warning|%s] [time|%.6f]',
-                        debug_info, full_name, req, ex, time() - start_time
+                        record,
+                        logging.WARN,
+                        '%s [rpc|%s] [req|%.1024r] [warning|%s] [time|%.6f]',
+                        debug_info,
+                        method,
+                        req,
+                        ex,
+                        time() - start_time,
                     )
                 else:
                     update_record(
-                        record, logging.ERROR,
-                        '%s [rpc|%s] [req|%r] [exception|%s] [time|%.6f]',
-                        debug_info, full_name, req, ex, time() - start_time
+                        record,
+                        logging.ERROR,
+                        '%s [rpc|%s] [req|%.1024r] [exception|%s] [time|%.6f]',
+                        debug_info,
+                        method,
+                        req,
+                        ex,
+                        time() - start_time,
                     )
                 self.logger.handle(record)
                 raise
+            update_record(
+                record,
+                level,
+                '%s [rpc|%s] [req|%.1024r] [time|%.6f]',
+                debug_info,
+                method,
+                req,
+                time() - start_time,
+            )
+            self.logger.handle(record)
         return _
     if isinstance(level, str):
         level = logging_names[level]

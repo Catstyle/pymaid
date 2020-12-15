@@ -14,7 +14,7 @@ __all__ = ['Channel']
 class Connection:
     '''Connection represent a communication way for client <--> server
 
-    It holds transport and channel.
+    It holds the low level transport.
     '''
 
     def __init__(self, transport: TransportType):
@@ -59,10 +59,10 @@ class Channel:
 
     @property
     def is_full(self):
-        return len(self.connections) >= settings.get('MAX_CONNECTIONS', ns='pymaid')
+        return len(self.connections) >= settings.pymaid.MAX_CONNECTIONS
 
     def make_connection(self, transport: 'TransportType') -> Connection:
-        return self.connection_class(transport, self)
+        return self.connection_class(transport)
 
     def connection_made(self, transport: 'TransportType') -> Connection:
         # connection_made is called within loop.call_later
@@ -87,7 +87,8 @@ class Channel:
         conn: 'ConnectionType',
         exc: Optional[Exception] = None
     ):
-        # if rejected by concurrency limition, should not call this connection_lost
+        # if rejected by concurrency limition
+        # should not call this connection_lost
         assert conn.conn_id in self.connections
         # safe to call conn.close
         conn.close()

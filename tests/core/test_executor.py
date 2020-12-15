@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from pymaid.core import run_in_thread, run_in_process
+from pymaid.core import run_in_threadpool, run_in_processpool
 
 
 def sum_int(a: int, b: int) -> int:
@@ -15,13 +15,13 @@ def sleep(seconds):
 
 
 @pytest.mark.asyncio
-async def test_run_in_thread():
-    assert await run_in_thread(sum_int, args=(1, 2)) == 3
-    assert await run_in_thread(sum_int, kwargs={'a': 1, 'b': 2}) == 3
+async def test_run_in_threadpool():
+    assert await run_in_threadpool(sum_int, args=(1, 2)) == 3
+    assert await run_in_threadpool(sum_int, kwargs={'a': 1, 'b': 2}) == 3
 
     now = time.time_ns()
-    f1 = run_in_thread(sleep, args=(0.1,))
-    f2 = run_in_thread(sleep, args=(0.1,))
+    f1 = run_in_threadpool(sleep, args=(0.1,))
+    f2 = run_in_threadpool(sleep, args=(0.1,))
     ts = time.time_ns()
 
     t1 = await f1
@@ -34,13 +34,13 @@ async def test_run_in_thread():
 
 
 @pytest.mark.asyncio
-async def test_run_in_process():
-    assert await run_in_process(sum_int, args=(1, 2)) == 3
-    assert await run_in_process(sum_int, kwargs={'a': 1, 'b': 2}) == 3
+async def test_run_in_processpool():
+    assert await run_in_processpool(sum_int, args=(1, 2)) == 3
+    assert await run_in_processpool(sum_int, kwargs={'a': 1, 'b': 2}) == 3
 
     now = time.time_ns()
-    f1 = run_in_process(sleep, args=(0.1,))
-    f2 = run_in_process(sleep, args=(0.1,))
+    f1 = run_in_processpool(sleep, args=(0.1,))
+    f2 = run_in_processpool(sleep, args=(0.1,))
     ts = time.time_ns()
 
     t1 = await f1

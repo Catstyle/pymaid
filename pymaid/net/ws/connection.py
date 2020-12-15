@@ -19,8 +19,8 @@ from .utf8validator import Utf8Validator
 @logger_wrapper
 class WebSocket(Stream):
 
-    def __init__(self, *, server=None, client_side=False, resource='/'):
-        super().__init__(server=server, client_side=client_side)
+    def __init__(self, *, server=None, initiative=False, resource='/'):
+        super().__init__(server=server, initiative=initiative)
         self.utf8validator = Utf8Validator()
         self.timeout = settings.namespaces['pymaid']['PM_WEBSOCKET_TIMEOUT']
         self.resource = resource.encode('utf-8')
@@ -28,7 +28,7 @@ class WebSocket(Stream):
 
     def _done_handshake(self, task):
         self.conn_made_event.set()
-        if self.client_side:
+        if self.initiative:
             self.conn = self.server.connection_made(self)
 
     def _read_headers(self):
@@ -115,7 +115,7 @@ class WebSocket(Stream):
         self.__class__.CONN_ID = self.__class__.CONN_ID + 1
         self.conn_id = f'{self.__class__.__name__}-{self.__class__.CONN_ID}'
         self.bind_transport(transport)
-        if self.client_side:
+        if self.initiative:
             self.conn_made_event = Event()
             self.handshake_handler = create_task(self._do_handshake())
             self.handshake_handler.add_done_callback(self.done_handshake)
@@ -125,7 +125,7 @@ class WebSocket(Stream):
 
     def oninit(self):
         ''' Called by handler once handler start on a greenlet.'''
-        if self.client_side:
+        if self.initiative:
             self.connecting_event.wait()
             return self.is_connected
         else:

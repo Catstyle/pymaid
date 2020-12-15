@@ -9,14 +9,15 @@ from pymaid import create_stream, create_unix_stream
 from pymaid import create_stream_server, create_unix_stream_server
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import TransportType, Stream
-from pymaid.rpc.channel import Channel, ConnectionType
-from pymaid.utils.functional import listify
+from pymaid.rpc.channel import Channel, ChannelType, ConnectionType
+from pymaid.rpc.router import ServiceRepository
 from pymaid.utils.logger import logger_wrapper
 
 from .connection import Connection
-from .protocol import Protocol, Handler, ServiceRepository
+from .handler import Handler, SerialHandler
+from .protocol import Protocol
 
-__all__ = ['StreamChannel', 'UnixStreamChannel']
+__all__ = ['ChannelType', 'StreamChannel', 'UnixStreamChannel']
 
 
 @logger_wrapper
@@ -24,14 +25,13 @@ class Channel(Channel):
 
     def __init__(
         self,
-        services: Optional[Union[Sequence[GeneratedServiceType], ServiceRepository]] = None,
         *,
         name: str = 'PBChannel',
         middleware_manager: Optional[MiddlewareManager] = None,
         close_conn_onerror: bool = True,
         connection_class: ConnectionType = Connection,
         protocol_class: Type[Protocol] = Protocol,
-        handler_class: Type[Handler] = Handler,
+        handler_class: Type[Handler] = SerialHandler,
     ):
         super().__init__(name, connection_class, middleware_manager)
         self.close_conn_onerror = close_conn_onerror
@@ -39,9 +39,20 @@ class Channel(Channel):
         self.handler_class = handler_class
 
         self.server = None
-        if not isinstance(services, ServiceRepository):
-            services = ServiceRepository(listify(services))
-        self.service_repository = services
+        self.service_repository = ServiceRepository()
+
+    def add_services(
+        self,
+        *,
+        services: Optional[Sequence[GeneratedServiceType]] = None,
+        repository: Optional[ServiceRepository] = None,
+    ):
+        for service in services or []:
+            self.service_repository.append_service(service)
+        if repository:
+            self.service_repository.service_methods.update(
+                repository.service_methods
+            )
 
     def make_connection(self, transport: 'TransportType'):
         return self.connection_class(
@@ -85,7 +96,7 @@ class StreamChannel(Channel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         self.server = await create_stream_server(
-            partial(transport_class, server=self, client_side=False),
+            partial(transport_class, channel=self, initiative=False),
             host=address[0],
             port=address[1],
             backlog=backlog,
@@ -112,7 +123,7 @@ class StreamChannel(Channel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         transport = await create_stream(
-            partial(transport_class, server=self, client_side=True),
+            partial(transport_class, channel=self, initiative=True),
             host=address[0],
             port=address[1],
             ssl=ssl,
@@ -141,7 +152,7 @@ class UnixStreamChannel(StreamChannel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         self.server = await create_unix_stream_server(
-            partial(transport_class, server=self, client_side=False),
+            partial(transport_class, channel=self, initiative=False),
             path=address,
             backlog=backlog,
             ssl=ssl,
@@ -161,7 +172,7 @@ class UnixStreamChannel(StreamChannel):
         if not issubclass(transport_class, Stream):
             raise TypeError('transport_class must be a subclass of Stream')
         transport = await create_unix_stream(
-            partial(transport_class, server=self, client_side=True),
+            partial(transport_class, channel=self, initiative=True),
             path=address,
             ssl=ssl,
             server_hostname=server_hostname,

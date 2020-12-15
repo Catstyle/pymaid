@@ -22,7 +22,7 @@ LOGGING = {
     'loggers': {
         'pymaid': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
             'propagate': True,
         },
         'asyncio': {
@@ -49,9 +49,11 @@ MAX_CONNECTIONS limits the connections
 MAX_CONCURRENCY limits the concurrency of *requests*
 MAX_METHOD_CONCURRENCY limits the concurrency of *requests* for specified rpc
 e.g.:
-1. 10000 connections, next connection will fail
-2. 100 connections, call 100 different(not the same) async rpc, next rpc call will fail
-3. 1 connections, call one async rpc for 10000 times, next the same rpc call will fail
+1. 10000 connections, next new connection will fail
+2. 100 connections, one parallelly call 100 different(not the same) async rpcs
+   next rpc call will fail (nomatter from new connection or old connections)
+3. 1 connection, parallelly call one async rpc for 10000 times
+   next the same rpc call from the connection will fail
 '''
 MAX_CONNECTIONS = 10000
 MAX_CONCURRENCY = 10000

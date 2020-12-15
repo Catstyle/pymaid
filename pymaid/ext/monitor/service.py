@@ -1,12 +1,13 @@
+from pymaid.rpc import Void
 from pymaid.rpc.utils import implall
 
-from .monitor_pb2 import MonitorService
+from .monitor_pb2 import MonitorService, Pong
 
 
 @implall
 class MonitorServiceImpl(MonitorService):
 
-    def Ping(self, controller, request, done):
-        if not controller.conn.is_closed:
-            controller.conn.clear_heartbeat_counter()
-        done()
+    async def Ping(self, request: Void, context) -> Pong:
+        if not context.conn.is_closed:
+            context.conn.clear_heartbeat_counter()
+        return Pong()

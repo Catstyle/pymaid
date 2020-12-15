@@ -17,13 +17,13 @@ DESCRIPTOR = _descriptor.FileDescriptor(
     syntax='proto3',
     serialized_options=None,
     create_key=_descriptor._internal_create_key,
-    serialized_pb=b'\n\x17pymaid/rpc/pymaid.proto\x12\npymaid.rpc\"\xc5\x03\n\nController\x12\x17\n\x0ftransmission_id\x18\x01 \x01(\r\x12\x36\n\x0bpacket_type\x18\x02 \x01(\x0e\x32!.pymaid.rpc.Controller.PacketType\x12\x37\n\x0cpacket_flags\x18\x03 \x01(\x0e\x32!.pymaid.rpc.Controller.PacketFlag\x12\x31\n\x08priority\x18\x04 \x01(\x0e\x32\x1f.pymaid.rpc.Controller.Priority\x12\x16\n\x0eservice_method\x18\x05 \x01(\t\x12\x14\n\x0cis_cancelled\x18\x06 \x01(\x08\x12\x11\n\tis_failed\x18\x07 \x01(\x08\x12\x14\n\x0cpayload_size\x18\x08 \x01(\r\"4\n\nPacketType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07REQUEST\x10\x01\x12\x0c\n\x08RESPONSE\x10\x02\"E\n\nPacketFlag\x12\x08\n\x04NULL\x10\x00\x12\n\n\x06STREAM\x10\x01\x12\x0e\n\nEND_STREAM\x10\x02\x12\x11\n\rCANCEL_STREAM\x10\x03\"&\n\x08Priority\x12\x07\n\x03LOW\x10\x00\x12\x07\n\x03MID\x10\x01\x12\x08\n\x04HIGH\x10\x02\"\x08\n\x06RpcAck\"\x06\n\x04Void\";\n\x0c\x45rrorMessage\x12\x0c\n\x04\x63ode\x18\x01 \x01(\r\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\tb\x06proto3'
+    serialized_pb=b'\n\x17pymaid/rpc/pymaid.proto\x12\npymaid.rpc\"\xa8\x03\n\x07\x43ontext\x12\x17\n\x0ftransmission_id\x18\x01 \x01(\r\x12\x33\n\x0bpacket_type\x18\x02 \x01(\x0e\x32\x1e.pymaid.rpc.Context.PacketType\x12\x34\n\x0cpacket_flags\x18\x03 \x01(\x0e\x32\x1e.pymaid.rpc.Context.PacketFlag\x12.\n\x08priority\x18\x04 \x01(\x0e\x32\x1c.pymaid.rpc.Context.Priority\x12\x16\n\x0eservice_method\x18\x05 \x01(\t\x12\x14\n\x0cis_cancelled\x18\x06 \x01(\x08\x12\x11\n\tis_failed\x18\x07 \x01(\x08\x12\x14\n\x0cpayload_size\x18\x08 \x01(\r\"4\n\nPacketType\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x0b\n\x07REQUEST\x10\x01\x12\x0c\n\x08RESPONSE\x10\x02\"4\n\nPacketFlag\x12\x08\n\x04NULL\x10\x00\x12\x07\n\x03NEW\x10\x01\x12\n\n\x06\x43\x41NCEL\x10\x02\x12\x07\n\x03\x45ND\x10\x04\"&\n\x08Priority\x12\x07\n\x03LOW\x10\x00\x12\x07\n\x03MID\x10\x01\x12\x08\n\x04HIGH\x10\x02\"\x08\n\x06RpcAck\"\x06\n\x04Void\";\n\x0c\x45rrorMessage\x12\x0c\n\x04\x63ode\x18\x01 \x01(\r\x12\x0f\n\x07message\x18\x02 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x03 \x01(\tb\x06proto3'
 )
 
 
-_CONTROLLER_PACKETTYPE = _descriptor.EnumDescriptor(
+_CONTEXT_PACKETTYPE = _descriptor.EnumDescriptor(
     name='PacketType',
-    full_name='pymaid.rpc.Controller.PacketType',
+    full_name='pymaid.rpc.Context.PacketType',
     filename=None,
     file=DESCRIPTOR,
     create_key=_descriptor._internal_create_key,
@@ -46,14 +46,14 @@ _CONTROLLER_PACKETTYPE = _descriptor.EnumDescriptor(
     ],
     containing_type=None,
     serialized_options=None,
-    serialized_start=330,
-    serialized_end=382,
+    serialized_start=318,
+    serialized_end=370,
 )
-_sym_db.RegisterEnumDescriptor(_CONTROLLER_PACKETTYPE)
+_sym_db.RegisterEnumDescriptor(_CONTEXT_PACKETTYPE)
 
-_CONTROLLER_PACKETFLAG = _descriptor.EnumDescriptor(
+_CONTEXT_PACKETFLAG = _descriptor.EnumDescriptor(
     name='PacketFlag',
-    full_name='pymaid.rpc.Controller.PacketFlag',
+    full_name='pymaid.rpc.Context.PacketFlag',
     filename=None,
     file=DESCRIPTOR,
     create_key=_descriptor._internal_create_key,
@@ -64,31 +64,31 @@ _CONTROLLER_PACKETFLAG = _descriptor.EnumDescriptor(
             type=None,
             create_key=_descriptor._internal_create_key),
         _descriptor.EnumValueDescriptor(
-            name='STREAM', index=1, number=1,
+            name='NEW', index=1, number=1,
             serialized_options=None,
             type=None,
             create_key=_descriptor._internal_create_key),
         _descriptor.EnumValueDescriptor(
-            name='END_STREAM', index=2, number=2,
+            name='CANCEL', index=2, number=2,
             serialized_options=None,
             type=None,
             create_key=_descriptor._internal_create_key),
         _descriptor.EnumValueDescriptor(
-            name='CANCEL_STREAM', index=3, number=3,
+            name='END', index=3, number=4,
             serialized_options=None,
             type=None,
             create_key=_descriptor._internal_create_key),
     ],
     containing_type=None,
     serialized_options=None,
-    serialized_start=384,
-    serialized_end=453,
+    serialized_start=372,
+    serialized_end=424,
 )
-_sym_db.RegisterEnumDescriptor(_CONTROLLER_PACKETFLAG)
+_sym_db.RegisterEnumDescriptor(_CONTEXT_PACKETFLAG)
 
-_CONTROLLER_PRIORITY = _descriptor.EnumDescriptor(
+_CONTEXT_PRIORITY = _descriptor.EnumDescriptor(
     name='Priority',
-    full_name='pymaid.rpc.Controller.Priority',
+    full_name='pymaid.rpc.Context.Priority',
     filename=None,
     file=DESCRIPTOR,
     create_key=_descriptor._internal_create_key,
@@ -111,71 +111,71 @@ _CONTROLLER_PRIORITY = _descriptor.EnumDescriptor(
     ],
     containing_type=None,
     serialized_options=None,
-    serialized_start=455,
-    serialized_end=493,
+    serialized_start=426,
+    serialized_end=464,
 )
-_sym_db.RegisterEnumDescriptor(_CONTROLLER_PRIORITY)
+_sym_db.RegisterEnumDescriptor(_CONTEXT_PRIORITY)
 
 
-_CONTROLLER = _descriptor.Descriptor(
-    name='Controller',
-    full_name='pymaid.rpc.Controller',
+_CONTEXT = _descriptor.Descriptor(
+    name='Context',
+    full_name='pymaid.rpc.Context',
     filename=None,
     file=DESCRIPTOR,
     containing_type=None,
     create_key=_descriptor._internal_create_key,
     fields=[
         _descriptor.FieldDescriptor(
-            name='transmission_id', full_name='pymaid.rpc.Controller.transmission_id', index=0,
+            name='transmission_id', full_name='pymaid.rpc.Context.transmission_id', index=0,
             number=1, type=13, cpp_type=3, label=1,
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='packet_type', full_name='pymaid.rpc.Controller.packet_type', index=1,
+            name='packet_type', full_name='pymaid.rpc.Context.packet_type', index=1,
             number=2, type=14, cpp_type=8, label=1,
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='packet_flags', full_name='pymaid.rpc.Controller.packet_flags', index=2,
+            name='packet_flags', full_name='pymaid.rpc.Context.packet_flags', index=2,
             number=3, type=14, cpp_type=8, label=1,
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='priority', full_name='pymaid.rpc.Controller.priority', index=3,
+            name='priority', full_name='pymaid.rpc.Context.priority', index=3,
             number=4, type=14, cpp_type=8, label=1,
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='service_method', full_name='pymaid.rpc.Controller.service_method', index=4,
+            name='service_method', full_name='pymaid.rpc.Context.service_method', index=4,
             number=5, type=9, cpp_type=9, label=1,
             has_default_value=False, default_value=b"".decode('utf-8'),
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='is_cancelled', full_name='pymaid.rpc.Controller.is_cancelled', index=5,
+            name='is_cancelled', full_name='pymaid.rpc.Context.is_cancelled', index=5,
             number=6, type=8, cpp_type=7, label=1,
             has_default_value=False, default_value=False,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='is_failed', full_name='pymaid.rpc.Controller.is_failed', index=6,
+            name='is_failed', full_name='pymaid.rpc.Context.is_failed', index=6,
             number=7, type=8, cpp_type=7, label=1,
             has_default_value=False, default_value=False,
             message_type=None, enum_type=None, containing_type=None,
             is_extension=False, extension_scope=None,
             serialized_options=None, file=DESCRIPTOR, create_key=_descriptor._internal_create_key),
         _descriptor.FieldDescriptor(
-            name='payload_size', full_name='pymaid.rpc.Controller.payload_size', index=7,
+            name='payload_size', full_name='pymaid.rpc.Context.payload_size', index=7,
             number=8, type=13, cpp_type=3, label=1,
             has_default_value=False, default_value=0,
             message_type=None, enum_type=None, containing_type=None,
@@ -186,9 +186,9 @@ _CONTROLLER = _descriptor.Descriptor(
     ],
     nested_types=[],
     enum_types=[
-        _CONTROLLER_PACKETTYPE,
-        _CONTROLLER_PACKETFLAG,
-        _CONTROLLER_PRIORITY,
+        _CONTEXT_PACKETTYPE,
+        _CONTEXT_PACKETFLAG,
+        _CONTEXT_PRIORITY,
     ],
     serialized_options=None,
     is_extendable=False,
@@ -197,7 +197,7 @@ _CONTROLLER = _descriptor.Descriptor(
     oneofs=[
     ],
     serialized_start=40,
-    serialized_end=493,
+    serialized_end=464,
 )
 
 
@@ -221,8 +221,8 @@ _RPCACK = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=495,
-    serialized_end=503,
+    serialized_start=466,
+    serialized_end=474,
 )
 
 
@@ -246,8 +246,8 @@ _VOID = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=505,
-    serialized_end=511,
+    serialized_start=476,
+    serialized_end=482,
 )
 
 
@@ -292,28 +292,28 @@ _ERRORMESSAGE = _descriptor.Descriptor(
     extension_ranges=[],
     oneofs=[
     ],
-    serialized_start=513,
-    serialized_end=572,
+    serialized_start=484,
+    serialized_end=543,
 )
 
-_CONTROLLER.fields_by_name['packet_type'].enum_type = _CONTROLLER_PACKETTYPE
-_CONTROLLER.fields_by_name['packet_flags'].enum_type = _CONTROLLER_PACKETFLAG
-_CONTROLLER.fields_by_name['priority'].enum_type = _CONTROLLER_PRIORITY
-_CONTROLLER_PACKETTYPE.containing_type = _CONTROLLER
-_CONTROLLER_PACKETFLAG.containing_type = _CONTROLLER
-_CONTROLLER_PRIORITY.containing_type = _CONTROLLER
-DESCRIPTOR.message_types_by_name['Controller'] = _CONTROLLER
+_CONTEXT.fields_by_name['packet_type'].enum_type = _CONTEXT_PACKETTYPE
+_CONTEXT.fields_by_name['packet_flags'].enum_type = _CONTEXT_PACKETFLAG
+_CONTEXT.fields_by_name['priority'].enum_type = _CONTEXT_PRIORITY
+_CONTEXT_PACKETTYPE.containing_type = _CONTEXT
+_CONTEXT_PACKETFLAG.containing_type = _CONTEXT
+_CONTEXT_PRIORITY.containing_type = _CONTEXT
+DESCRIPTOR.message_types_by_name['Context'] = _CONTEXT
 DESCRIPTOR.message_types_by_name['RpcAck'] = _RPCACK
 DESCRIPTOR.message_types_by_name['Void'] = _VOID
 DESCRIPTOR.message_types_by_name['ErrorMessage'] = _ERRORMESSAGE
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
-Controller = _reflection.GeneratedProtocolMessageType('Controller', (_message.Message,), {
-    'DESCRIPTOR': _CONTROLLER,
+Context = _reflection.GeneratedProtocolMessageType('Context', (_message.Message,), {
+    'DESCRIPTOR': _CONTEXT,
     '__module__': 'pymaid.rpc.pymaid_pb2'
-    # @@protoc_insertion_point(class_scope:pymaid.rpc.Controller)
+    # @@protoc_insertion_point(class_scope:pymaid.rpc.Context)
 })
-_sym_db.RegisterMessage(Controller)
+_sym_db.RegisterMessage(Context)
 
 RpcAck = _reflection.GeneratedProtocolMessageType('RpcAck', (_message.Message,), {
     'DESCRIPTOR': _RPCACK,

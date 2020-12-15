@@ -1,16 +1,50 @@
-'''
-pymaid is based on asyncio now, and for better performance, it use
-uvloop as the event loop
-'''
-import uvloop
+'''Pymaid is based on asyncio now.
 
-import asyncio  # noqa
-import socket  # noqa
+And for better performance, it use uvloop as the event loop
+'''
+import asyncio
+import socket
 
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor  # noqa
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 
-uvloop.install()  # noqa
+__all__ = (
+    'run',
+    'sleep',
+    'get_event_loop',
+    'get_running_loop',
+
+    'create_task',
+    'current_task',
+    'all_tasks',
+    'wait_for',
+    'wait',
+    'gather',
+    'Task',
+    'TimeoutError',
+    'CancelledError',
+    'Future',
+    'Event',
+    'Semaphore',
+
+    'Queue',
+    'QueueFull',
+    'QueueEmpty',
+
+    'create_stream',
+    'create_datagram',
+    'create_stream_server',
+    'create_datagram_server',
+    'create_unix_stream',
+    'create_unix_stream_server',
+
+    'iscoroutine',
+    'iscoroutinefunction',
+    'ensure_future',
+    'wrap_future',
+    'run_in_threadpool',
+    'run_in_processpool',
+)
 
 
 #
@@ -62,15 +96,15 @@ BaseTransport = asyncio.BaseTransport
 BaseProtocol = asyncio.BaseProtocol
 
 
-async def create_stream(transport_class, host, port, *, retry=3, **kwargs):
+async def create_stream(transport_class, host, port, **kwargs):
     return (await get_running_loop().create_connection(
-        partial(transport_class, client_side=True), host, port, **kwargs
+        partial(transport_class, initiative=True), host, port, **kwargs
     ))[1]
 
 
 async def create_datagram(transport_class, addr, **kwargs):
     return (await get_running_loop().create_datagram_endpoint(
-        partial(transport_class, client_side=True), remote_addr=addr, **kwargs
+        partial(transport_class, initiative=True), remote_addr=addr, **kwargs
     ))[1]
 
 
@@ -86,15 +120,15 @@ async def create_datagram_server(transport_class, addr, **kwargs):
     )
 
 
-async def create_unix_stream(transport_class, path, *, retry=3, **kwargs):
+async def create_unix_stream(transport_class, path, **kwargs):
     return (await get_running_loop().create_unix_connection(
-        partial(transport_class, client_side=True), path, **kwargs
+        partial(transport_class, initiative=True), path, **kwargs
     ))[1]
 
 
 async def create_unix_datagram(transport_class, path, **kwargs):
     return (await get_running_loop().create_datagram_endpoint(
-        partial(transport_class, client_side=True),
+        partial(transport_class, initiative=True),
         remote_addr=path,
         family=socket.AF_UNIX,
         **kwargs
@@ -102,7 +136,9 @@ async def create_unix_datagram(transport_class, path, **kwargs):
 
 
 async def create_unix_stream_server(transport_class, path, **kwargs):
-    return await get_running_loop().create_unix_server(transport_class, path, **kwargs)
+    return await get_running_loop().create_unix_server(
+        transport_class, path, **kwargs
+    )
 
 
 # unix domain socket not support datagram
@@ -130,16 +166,16 @@ default_thread_executor = ThreadPoolExecutor()
 default_process_executor = ProcessPoolExecutor()
 
 
-def run_in_thread(
+def run_in_threadpool(
     func, *, args=None, kwargs=None, executor=default_thread_executor,
 ):
     return wrap_future(executor.submit(func, *(args or ()), **(kwargs or {})))
 
 
-def run_in_process(
+def run_in_processpool(
     func, *, args=None, kwargs=None, executor=default_process_executor,
 ):
     return wrap_future(executor.submit(func, *(args or ()), **(kwargs or {})))
 
 
-del asyncio, uvloop
+del asyncio
