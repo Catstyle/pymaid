@@ -4,7 +4,6 @@ from typing import AsyncIterable, Callable, Optional, Type
 from .channel import ConnectionType
 from .pymaid_pb2 import Context as Meta, Void
 from .types import InboundContext, Request, Response
-from .utils import trace_stub
 
 
 class Method(abc.ABC):
@@ -98,7 +97,6 @@ class UnaryUnaryMethodStub(MethodStub):
     client_streaming = False
     server_streaming = False
 
-    @trace_stub
     async def __call__(
         self,
         request: Request,
@@ -116,7 +114,6 @@ class UnaryStreamMethodStub(MethodStub):
     client_streaming = False
     server_streaming = True
 
-    @trace_stub
     async def __call__(
         self,
         request: Request,
@@ -128,7 +125,6 @@ class UnaryStreamMethodStub(MethodStub):
             await context.send_message(request)
             async for resp in context:
                 yield resp
-            # return [r async for r in context]
 
 
 class StreamUnaryMethodStub(MethodStub):
@@ -136,7 +132,6 @@ class StreamUnaryMethodStub(MethodStub):
     client_streaming = True
     server_streaming = False
 
-    @trace_stub
     async def __call__(
         self,
         requests: AsyncIterable[Request],
@@ -156,7 +151,6 @@ class StreamStreamMethodStub(MethodStub):
     client_streaming = True
     server_streaming = True
 
-    @trace_stub
     async def __call__(
         self,
         requests: AsyncIterable[Request],
@@ -170,4 +164,3 @@ class StreamStreamMethodStub(MethodStub):
             await context.send_message(end=True)
             async for resp in context:
                 yield resp
-            # return [r async for r in context]

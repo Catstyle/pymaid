@@ -49,6 +49,7 @@ class Connection(Connection):
         # base close is function
         super().close(exc)
         await self.handler.close(exc)
+        self.handler = None
         del self.buffer[:]
         for ctx in list(self.contexts.values()):
             await ctx.close(exc)
