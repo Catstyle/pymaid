@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pymaid.rpc;
 
-message Controller {
+message Context {
     uint32 transmission_id = 1;
 
     enum PacketType {
@@ -14,9 +14,9 @@ message Controller {
 
     enum PacketFlag {
         NULL = 0;
-        STREAM = 1;
-        END_STREAM = 2;
-        CANCEL_STREAM = 3;
+        NEW = 1;
+        CANCEL = 2;
+        END = 4;
     }
     PacketFlag packet_flags = 3;
 

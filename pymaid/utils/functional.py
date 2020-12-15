@@ -105,14 +105,15 @@ def with_defer(func):
 
 
 def defer(func, *args, **kwargs):
-    ''' Register a callback to be called when exit a scope.
+    '''Register a callback to be called when exit a scope.
 
     The callbacks are executed in LIFO order.
 
-    If a callback raises an Exception, it will raise out after all callbacks are executed.
+    If a callback raises an Exception, it will be reraised after all
+    callbacks are executed.
 
-    If multiple callbacks raise Exceptions, it will chain the exceptions tracebacks
-    and you will see output like:
+    If multiple callbacks raise Exceptions, it will chain the exceptions
+    tracebacks and you will see output like:
         ...
         *During handling of the above exception, another exception occurred:*
         ...
@@ -128,7 +129,9 @@ def defer(func, *args, **kwargs):
     st = f.f_locals['__stack__']
     if iscoroutinefunction(func):
         if not f.f_locals['is_async']:
-            raise ValueError('defer coroutinefunction required within coroutinefunction')
+            raise ValueError(
+                'defer coroutinefunction required within coroutinefunction'
+            )
         st.push_async_callback(func, *args, **kwargs)
     elif callable(func):
         st.callback(func, *args, **kwargs)

@@ -32,6 +32,8 @@ async def main(args):
 
 if __name__ == '__main__':
     parser = get_client_parser()
-    parser.add_argument('sleep_time', type=int, default=10, help='heartbeat timeout in seconds')
+    parser.add_argument(
+        'sleep_time', type=int, default=10, help='heartbeat timeout in seconds'
+    )
     args = parse_args(parser)
     pymaid.run(main(args))

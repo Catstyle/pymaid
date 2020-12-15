@@ -15,9 +15,8 @@ try:
 except ImportError:
 
     # from_bytes/to_bytes is faster
-    # but it is under potential risk of being attack because multiply *mask* is not memory friendly
-
-    # from sys import byteorder
+    # but it is under potential risk of being attack
+    # because multiply *mask* is not memory friendly
 
     # def mask_payload(payload, mask) -> bytes:
     #     p_size = len(payload)
@@ -30,8 +29,8 @@ except ImportError:
     #         mask = mask[:p_size]
 
     #     return (
-    #         int.from_bytes(payload, byteorder) ^ int.from_bytes(mask, byteorder)
-    #     ).to_bytes(p_size, byteorder)
+    #         int.from_bytes(payload, 'little') ^ int.from_bytes(mask, 'little')  # noqa
+    #     ).to_bytes(p_size, 'little')
 
     def mask_payload(payload: DataType, mask: bytes) -> bytes:
         if len(mask) != 4:
@@ -146,12 +145,16 @@ class WSProtocol(Protocol):
         # no mater what opcode, message should be binary type
         if isinstance(payload, str):
             payload = payload.encode('utf-8')
-        return Header.encode_header(True, opcode, b'', len(payload), 0) + payload
+        return (
+            Header.encode_header(True, opcode, b'', len(payload), 0) + payload
+        )
 
     def encode(self, opcode, payload: DataType) -> bytes:
         '''Send a frame over the websocket with message as its payload.'''
         return self.encode_frame(
-            self.OPCODE_BINARY if isinstance(payload, bytes) else self.OPCODE_TEXT,
+            self.OPCODE_BINARY
+            if isinstance(payload, bytes)
+            else self.OPCODE_TEXT,
             payload,
         )
 
@@ -215,7 +218,9 @@ class Header:
 
         if header.opcode > 0x07:
             if not header.fin:
-                raise ProtocolError(f'Received fragmented control frame: {data}')
+                raise ProtocolError(
+                    f'Received fragmented control frame: {data}'
+                )
             # Control frames MUST have a payload length of 125 bytes or less
             if header.length > 125:
                 raise FrameTooLargeException(

@@ -21,7 +21,11 @@ async def main(args):
 
 if __name__ == "__main__":
     parser = get_server_parser()
-    parser.add_argument('interval', type=int, default=10, help='heartbeat timeout in seconds')
-    parser.add_argument('count', type=int, default=3, help='retry count before heartbeat timeout')
+    parser.add_argument(
+        'interval', type=int, default=10, help='heartbeat timeout in seconds'
+    )
+    parser.add_argument(
+        'retry', type=int, default=3, help='retry before heartbeat timeout'
+    )
     args = parse_args(parser)
     pymaid.run(main(args))

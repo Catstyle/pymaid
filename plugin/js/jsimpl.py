@@ -45,7 +45,7 @@ ${methods}
 
 METHOD_TEMPLATE = Template("""/**${req}${resp}
 **/
-${method_name}: function(controller, req, cb) {
+${method_name}: function(context, req, cb) {
     this.listeners.forEach(function(listener) {
         listener.dispatch(['${method_name}', req]);
     });
@@ -146,7 +146,7 @@ def generate_jsimpl(service_descriptor, package, prefix):
                 method_name=method.name, output_type=output_type
             ),
         ])
-        cb = '\n    cb(controller, req);'
+        cb = '\n    cb(context, req);'
         if method.output_type.name == 'Void':
             cb = ''
         mstr = METHOD_TEMPLATE.safe_substitute(

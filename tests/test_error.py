@@ -99,11 +99,15 @@ class ErrorTest(TestCase):
         self.assertTrue(issubclass(UserError.UserBanned, error.Warning))
         self.assertTrue(issubclass(UserError.UserBanned, UserError))
 
-        ex = UserError.UserBanned(data={'reason': 'illegal behaviors', 'until': 2000000000})
+        ex = UserError.UserBanned(
+            data={'reason': 'illegal behaviors', 'until': 2000000000}
+        )
         self.assertIsInstance(ex, error.Warning)
         self.assertIsInstance(ex, UserError)
         self.assertEqual(ex.message, 'User has been banned')
-        self.assertDictEqual(ex.data, {'reason': 'illegal behaviors', 'until': 2000000000})
+        self.assertDictEqual(
+            ex.data, {'reason': 'illegal behaviors', 'until': 2000000000}
+        )
 
         with self.assertRaises(error.Warning):
             raise ex
@@ -125,12 +129,15 @@ class ErrorTest(TestCase):
         ProfileError = UserError.create_manager('ProfileError')
         assert ProfileError.__name__ == 'ProfileError'
         self.assertIn('ProfileError', UserError.managers)
-        ProfileError.add_warning('IncompleteInfo', 'Please fill in the missing info')
+        ProfileError.add_warning(
+            'IncompleteInfo', 'Please fill in the missing info'
+        )
 
         ex = ProfileError.IncompleteInfo(data={'fields': ['age', 'gender']})
         self.assertIsInstance(ex, error.Warning)
         self.assertIsInstance(ex, ProfileError)
-        # yes, ProfileError is managed by UserError, and it should be catched by UserError
+        # yes, ProfileError is managed by UserError
+        # and it should be catched by UserError
         self.assertIsInstance(ex, UserError)
         self.assertEqual(ex.code, 'UserError.ProfileError.IncompleteInfo')
         self.assertEqual(ex.message, 'Please fill in the missing info')
@@ -152,10 +159,14 @@ class ErrorTest(TestCase):
             UserError.UserNotExist,
         )
         self.assertIsNotNone(
-            error.ErrorManager.get_exception('UserError.ProfileError.IncompleteInfo')
+            error.ErrorManager.get_exception(
+                'UserError.ProfileError.IncompleteInfo'
+            )
         )
         self.assertIs(
-            error.ErrorManager.get_exception('UserError.ProfileError.IncompleteInfo'),
+            error.ErrorManager.get_exception(
+                'UserError.ProfileError.IncompleteInfo'
+            ),
             ProfileError.IncompleteInfo,
         )
 
@@ -183,7 +194,9 @@ class ErrorTest(TestCase):
         ex = error.ErrorManager.assemble('Error1', 'Error1: assembled', {})
         self.assertIsInstance(ex, Error1)
 
-        ex = error.ErrorManager.assemble('Error2', 'cannot find defination', {})
+        ex = error.ErrorManager.assemble(
+            'Error2', 'cannot find defination', {}
+        )
         self.assertIsInstance(ex, error.Warning)
         self.assertEqual(ex.code, 'Unknown_Error2')
         self.assertEqual(ex.__class__.__name__, 'Unknown_Error2')

@@ -1,4 +1,4 @@
-''' pymaid separate network into two layer
+'''pymaid separate network into two layer
 
 transport layer
     transport layer concern about how data transmit
@@ -22,7 +22,7 @@ __all__ = ['Protocol', 'Transport', 'Stream', 'Datagram']
 import abc
 import socket
 
-from typing import Any, NoReturn, Optional, Tuple, TypeVar
+from typing import Any, Optional, Tuple, TypeVar
 
 from pymaid.core import BaseTransport, Event
 from pymaid.conf import settings
@@ -33,9 +33,9 @@ DataType = TypeVar('Data', bytes, memoryview)
 
 
 class Protocol(metaclass=abc.ABCMeta):
-    ''' pymaid use Protocol representation app protocol layer
+    '''pymaid use Protocol representation app protocol layer
 
-    you can build your protocol upon Protocol
+    You can build your protocol upon Protocol
     and you can easily change the underlying Protocol
     e.g.:
         build your AppProtocol inherit from Http and change to Http2 if wanted,
@@ -66,22 +66,22 @@ ProtocolType = TypeVar('Protocol', bound=Protocol)
 
 @logger_wrapper
 class Transport:
-    ''' pymaid use Transport representation transport layer '''
+    '''pymaid use Transport representation transport layer '''
 
     CONN_ID = 0
 
-    def __init__(self, *, server=None, client_side=False):
-        ''' pymaid use Transport representation for transport layer
+    def __init__(self, *, channel=None, initiative=False):
+        '''pymaid use Transport representation for transport layer
 
         transport layer donot care app protocol
 
         :params app_protocol: used to encode/decode protocol used by upper app
         '''
-        self.server = server
+        self.channel = channel
         self.transport = None
         self.conn = None
 
-        self.client_side = client_side
+        self.initiative = initiative
         self.exc = None
         self.conn_lost_event = Event()
 
@@ -94,21 +94,21 @@ class Transport:
         self.__class__.CONN_ID = self.__class__.CONN_ID + 1
         self.conn_id = f'{self.__class__.__name__}-{self.__class__.CONN_ID}'
         self.bind_transport(transport)
-        if self.server:
-            self.conn = self.server.connection_made(self)
-        self.logger.debug(f'[{self}] made')
+        if self.channel:
+            self.conn = self.channel.connection_made(self)
+        self.logger.info(f'[{self}] made')
 
     def connection_lost(self, exc: Optional[Exception]):
         exc = exc or self.exc
+        log = self.logger.info
         if exc:
             if isinstance(exc, (BaseEx, str, int)):
-                self.logger.error(f'[{self}] closed with [{exc}]')
+                log = self.logger.error
             else:
-                self.logger.exception(f'[{self}] closed with [{exc}]', exc_info=exc)
-        else:
-            self.logger.info(f'[{self}] closed')
-        if self.server and self.conn:
-            self.server.connection_lost(self.conn, exc)
+                log = self.logger.exception
+        log('[%s] closed with [%r]', self, exc, exc_info=exc)
+        if self.channel and self.conn:
+            self.channel.connection_lost(self.conn, exc)
         self.destory()
 
     def close(self, exc: Optional[Exception] = None):
@@ -116,7 +116,7 @@ class Transport:
         self.transport.close()
 
     def destory(self):
-        self.server = None
+        self.channel = None
         self.transport = None
         self.conn = None
         self.write = None
@@ -135,7 +135,7 @@ class Transport:
         raise NotImplementedError
 
     def __repr__(self):
-        return f'<{self.conn_id} client_side={self.client_side}>'
+        return f'<{self.conn_id} initiative={self.initiative}>'
 
 
 @logger_wrapper
@@ -166,7 +166,7 @@ class Stream(Transport):
                 setsockopt(SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL'])
                 setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
 
-    def bind_transport(self, transport: BaseTransport) -> NoReturn:
+    def bind_transport(self, transport: BaseTransport):
         self.transport = transport
         self.sockname = transport.get_extra_info('sockname')
         self.peername = transport.get_extra_info('peername')
@@ -180,10 +180,12 @@ class Stream(Transport):
 
     def data_received(self, data: bytes):
         # if conn is None, then this method should be override
+        assert self.conn, 'this method should be override'
         self.conn.feed_data(data)
 
     def eof_received(self) -> Optional[bool]:
         # if conn is None, then this method should be override
+        assert self.conn, 'this method should be override'
         return self.conn.feed_data(b'')
 
     def destory(self):
@@ -196,8 +198,10 @@ class Stream(Transport):
 
     def __repr__(self):
         return (
-            f'<{self.conn_id} client_side={self.client_side} sockname={self.sockname} '
-            f'peername={self.peername}>'
+            f'<'
+            f'{self.conn_id} initiative={self.initiative} '
+            f'sockname={self.sockname} peername={self.peername}'
+            f'>'
         )
 
 

@@ -1,63 +1,93 @@
 import pymaid
 import pymaid.rpc.pb
-# from pymaid.ext.pools.worker import AioPool
 
 from examples.template import get_client_parser, parse_args
 
 from echo_pb2 import EchoService_Stub, Message
 
+request = Message(message='a' * 8000)
 
-async def wrapper(client, service, address, count):
-    while 1:
-        try:
-            conn = await client.connect(address)
-        except BlockingIOError:
-            await pymaid.sleep(0)
-        else:
-            break
-    request = Message(message='a' * 8000)
 
-    def cb(resp):
-        assert len(resp.message) == 8000
+async def get_requests():
+    yield request
+    yield request
 
-    # async with AioPool(size=10) as pool:
+
+async def wrapper(ch, service, address, count):
+    conn = await ch.connect(address)
+
     for x in range(count):
-        # await pool.spawn(service.UnaryUnaryEcho(request, conn=conn), callback=cb)
+        # UnaryUnaryEcho
         resp = await service.UnaryUnaryEcho(request, conn=conn)
         assert len(resp.message) == 8000
 
         # # This block performs the same UNARY_UNARY interaction as above
         # # while showing more advanced stream control features.
-        # async with service.UnaryUnaryEcho.open(conn=conn) as controller:
-        #     controller.send_message(request)
-        #     resp = await controller.recv_message()
+        # async with service.UnaryUnaryEcho.open(conn=conn) as context:
+        #     await context.send_message(request)
+        #     resp = await context.recv_message()
         #     assert len(resp.message) == 8000
 
-        # resp = await service.UnaryStreamEcho(request, conn=conn)
-        # assert len(resp) == 5
-        # assert all(len(r.message) == 8000 for r in resp)
+        # UnaryStreamEcho
+        async for resp in service.UnaryStreamEcho(request, conn=conn):
+            assert len(resp.message) == 8000
 
         # # This block performs the same UNARY_STREAM interaction as above
         # # while showing more advanced stream control features.
-        # async with await service.UnaryStreamEcho.open(conn=conn) as controller:
-        #     await controller.send_message(request)
-        #     resp = [r async for r in controller]
-        #     assert len(resp) == 5
-        #     assert all(len(r.message) == 8000 for r in resp)
+        # async with service.UnaryStreamEcho.open(conn=conn) as context:
+        #     await context.send_message(request)
+        #     async for resp in context:
+        #         assert len(resp.message) == 8000
+
+        # StreamUnaryEcho
+        resp = await service.StreamUnaryEcho(get_requests(), conn=conn)
+        assert len(resp.message) == 8000
+
+        # # This block performs the same STREAM_UNARY interaction as above
+        # # while showing more advanced stream control features.
+        # async with service.StreamUnaryEcho.open(conn=conn) as context:
+        #     async for req in get_requests():
+        #         await context.send_message(req)
+        #         # you can still do something here
+        #     # CAUTION, DO NOT FORGET TO SEND THE END MESSAGE
+        #     await context.send_message(end=True)
+        #     resp = await context.recv_message()
+        #     assert len(resp.message) == 8000
+
+        # StreamStreamEcho
+        async for resp in service.StreamStreamEcho(get_requests(), conn=conn):
+            assert len(resp.message) == 8000
+
+        # # This block performs the same STREAM_STREAM interaction as above
+        # # while showing more advanced stream control features.
+        # async with service.StreamStreamEcho.open(conn=conn) as context:
+        #     async for req in get_requests():
+        #         await context.send_message(request)
+        #         # you can still do something here
+        #         resp = await context.recv_message()
+        #         assert len(resp.message) == 8000
+        #     # or you can send requests first, then wait for responses
+        #     async for req in get_requests():
+        #         await context.send_message(request)
+        #         # you can still do something here
+        #     async for resp in context:
+        #         # you can still do something here
+        #         assert len(resp.message) == 8000
+        #     # you can send end message yourself
+        #     # or let context handle this at cleanup for you
+        #     await context.send_message(end=True)
     conn.shutdown()
-    conn.close()
+    await conn.close()
+    # await conn.wait_closed()
 
 
 async def main(args):
-    if isinstance(args.address, str):
-        client = pymaid.rpc.pb.channel.UnixStreamChannel()
-    else:
-        client = pymaid.rpc.pb.channel.StreamChannel()
-    service = pymaid.rpc.method.ServiceStub(EchoService_Stub)
+    ch = pymaid.rpc.pb.create_channel(args.address)
+    service = pymaid.rpc.router.ServiceStub(EchoService_Stub)
     tasks = []
     for x in range(args.concurrency):
         tasks.append(pymaid.create_task(
-            wrapper(client, service, args.address, args.request)
+            wrapper(ch, service, args.address, args.request)
         ))
 
     # await pymaid.wait(tasks, timeout=args.timeout)
@@ -65,5 +95,27 @@ async def main(args):
 
 
 if __name__ == "__main__":
+    # import gc
+    # gc.disable()
+    # gc.set_debug(
+    #     gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_SAVEALL
+    # )
+
     args = parse_args(get_client_parser())
     pymaid.run(main(args))
+
+    # unreach = gc.collect()
+    # objs = gc.garbage
+
+    # from sys import getsizeof
+    # from collections import Counter
+    # import pdb
+    # pdb.set_trace()
+
+    # data = Counter()
+    # size = Counter()
+    # for obj in objs:
+    #     data[type(obj)] += 1
+    #     size[type(obj)] += getsizeof(obj)
+
+    # pdb.set_trace()

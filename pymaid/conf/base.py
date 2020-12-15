@@ -81,7 +81,7 @@ class Settings(object):
                 value, key, ns,
             )
         if not namespace.get('__MUTABLE__', False):
-            raise RuntimeError('[pymaid][settings][ns|%s] is immutable' % ns)
+            raise RuntimeError(f'[pymaid][settings][ns|{ns}] is immutable')
         setattr(namespace, key, value)
 
     def add_watcher(self, watcher, ns='common'):
@@ -153,7 +153,9 @@ class Settings(object):
                     mod, getattr(mod, '__NAMESPACE__', ns), mutable
                 )
 
-    def load_from_environment(self, prefix='SETTING__', raise_invalid_value=True):
+    def load_from_environment(
+        self, prefix='SETTING__', raise_invalid_value=True
+    ):
         '''load *special formatted* env into settings
 
         format: {PREFIX}__{NAMESPACE}__{KEY}=VALUE
@@ -176,29 +178,34 @@ class Settings(object):
         # cannot endswith ___
         # can only has one '__'
         if not re.match(r'[A-Z]+__$', prefix):
-            raise ValueError('prefix should be in the format of `NAME__`, got `%s`' % prefix)
+            raise ValueError(
+                f'prefix should be in the format of `NAME__`, got `{prefix}`'
+            )
 
-        env_regex = re.compile(r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix)
+        env_regex = re.compile(
+            r'^%s[A-Z][A-Z_]+[A-Z]__[A-Z][A-Z_]+[A-Z]$' % prefix
+        )
         data = {}
         for env, value in os.environ.items():
             # naive check
             if not env.startswith(prefix):
                 continue
             if not env_regex.match(env):
-                sys.stderr.write('wrong special formatted env `%s`\n' % env)
+                sys.stderr.write(f'wrong special formatted env `{env}`\n')
                 continue
 
             env_ = env.split('__')
             if len(env_) != 3:
-                sys.stderr.write('wrong special formatted env `%s`\n' % env)
+                sys.stderr.write(f'wrong special formatted env `{env}`\n')
                 continue
             _, ns, key = env_
 
             value_ = value.split('::')
             if len(value_) != 2:
                 err = (
-                    'get special formatted env `%s`, but with wrong format value `%s`, '
-                    'should be in format of `type::value`\n' % (env, value)
+                    f'get special formatted env `{env}`, '
+                    f'but with wrong format value `{value}`, '
+                    f'should be in format of `type::value`\n'
                 )
                 if raise_invalid_value:
                     raise ValueError(err)
@@ -208,8 +215,8 @@ class Settings(object):
             t, val = value_
             if t not in self.transformer:
                 err = (
-                    'unknown value type `%s` for env `%s=%s`, available `%s`\n' %
-                    (t, env, value, self.transformer.keys())
+                    f'unknown value type `{t}` for env `{env}={value}`, '
+                    f'available `{self.transformer.keys()}`\n'
                 )
                 if raise_invalid_value:
                     raise ValueError(err)
@@ -219,7 +226,10 @@ class Settings(object):
             try:
                 val = self.transformer[t](val)
             except (TypeError, ValueError):
-                err = 'cannot transform value of `%s=%s`, check type and value\n' % (env, value)
+                err = (
+                    f'cannot transform value of `{env}={value}`, '
+                    f'check type and value\n'
+                )
                 if raise_invalid_value:
                     raise ValueError(err)
                 sys.stderr.write(err)
@@ -258,3 +268,4 @@ settings = Settings('global')
 settings.add_watcher(configure_logging, ns='pymaid')
 settings.add_watcher(configure_logging, ns='logging')
 settings.load_from_object(defaults, ns='pymaid')
+settings.load_from_environment()

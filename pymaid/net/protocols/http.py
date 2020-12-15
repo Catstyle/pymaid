@@ -121,7 +121,9 @@ class HTTP(BaseProtocol):
     def __init__(self, handler):
         super().__init__(handler)
         self.request_parser = httptools.HttpRequestParser(HttpRequest(handler))
-        self.response_parser = httptools.HttpResponseParser(HttpResponse(handler))
+        self.response_parser = httptools.HttpResponseParser(
+            HttpResponse(handler)
+        )
 
     def data_received(self, data: bytes):
         try:
