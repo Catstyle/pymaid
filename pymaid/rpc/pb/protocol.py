@@ -5,9 +5,9 @@ from google.protobuf.message import Message
 
 from pymaid.conf import settings
 from pymaid.net import DataType, Protocol
-from pymaid.rpc.pymaid_pb2 import Context as Meta
 
 from .error import PBError
+from .pymaid_pb2 import Context as Meta
 
 st = Struct(settings.get('PM_PB_HEADER', ns='pymaid'))
 header_size = st.size
@@ -31,6 +31,7 @@ class Protocol(Protocol):
                 if not consumed:
                     break
                 assert meta
+                assert meta.payload_size == len(payload)
                 messages.append((meta, payload))
                 used_size += consumed
                 data = data[consumed:]
@@ -65,6 +66,8 @@ class Protocol(Protocol):
             raise PBError.PacketTooLarge(
                 data={'max': max_packet, 'size': meta.payload_size}
             )
+        if header_size + meta_size + meta.payload_size > nbytes:
+            return 0, None, None
         needed_size += meta.payload_size
 
         return needed_size, meta, data[header_size + meta_size: needed_size]
