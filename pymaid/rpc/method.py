@@ -1,9 +1,7 @@
 import abc
 from typing import AsyncIterable, Callable, Optional, Type
 
-from .channel import ConnectionType
-from .pymaid_pb2 import Context as Meta, Void
-from .types import InboundContext, Request, Response
+from .types import ConnectionType, InboundContext, Request, Response
 
 
 class Method(abc.ABC):
@@ -11,20 +9,19 @@ class Method(abc.ABC):
     def __init__(
         self,
         name: str,
+        full_name: str,
         method_impl: Callable,
         request_class: Type[Request],
         response_class: Type[Response],
+        *,
+        options: dict = None,
     ):
         self.name = name
+        self.full_name = full_name
         self.method_impl = method_impl
         self.request_class = request_class
         self.response_class = response_class
-        self.flags = Meta.PacketFlag.NULL
-
-        if not issubclass(response_class, Void):
-            self.require_response = True
-        else:
-            self.require_response = False
+        self.options = options or {}
 
     async def __call__(self, context: InboundContext):
         async with context:
@@ -60,18 +57,17 @@ class MethodStub(metaclass=abc.ABCMeta):
     def __init__(
         self,
         name: str,
+        full_name: str,
         request_class: Type[Request],
         response_class: Type[Response],
+        *,
+        options: dict = None,
     ):
         self.name = name
+        self.full_name = full_name
         self.request_class = request_class
         self.response_class = response_class
-        self.flags = Meta.PacketFlag.NULL
-
-        if not issubclass(response_class, Void):
-            self.require_response = True
-        else:
-            self.require_response = False
+        self.options = options or {}
 
     def open(
         self,
@@ -79,7 +75,7 @@ class MethodStub(metaclass=abc.ABCMeta):
         conn: ConnectionType,
         timeout: Optional[float] = None,
     ):
-        return conn.new_outbound_context(method=self, timeout=timeout)
+        return conn.handler.new_outbound_context(method=self, timeout=timeout)
 
     @abc.abstractmethod
     def __call__(

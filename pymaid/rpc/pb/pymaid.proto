@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package pymaid.rpc;
+package pymaid.rpc.pb;
 
 message Context {
     uint32 transmission_id = 1;

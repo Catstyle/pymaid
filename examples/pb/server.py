@@ -1,6 +1,5 @@
 import pymaid
-from pymaid.rpc.context import InboundContext
-from pymaid.utils.logger import logger_wrapper
+from pymaid.rpc.pb.context import InboundContext
 
 from examples.template import get_server_parser, parse_args
 
@@ -8,9 +7,7 @@ from examples.template import get_server_parser, parse_args
 from echo_pb2 import EchoService
 
 
-# @pymaid.rpc.utils.trace_service
-@pymaid.rpc.utils.implall
-@logger_wrapper
+@pymaid.rpc.pb.implall
 class EchoImpl(EchoService):
 
     async def UnaryUnaryEcho(self, context: InboundContext):
@@ -41,7 +38,7 @@ class EchoImpl(EchoService):
 
 
 async def main(args):
-    await pymaid.rpc.pb.serve(args.address, services=[EchoImpl()])
+    await pymaid.rpc.pb.serve_stream(args.address, services=[EchoImpl()])
 
 
 if __name__ == "__main__":

@@ -61,21 +61,19 @@ class Protocol(metaclass=abc.ABCMeta):
         raise NotImplementedError
 
 
-ProtocolType = TypeVar('Protocol', bound=Protocol)
-
-
 @logger_wrapper
 class Transport:
-    '''pymaid use Transport representation transport layer '''
+    '''pymaid use Transport representation transport layer
+
+    Transport layer donot care app protocol.
+    '''
 
     CONN_ID = 0
 
     def __init__(self, *, channel=None, initiative=False):
         '''pymaid use Transport representation for transport layer
 
-        transport layer donot care app protocol
-
-        :params app_protocol: used to encode/decode protocol used by upper app
+        :params channel: to which this transport belongs.
         '''
         self.channel = channel
         self.transport = None
@@ -140,7 +138,7 @@ class Transport:
 
 @logger_wrapper
 class Stream(Transport):
-    ''' raw stream transport '''
+    '''Raw stream transport'''
 
     def init(self):
         self.sockname = None
@@ -207,7 +205,7 @@ class Stream(Transport):
 
 @logger_wrapper
 class Datagram(Transport):
-    ''' raw datagram transport '''
+    '''Raw datagram transport'''
 
     def bind_transport(self, transport: BaseTransport):
         self.transport = transport
@@ -225,4 +223,5 @@ class Datagram(Transport):
             self.handler.process(b'')
 
 
+ProtocolType = TypeVar('Protocol', bound=Protocol)
 TransportType = TypeVar('Transport', bound=Transport)

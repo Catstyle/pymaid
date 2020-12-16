@@ -82,8 +82,8 @@ async def wrapper(ch, service, address, count):
 
 
 async def main(args):
-    ch = pymaid.rpc.pb.create_channel(args.address)
-    service = pymaid.rpc.router.ServiceStub(EchoService_Stub)
+    ch = await pymaid.rpc.pb.call_stream(args.address)
+    service = pymaid.rpc.pb.router.PBRouterStub(EchoService_Stub)
     tasks = []
     for x in range(args.concurrency):
         tasks.append(pymaid.create_task(
@@ -95,27 +95,5 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    # import gc
-    # gc.disable()
-    # gc.set_debug(
-    #     gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_SAVEALL
-    # )
-
     args = parse_args(get_client_parser())
     pymaid.run(main(args))
-
-    # unreach = gc.collect()
-    # objs = gc.garbage
-
-    # from sys import getsizeof
-    # from collections import Counter
-    # import pdb
-    # pdb.set_trace()
-
-    # data = Counter()
-    # size = Counter()
-    # for obj in objs:
-    #     data[type(obj)] += 1
-    #     size[type(obj)] += getsizeof(obj)
-
-    # pdb.set_trace()

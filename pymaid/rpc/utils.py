@@ -12,21 +12,6 @@ logging_levels = logging._levelToName
 logging_names = logging._nameToLevel
 
 
-def implall(service):
-    service_name = service.DESCRIPTOR.name
-    missing = []
-    for base in service.__bases__:
-        for method in base.DESCRIPTOR.methods:
-            method_name = method.name
-            base_method = getattr(base, method_name)
-            impl_method = getattr(service, method_name, base_method)
-            if base_method == impl_method:
-                missing.append(f'{service_name}.{method_name}')
-    if missing:
-        raise RuntimeError(f'{missing} are not implemented')
-    return service
-
-
 def update_record(record, level, msg, *args):
     record.levelno = level
     record.levelname = logging_levels[level]
