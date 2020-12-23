@@ -1,21 +1,27 @@
-from typing import Optional
+from typing import Optional, TypeVar
 
 from pymaid.core import create_task
-from pymaid.net import TransportType
-from pymaid.rpc.channel import Connection
+from pymaid.net import TransportType, ProtocolType
 from pymaid.utils.logger import logger_wrapper
+
+from .types import HandlerType
 
 
 @logger_wrapper
-class Connection(Connection):
+class Connection:
+    '''Connection represent a communication way for client <--> server
+
+    It holds the low level transport.
+    '''
 
     def __init__(
         self,
         transport: TransportType,
-        protocol,
-        handler,
+        protocol: ProtocolType,
+        handler: HandlerType,
     ):
-        super().__init__(transport)
+        self.transport = transport
+        self.is_closed = False
         self.protocol = protocol
         self.handler = handler
 
@@ -24,20 +30,26 @@ class Connection(Connection):
         # cyclic
         handler.handle(self)
 
+    def shutdown(self):
+        self.transport.shutdown()
+
     async def join(self):
         await self.handler.join()
         await self.close()
 
-    async def close(self, exc=None):
+    async def close(self, exc: Optional[Exception] = None):
         if self.is_closed:
             return
-        # base close is function
-        super().close(exc)
+        self.is_closed = True
+        self.transport.close(exc)
+        # break cyclic
+        self.transport = None
         await self.handler.close(exc)
         self.handler = None
         del self.buffer[:]
 
-    def feed_data(self, data: bytes) -> Optional[bool]:
+    def feed_data(self, data: bytes, addr=None) -> Optional[bool]:
+        '''Received data from low level transport'''
         if not data:
             create_task(self.join())
             # return True to close low level transport
@@ -55,4 +67,11 @@ class Connection(Connection):
                 self.handler.feed_message(messages)
 
     async def send_message(self, meta, message):
+        '''Coroutine to send data to low level transport'''
         self.transport.write(self.protocol.encode(meta, message))
+
+    def __repr__(self) -> str:
+        return f'<{self.__class__.__name__} transport={self.transport}>'
+
+
+ConnectionType = TypeVar('Connection', bound=Connection)

@@ -5,13 +5,14 @@ from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import ProtocolType, Stream
 
 from . import channel
+from . import connection
 from . import handler
 from . import pb
 from . import router
 
 from .types import ServiceType
 
-__all__ = ('channel', 'pb')
+__all__ = ('channel', 'connection', 'handler', 'pb', 'router')
 
 
 async def serve_stream(
