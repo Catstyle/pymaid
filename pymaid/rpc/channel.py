@@ -1,7 +1,7 @@
 import ssl as _ssl
 
 from functools import partial
-from typing import Any, Optional, Tuple, Type, TypeVar, Union
+from typing import Optional, Tuple, Type, TypeVar, Union
 
 from pymaid import create_stream, create_unix_stream
 from pymaid import create_stream_server, create_unix_stream_server
@@ -10,42 +10,13 @@ from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import TransportType, Stream, Protocol, ProtocolType
 from pymaid.utils.logger import logger_wrapper
 
+from .connection import Connection, ConnectionType
 from .error import RPCError
 from .handler import Handler, SerialHandler
 from .router import Router
-from .types import HandlerType
+from .types import HandlerType, RouterType
 
 __all__ = ['Channel', 'StreamChannel', 'UnixStreamChannel']
-
-
-@logger_wrapper
-class Connection:
-    '''Connection represent a communication way for client <--> server
-
-    It holds the low level transport.
-    '''
-
-    def __init__(self, transport: TransportType):
-        self.transport = transport
-        self.is_closed = False
-
-    def feed_data(self, data: bytes, addr=None) -> Any:
-        '''Received data from low level transport'''
-        raise NotImplementedError
-
-    def shutdown(self):
-        self.transport.shutdown()
-
-    def close(self, exc: Optional[Exception] = None):
-        if self.is_closed:
-            return
-        self.is_closed = True
-        self.transport.close(exc)
-        # break cyclic
-        self.transport = None
-
-    def __repr__(self) -> str:
-        return f'<{self.__class__.__name__} transport={self.transport}>'
 
 
 @logger_wrapper
@@ -265,7 +236,6 @@ class UnixStreamChannel(StreamChannel):
         return transport.conn
 
 
-ConnectionType = TypeVar('Connection', bound=Connection)
 ChannelType = TypeVar('Channel', bound=Channel)
 
 
@@ -277,8 +247,8 @@ def create_stream_channel(
     middleware_manager: Optional[MiddlewareManager] = None,
     close_conn_onerror: bool = True,
     protocol_class: ProtocolType = Stream,
-    handler_class: Optional[Type[HandlerType]] = SerialHandler,
-    router_class: Optional[Type[Router]] = Router,
+    handler_class: Optional[HandlerType] = SerialHandler,
+    router_class: Optional[RouterType] = Router,
 ) -> ChannelType:
     if isinstance(address, str):
         channel_cls = UnixStreamChannel

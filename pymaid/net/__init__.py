@@ -1,11 +1,11 @@
 '''pymaid separate network into two layer
 
-transport layer
+- transport layer
     transport layer concern about how data transmit
     for example: stream for tcp; packet for udp
     and security of transmission: with or without ssl/tls
 
-protocol layer
+- protocol layer
     protocol layer concern about how app data format
     it does not care where the data comes from
     stream, packet, file, or pipeline are not different

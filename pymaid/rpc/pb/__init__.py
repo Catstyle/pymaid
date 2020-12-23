@@ -4,9 +4,9 @@ from typing import Optional, Sequence, Tuple, Type, Union
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import ProtocolType
 from pymaid.rpc.channel import create_stream_channel
+from pymaid.rpc.connection import Connection
 from pymaid.rpc.types import ConnectionType, ServiceType
 
-from . import connection
 from . import handler
 from . import protocol
 from . import router
@@ -18,10 +18,10 @@ async def call_stream(
     address: Union[Tuple[str, int], str],
     *,
     name: str = 'StreamChannel',
-    connection_class: ConnectionType = connection.Connection,
+    connection_class: ConnectionType = Connection,
     close_conn_onerror: bool = True,
     middleware_manager: Optional[MiddlewareManager] = None,
-    protocol_class: Type[ProtocolType] = protocol.Protocol,
+    protocol_class: ProtocolType = protocol.Protocol,
     handler_class: Type[handler.Handler] = handler.PBSerialHandler,
     router_class: Type[router.Router] = router.PBRouter,
     ssl: Union[None, bool, '_ssl.SSLContext'] = None,
@@ -42,10 +42,10 @@ async def serve_stream(
     address: Union[Tuple[str, int], str],
     *,
     name: str = 'StreamChannel',
-    connection_class: ConnectionType = connection.Connection,
+    connection_class: ConnectionType = Connection,
     close_conn_onerror: bool = True,
     middleware_manager: Optional[MiddlewareManager] = None,
-    protocol_class: Type[ProtocolType] = protocol.Protocol,
+    protocol_class: ProtocolType = protocol.Protocol,
     handler_class: Type[handler.Handler] = handler.PBSerialHandler,
     router_class: Type[router.Router] = router.PBRouter,
     services: Optional[Sequence[ServiceType]] = None,
