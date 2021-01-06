@@ -65,6 +65,8 @@ class Channel(NetStreamChannel):
             initiative=initiative,
             ssl_context=self.ssl_context,
             ssl_handshake_timeout=self.ssl_handshake_timeout,
+            on_open=on_open,
+            on_close=on_close,
             protocol=self.protocol,
             handler=self.handler_class(self.router),
         )
@@ -81,7 +83,6 @@ class Channel(NetStreamChannel):
     ):
         # full = self.is_full
         super().connection_lost(conn, exc)
-        del conn.task
         self.middleware_manager.dispatch('on_connection_lost', self, conn)
         # if (full
         #         and not self.is_full

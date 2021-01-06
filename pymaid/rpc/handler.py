@@ -145,7 +145,7 @@ class Handler(abc.ABC):
     async def run(self):
         raise NotImplementedError('run')
 
-    def shutdown(self, reason: Optional[Union[str, Exception]] = None):
+    def shutdown(self, reason: Union[None, str, Exception] = None):
         if self.is_closing:
             return
         self.is_closing = True
@@ -161,8 +161,9 @@ class Handler(abc.ABC):
         self.is_closed = True
         self.pending_tasks.clear()
         self.closed_event.set()
-        del self.closed_event
-        del self.new_task_received
+        self.conn.close(reason)
+        del self.conn
+        del self.task
 
     @abc.abstractmethod
     def feed_messages(self, messages):

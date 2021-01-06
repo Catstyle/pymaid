@@ -78,14 +78,14 @@ class Channel(abc.ABC):
     def start(self):
         if self.state >= self.STATE.CLOSING:
             raise RuntimeError(f'{self!r} is closing, cannot start again')
-        self.logger.debug(f'{self!r} start')
+        self.logger.info(f'{self!r} start')
         self.state = self.STATE.STARTED
         loop = self._loop
         for sock in self.listeners:
             loop.add_reader(sock.fileno(), self.read_from_listener, sock)
 
     def pause(self, reason: str = ''):
-        self.logger.debug(f'{self!r} pause with reason: {reason}')
+        self.logger.info(f'{self!r} pause with reason: {reason}')
         self.state = self.STATE.PAUSED
         loop = self._loop
         for sock in self.listeners:
@@ -94,13 +94,17 @@ class Channel(abc.ABC):
     def shutdown(self, reason: str = 'shutdown'):
         if self.state == self.STATE.CLOSING:
             return
-        if self.state <= self.STATE.CLOSING:
+        if self.state < self.STATE.PAUSED:
             self.pause(reason)
         self.state = self.STATE.CLOSING
+        self.logger.info(f'{self!r} shutdown with reason: {reason}')
 
     def close(
         self, reason: Union[None, str, Exception] = 'called close',
     ):
+        if self.state == self.STATE.CLOSED:
+            return
+        self.logger.info(f'{self!r} shutdown with reason: {reason}')
         if self.state == self.STATE.STARTED:
             self.pause(reason)
         if self.state == self.STATE.PAUSED:
@@ -167,6 +171,7 @@ class StreamChannel(Channel):
         on_close: Optional[List[Callable]] = None,
     ) -> Stream:
         sock = await sock_connect(self.address)
+        self.logger.info(f'{self!r} acquire: {sock=}')
         return self.make_connection(sock, True, on_open, on_close)
 
     def make_connection(self, sock, initiative, on_open=None, on_close=None):
@@ -180,7 +185,7 @@ class StreamChannel(Channel):
         )
 
     def connection_made(self, sock: socket.socket) -> Stream:
-        self.logger.debug(f'{self!r} connection_made: {sock=}')
+        self.logger.info(f'{self!r} connection_made: {sock=}')
         stream = self.make_connection(
             sock, False, on_close=[self.connection_lost],
         )
@@ -188,7 +193,7 @@ class StreamChannel(Channel):
         return stream
 
     def connection_lost(self, stream: Stream, exc=None):
-        self.logger.debug(f'{self!r} connection_lost: {stream=} {exc=}')
+        self.logger.info(f'{self!r} connection_lost: {stream=} {exc=}')
         assert stream.id in self.streams, (stream.id, self.streams.keys())
         del self.streams[stream.id]
 
