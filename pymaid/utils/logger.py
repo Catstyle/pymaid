@@ -13,10 +13,10 @@ pymaid_logger = logging.getLogger('pymaid')
 
 
 def configure_logging(settings, ns):
-    """Setup logging from pymaid.LOGGING and logging.LOGGING settings.
+    '''Setup logging from pymaid.LOGGING and logging.LOGGING settings.
 
     Do nothing if `ns` not in (pymaid, logging)
-    """
+    '''
 
     if ns not in ('pymaid', 'logging'):
         return
@@ -24,7 +24,7 @@ def configure_logging(settings, ns):
     # Route warnings through python logging
     logging.captureWarnings(True)
     # Allow DeprecationWarnings through the warnings filters
-    warnings.simplefilter("default", DeprecationWarning)
+    warnings.simplefilter('default', DeprecationWarning)
 
     config = settings.get('LOGGING', {}, ns='pymaid')
     for key, value in settings.get('LOGGING', {}, ns='logging').items():
@@ -33,6 +33,8 @@ def configure_logging(settings, ns):
         else:
             config[key].update(value)
     if config:
+        if ns == 'pymaid' and settings.pymaid.DEBUG:
+            config['loggers']['pymaid']['level'] = True
         logging.config.dictConfig(config)
 
 
