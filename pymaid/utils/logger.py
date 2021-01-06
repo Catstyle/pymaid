@@ -34,7 +34,7 @@ def configure_logging(settings, ns):
             config[key].update(value)
     if config:
         if ns == 'pymaid' and settings.pymaid.DEBUG:
-            config['loggers']['pymaid']['level'] = True
+            config['loggers']['pymaid']['level'] = 'DEBUG'
         logging.config.dictConfig(config)
 
 

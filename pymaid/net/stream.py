@@ -130,7 +130,7 @@ class Stream(SocketTransport):
             self._write_empty_waiter = None
 
     def data_received(self, data: DataType):
-        self.logger.debug(f'{self!r} data_received, {len(data)=}')
+        self.logger.debug(f'{self!r} data_received, {len(data)=}, ignored!')
 
     def eof_received(self) -> bool:
         '''Returned value indicate whether to keep the transport open or not.

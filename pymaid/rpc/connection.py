@@ -35,6 +35,10 @@ class Connection(Stream):
             self.read_buffer = self.read_buffer[used_size:]
             self.handler.feed_messages(messages)
 
+    def eof_received(self):
+        self.handler.shutdown('eof_received')
+        return super().eof_received()
+
     async def send_message(self, *args, **kwargs):
         '''Helper to send protocol message'''
         await self.write(self.protocol.encode(*args, **kwargs))

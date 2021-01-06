@@ -125,13 +125,13 @@ class SocketTransport(Transport):
         self._finnal_close(exc)
 
     def _finnal_close(self, exc=None):
-        self.logger.debug(f'{self!r} final close {exc=}')
+        self.logger.info(f'{self!r} final close {exc=}')
         self.state = self.STATE.CLOSED
+        for cb in self.on_close:
+            cb(self, exc)
         self._sock.close()
         self._sock = None
         self._loop = None
-        for cb in self.on_close:
-            cb(self, exc)
         del self.on_open
         del self.on_close
         self.closed_event.set()
