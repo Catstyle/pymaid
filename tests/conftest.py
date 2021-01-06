@@ -1,9 +1,9 @@
-# import pytest
-# import uvloop
+import pytest
+import uvloop
 
 
-# @pytest.fixture
-# def event_loop():
-#     loop = uvloop.Loop()
-#     yield loop
-#     loop.close()
+@pytest.fixture
+def event_loop():
+    loop = uvloop.Loop()
+    yield loop
+    loop.close()
