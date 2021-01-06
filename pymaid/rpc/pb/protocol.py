@@ -4,7 +4,7 @@ from typing import Optional, Sequence, Tuple, TypeVar
 from google.protobuf.message import Message
 
 from pymaid.conf import settings
-from pymaid.net import DataType, Protocol
+from pymaid.net.protocol import DataType, Protocol
 
 from .error import PBError
 from .pymaid_pb2 import Context as Meta
@@ -19,7 +19,8 @@ Message = TypeVar('Message', bound=Message)
 
 class Protocol(Protocol):
 
-    def feed_data(self, data: DataType) -> Tuple[int, Sequence[Message]]:
+    @classmethod
+    def feed_data(cls, data: DataType) -> Tuple[int, Sequence[Message]]:
         data = memoryview(data)
         messages = []
 
@@ -27,7 +28,7 @@ class Protocol(Protocol):
         max_packet = settings.get('MAX_PACKET_LENGTH', ns='pymaid')
         try:
             while 1:
-                consumed, meta, payload = self.decode(data, max_packet)
+                consumed, meta, payload = cls.decode(data, max_packet)
                 if not consumed:
                     break
                 assert meta
@@ -40,7 +41,8 @@ class Protocol(Protocol):
 
         return used_size, messages
 
-    def encode(self, meta: Meta, message: Message) -> bytes:
+    @classmethod
+    def encode(cls, meta: Meta, message: Message) -> bytes:
         meta.payload_size = message.ByteSize()
         return (
             pack_header(meta.ByteSize())
@@ -48,8 +50,9 @@ class Protocol(Protocol):
             + message.SerializeToString()
         )
 
+    @classmethod
     def decode(
-        self, data: memoryview, max_packet: int
+        cls, data: memoryview, max_packet: int
     ) -> Tuple[int, Optional[Meta], Optional[memoryview]]:
         nbytes = data.nbytes
         if nbytes < header_size:

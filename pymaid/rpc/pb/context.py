@@ -6,7 +6,38 @@ from pymaid.rpc.context import InboundContext, OutboundContext
 from .pymaid_pb2 import Context as Meta, ErrorMessage, Void
 
 
-class PBInboundContext(InboundContext):
+class PBContext:
+
+    async def handle_error(self, error: Exception):
+        await self.conn.send_message(
+            Meta(
+                transmission_id=self.transmission_id,
+                packet_flags=(
+                    self.method.options.get('flags', 0) | Meta.PacketFlag.END
+                ),
+                is_failed=True,
+            ),
+            ErrorMessage(
+                code=error.code,
+                message=error.message,
+                data=dumps(error.data) if error.data else '',
+            ),
+        )
+        self.sent_end_message = True
+
+    async def shutdown(self):
+        await self.conn.send_message(
+            Meta(
+                transmission_id=self.transmission_id,
+                packet_flags=(
+                    self.method.options.get('flags', 0) | Meta.PacketFlag.END
+                ),
+            ),
+            Void(),
+        )
+
+
+class PBInboundContext(PBContext, InboundContext):
 
     def feed_message(self, meta, payload):
         '''Received request from transport layer'''
@@ -55,42 +86,12 @@ class PBInboundContext(InboundContext):
             response or self.method.response_class(**kwargs),
         )
 
-    async def handle_error(self, error: Exception):
-        await self.conn.send_message(
-            Meta(
-                transmission_id=self.transmission_id,
-                packet_type=Meta.RESPONSE,
-                packet_flags=(
-                    self.method.options.get('flags', 0) | Meta.PacketFlag.END
-                ),
-                is_failed=True,
-            ),
-            ErrorMessage(
-                code=error.code,
-                message=error.message,
-                data=dumps(error.data) if error.data else '',
-            ),
-        )
-        self.sent_end_message = True
 
-    async def shutdown(self):
-        await self.conn.send_message(
-            Meta(
-                transmission_id=self.transmission_id,
-                packet_type=Meta.RESPONSE,
-                packet_flags=(
-                    self.method.options.get('flags', 0) | Meta.PacketFlag.END
-                ),
-            ),
-            Void(),
-        )
-
-
-class PBOutboundContext(OutboundContext):
+class PBOutboundContext(PBContext, OutboundContext):
 
     def feed_message(self, meta, payload):
         '''Received response from transport layer '''
-        assert meta.packet_type == Meta.RESPONSE, \
+        assert not meta.packet_type or meta.packet_type == Meta.RESPONSE, \
             f'invalid {meta.packet_type=}'
         if self.response_fed_count > 0 and not self.method.server_streaming:
             raise RPCError.MultipleResponseForUnaryMethod(
@@ -137,35 +138,5 @@ class PBOutboundContext(OutboundContext):
                 packet_type=Meta.REQUEST,
                 packet_flags=flags,
             ),
-            request or self.method.request_class(**kwargs)
-        )
-
-    async def handle_error(self, error: Exception):
-        await self.conn.send_message(
-            Meta(
-                transmission_id=self.transmission_id,
-                packet_type=Meta.REQUEST,
-                packet_flags=(
-                    self.method.options.get('flags', 0)
-                    | Meta.PacketFlag.CANCEL
-                ),
-            ),
-            ErrorMessage(
-                code=error.code,
-                message=error.message,
-                data=dumps(error.data) if error.data else '',
-            ),
-        )
-        self.sent_end_message = True
-
-    async def shutdown(self):
-        await self.conn.send_message(
-            Meta(
-                transmission_id=self.transmission_id,
-                packet_type=Meta.REQUEST,
-                packet_flags=(
-                    self.method.options.get('flags', 0) | Meta.PacketFlag.END
-                ),
-            ),
-            Void(),
+            request or self.method.request_class(**kwargs),
         )
