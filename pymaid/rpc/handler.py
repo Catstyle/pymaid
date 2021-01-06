@@ -18,87 +18,51 @@ class Handler(abc.ABC):
     '''Handle the *received* request/response.'''
 
     MAX_TRANSMISSION_ID = 2 ** 32 - 1
-    InboundContext = InboundContext
-    OutboundContext = OutboundContext
+    INBOUND_CONTEXT_CLASS = InboundContext
+    OUTBOUND_CONTEXT_CLASS = OutboundContext
 
     def __init__(
         self,
         router: Router,
         timeout: Optional[float] = None,
     ):
+        self.conn = None
+        self.task = None
         self.router = router
         self.timeout = timeout
 
-        self.inbound_transmission_id = 0
+        # self.inbound_transmission_id = 0
         self.outbound_transmission_id = 0
-
         self.contexts = {}
+
         self.pending_tasks = deque()
         self.new_task_received = Event()
+        self.closed_event = Event()
         self.is_closing = False
         self.is_closed = False
 
-    def handle(self, conn):
+    def start(self, conn):
+        # NOTE: cyclic
         self.conn = conn
-        self.task = create_task(self.run())
 
         # for initiative side, the id will be EVEN
         # for passive side, the id will be ODD
-        if conn.transport.initiative:
+        if conn.initiative:
             self.outbound_transmission_id = 1
         else:
             self.outbound_transmission_id = 2
+        # cyclic
+        self.task = create_task(self.run())
 
-    @abc.abstractmethod
-    async def run(self):
-        raise NotImplementedError('run')
-
-    async def join(self, reason: Optional[Union[str, Exception]] = None):
-        if self.is_closed:
-            return
-        self.pending_tasks.append(None)
-        self.new_task_received.set()
-        await self.task
-        for ctx in list(self.contexts.values()):
-            await ctx.close(reason)
-
-    async def close(
-        self,
-        reason: Optional[Union[str, Exception]] = None,
-        join: bool = True,
-    ):
-        if self.is_closed:
-            return
-        # maybe called from run loop
-        if join:
-            await self.join(reason)
-        self.is_closed = True
-        self.pending_tasks.clear()
-        await self.conn.close(reason)
-        self.conn = None
-
-    @abc.abstractmethod
-    def feed_message(self, messages):
-        # self.logger.debug(f'{self} feed {len(messages)=}')
-        raise NotImplementedError('feed_message')
-
-    async def handle_error(self, meta, error):
-        '''Default error handler.
-
-        Just write error logs.
-        '''
-        self.logger.error(
-            f'{self} caught an unhandled error, {meta=!r}{error=!r}'
-        )
-
-    def get_context(self, transmission_id: int) -> C:
+    def get_context(self, transmission_id: int) -> 'C':
         return self.contexts.get(transmission_id)
 
     def release_context(self, transmission_id: int):
         if transmission_id not in self.contexts:
             # already released ?
             return
-        self.contexts.pop(transmission_id)
+        context = self.contexts.pop(transmission_id)
+        del context._manager
 
     def next_transmission_id(self) -> int:
         '''Return the next available transmission id for the context created
@@ -123,11 +87,11 @@ class Handler(abc.ABC):
         *,
         method: Method,
         timeout: Optional[float] = None,
-    ) -> C:
+    ) -> 'C':
         # it is hard to insist the inbound_transmission_id order
         # e.g.
         # client make 3 async calls: 1, 3, 5
-        # all 3 run parallelly, then the orders are unspecified
+        # all 3 run parallelly, then the order is unspecified
 
         # if transmission_id < self.inbound_transmission_id:
         #     raise RPCError.InvalidTransmissionID(
@@ -139,7 +103,7 @@ class Handler(abc.ABC):
 
         transmission_id = transmission_id
         assert transmission_id not in self.contexts, 'reused transmission id'
-        if not self.conn.transport.initiative and transmission_id % 2 != 1:
+        if not self.conn.initiative and transmission_id % 2 != 1:
             raise RPCError.InvalidTransmissionID(
                 data={
                     'tid': transmission_id,
@@ -149,12 +113,13 @@ class Handler(abc.ABC):
         # self.inbound_transmission_id = transmission_id
 
         # warning: cyclic referrence
-        context = self.InboundContext(
+        context = self.INBOUND_CONTEXT_CLASS(
             conn=self.conn,
             transmission_id=transmission_id,
             method=method,
             timeout=timeout,
         )
+        context._manager = self
         self.contexts[transmission_id] = context
         return context
 
@@ -163,21 +128,57 @@ class Handler(abc.ABC):
         *,
         method: MethodStub,
         timeout: Optional[float] = None,
-    ) -> C:
+    ) -> 'C':
         transmission_id = self.next_transmission_id()
         # warning: cyclic referrence
-        context = self.OutboundContext(
+        context = self.OUTBOUND_CONTEXT_CLASS(
             conn=self.conn,
             transmission_id=transmission_id,
             method=method,
             timeout=timeout,
         )
+        context._manager = self
         self.contexts[transmission_id] = context
         return context
 
+    @abc.abstractmethod
+    async def run(self):
+        raise NotImplementedError('run')
+
+    def shutdown(self, reason: Optional[Union[str, Exception]] = None):
+        if self.is_closing:
+            return
+        self.is_closing = True
+        self.pending_tasks.append(None)
+        self.new_task_received.set()
+
+    async def join(self, reason: Optional[Union[str, Exception]] = None):
+        await self.closed_event.wait()
+
+    def close(self, reason: Optional[Union[str, Exception]] = None):
+        if self.is_closed:
+            return
+        self.is_closed = True
+        self.pending_tasks.clear()
+        self.closed_event.set()
+        del self.closed_event
+        del self.new_task_received
+
+    @abc.abstractmethod
+    def feed_messages(self, messages):
+        # self.logger.debug(f'{self} feed {len(messages)=}')
+        raise NotImplementedError('feed_messages')
+
+    async def handle_error(self, error):
+        '''Default error handler.
+
+        Just write error logs.
+        '''
+        self.logger.error(f'{self!r} caught an unhandled error, {error=!r}')
+
     def __repr__(self):
         return (
-            f'<{self.__class__.__name__}@{id(self)} '
+            f'<{self.__class__.__name__} '
             f'pending={len(self.pending_tasks)}>'
         )
 
@@ -198,21 +199,17 @@ class SerialHandler(Handler):
 
         while 1:
             await new_task_received.wait()
-            while len(pending_tasks):
+            while pending_tasks:
                 task = pending_tasks.popleft()
                 if not task:
+                    self.close()
                     return
                 try:
                     await task
                 except BaseEx as exc:
                     assert False, f'{exc} should be handled within logic'
-                    # meta.is_failed = True
-                    # packet = ErrorMessage(code=exc.code, message=exc.message)
-                    # if exc.data:
-                    #     packet.data = dumps(exc.data)
-                    # await self.conn.send_message(meta, packet)
                 except Exception as exc:
-                    await self.close(exc, join=False)
+                    self.close(exc)
                     return
             new_task_received.clear()
 
@@ -234,8 +231,8 @@ class ParallelHandler(Handler):
         self.worker = AioPool(concurrency)
 
     async def join(self, reason: Optional[Union[str, Exception]] = None):
-        await super().join(reason)
         await self.worker.shutdown(wait=True)
+        await super().join(reason)
 
     async def run(self):
         new_task_received = self.new_task_received
@@ -245,20 +242,16 @@ class ParallelHandler(Handler):
 
         while 1:
             await new_task_received.wait()
-            while len(pending_tasks):
+            while pending_tasks:
                 task = pending_tasks.popleft()
                 if not task:
+                    self.close()
                     return
                 try:
                     await run_task(task)
                 except BaseEx as exc:
                     assert False, f'{exc} should be handled within logic'
-                    # meta.is_failed = True
-                    # packet = ErrorMessage(code=exc.code, message=exc.message)
-                    # if exc.data:
-                    #     packet.data = dumps(exc.data)
-                    # await self.conn.send_message(meta, packet)
                 except Exception as exc:
-                    await self.close(exc, join=False)
+                    self.close(exc)
                     return
             new_task_received.clear()

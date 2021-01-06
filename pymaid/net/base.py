@@ -91,11 +91,11 @@ class SocketTransport(Transport):
     def set_socket_default_options(self):
         pass
 
-    def shutdown(self):
+    def shutdown(self, reason=None):
         self._loop.remove_writer(self._sock_fd)
         self._sock.shutdown(socket.SHUT_WR)
 
-    def close(self):
+    def close(self, exc=None):
         if self.state == self.STATE.CLOSING:
             return
         self.state = self.STATE.CLOSING
@@ -105,7 +105,10 @@ class SocketTransport(Transport):
         if not self.write_buffer:
             loop.remove_writer(self._sock_fd)
             # loop.call_soon(self._finnal_close, None)
-            self._finnal_close(None)
+            self._finnal_close(exc)
+
+    async def wait_closed(self):
+        await self.closed_event.wait()
 
     def _wrap_sock(self, keys: List[str]):
         for key in keys:

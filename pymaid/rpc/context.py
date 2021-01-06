@@ -11,7 +11,7 @@ from .error import RPCError
 from .method import Method, MethodStub
 from .types import ConnectionType
 
-__all__ = ['C', 'Context', 'InboundContext', 'OutboundContext']
+__all__ = ('C', 'Context', 'InboundContext', 'OutboundContext')
 
 
 @logger_wrapper
@@ -26,6 +26,7 @@ class Context:
         timeout: Optional[float] = None,
     ):
         self.conn = conn
+        self.conn_id = conn.id
         self.method = method
         self.timeout_interval = timeout
         self.timer = None
@@ -41,7 +42,7 @@ class Context:
     def init(self):
         pass
 
-    def feed_message(self, meta, payload):
+    def feed_message(self, message):
         '''Received request from transport layer'''
         raise NotImplementedError('feed_message')
 
@@ -51,12 +52,13 @@ class Context:
     async def shutdown(self):
         pass
 
-    async def close(self, reason: Optional[Exception] = None):
+    async def close(self, reason: Union[str, Exception] = 'successful'):
         if self.is_closed:
             return
-        self.logger.debug(f'[Context|{self}] closed with [reason|{reason}]')
+        self.logger.debug(f'{self!r} closed with [reason|{reason}]')
         self.is_closed = True
-        self.conn.handler.release_context(self.transmission_id)
+        if hasattr(self, '_manager'):
+            self._manager.release_context(self.transmission_id)
         self.conn = None
         self.method = None
         if self.timer:
@@ -70,7 +72,7 @@ class Context:
             self.waiter = None
 
     async def cancel(self, reason: Optional[Exception] = None):
-        self.logger.debug(f'[Context|{self}] cancelled with [error|{reason}]')
+        self.logger.debug(f'{self!r} cancelled with [reason|{reason}]')
         self.is_cancelled = True
         await self.close(reason)
 
@@ -103,7 +105,7 @@ class Context:
 
     def __repr__(self):
         return (
-            f'<{self.__class__.__name__}@{id(self)} '
+            f'<{self.__class__.__name__} conn={self.conn_id} '
             f'transmission_id={self.transmission_id}>'
         )
 

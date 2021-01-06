@@ -13,8 +13,8 @@ async def get_requests():
     yield request
 
 
-async def wrapper(ch, service, address, count):
-    conn = await ch.connect(address)
+async def wrapper(ch, service, count):
+    conn = await ch.acquire()
 
     for x in range(count):
         # UnaryUnaryEcho
@@ -77,18 +77,16 @@ async def wrapper(ch, service, address, count):
         #     # or let context handle this at cleanup for you
         #     await context.send_message(end=True)
     conn.shutdown()
-    await conn.close()
-    # await conn.wait_closed()
+    conn.close()
+    await conn.wait_closed()
 
 
 async def main(args):
-    ch = await pymaid.rpc.pb.call_stream(args.address)
+    ch = await pymaid.rpc.pb.dial_stream(args.address)
     service = pymaid.rpc.pb.router.PBRouterStub(EchoService_Stub)
     tasks = []
     for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(
-            wrapper(ch, service, args.address, args.request)
-        ))
+        tasks.append(pymaid.create_task(wrapper(ch, service, args.request)))
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)

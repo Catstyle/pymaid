@@ -11,11 +11,10 @@ from .pymaid_pb2 import Context as Meta, ErrorMessage
 @logger_wrapper
 class PBHandler(Handler):
 
-    InboundContext = PBInboundContext
-    OutboundContext = PBOutboundContext
+    INBOUND_CONTEXT_CLASS = PBInboundContext
+    OUTBOUND_CONTEXT_CLASS = PBOutboundContext
 
-    def feed_message(self, messages):
-        # self.logger.debug(f'{self} feed {len(pending_tasks)=}')
+    def feed_messages(self, messages):
         Request = Meta.PacketType.REQUEST
         Response = Meta.PacketType.RESPONSE
         get_route = self.router.get_route
@@ -24,6 +23,7 @@ class PBHandler(Handler):
             # because just feed message into context won't block,
             # and it makes serial streaming posible
             meta, payload = message
+            # self.logger.debug(f'{self} feed {meta=}')
             if meta.transmission_id in self.contexts:
                 self.contexts[meta.transmission_id].feed_message(meta, payload)
                 continue
@@ -48,10 +48,10 @@ class PBHandler(Handler):
                     context.feed_message(meta, payload)
                     task = context.run()
             elif meta.packet_type == Response:
-                # invalid transmission_id, do nothing
+                # response should be handled above as existed context
                 self.logger.warning(
-                    f'{self.conn} received invalid response, '
-                    f'{meta.transmission_id=}'
+                    f'{self!r} received unknown response, '
+                    f'{meta.transmission_id=}, ignored.'
                 )
                 continue
             self.pending_tasks.append(task)
