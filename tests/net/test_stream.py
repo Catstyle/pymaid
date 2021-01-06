@@ -10,7 +10,7 @@ from tests.common.models import TestStream
 
 
 @pytest.mark.skipif(
-    os.name == 'posix', reason='linux system does not support INET6 socketpair'
+    os.name == 'posix', reason='linux system does not support INET4 socketpair'
 )
 @pytest.mark.asyncio
 async def test_stream_ipv4():

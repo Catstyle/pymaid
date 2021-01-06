@@ -114,6 +114,9 @@ class SocketTransport(Transport):
         for key in keys:
             setattr(self, key, getattr(self._sock, key))
 
+    def _read_ready(self):
+        raise NotImplementedError('_read_ready')
+
     def _force_close(self, exc):
         if self.state == self.STATE.CLOSED:
             return
