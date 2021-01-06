@@ -19,209 +19,89 @@
 
 __all__ = ['Protocol', 'Transport', 'Stream', 'Datagram']
 
-import abc
 import socket
+import ssl as _ssl
 
-from typing import Any, Optional, Tuple, TypeVar
-
-from pymaid.core import BaseTransport, Event
-from pymaid.conf import settings
-from pymaid.error.base import BaseEx
-from pymaid.utils.logger import logger_wrapper
-
-DataType = TypeVar('Data', bytes, memoryview)
+from typing import Optional, Tuple, Union
 
 
-class Protocol(metaclass=abc.ABCMeta):
-    '''pymaid use Protocol representation app protocol layer
+from .channel import ChannelType, StreamChannel
+from .stream import Stream
 
-    You can build your protocol upon Protocol
-    and you can easily change the underlying Protocol
-    e.g.:
-        build your AppProtocol inherit from Http and change to Http2 if wanted,
-        and in best case, do not need to do anything else
 
-        class AppProtocol(Http):
-            ...
+async def dial_stream(
+    address: Tuple[str, int],
+    *,
+    channel_class: ChannelType = StreamChannel,
+    stream_class: Stream = Stream,
+    ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
+    ssl_handshake_timeout: Optional[float] = None,
+):
+    '''Create channel can connect to `address`.
 
-        class AppProtocol(Http2):
-            ...
+    The host parameter can be a string, in that case the TCP Channel is
+    connect to unix domain sock.
+
+    The host parameter can also be a tuple of string and int, in that case
+    the TCP Channel is connect to the host and port. If a host
+    appears multiple times (possibly indirectly e.g. when hostnames
+    resolve to the same IP address), the Channel is only connect once to that
+    host.
+
+    Return a Channel object which can be used to manage the streams.
+
+    This method is a coroutine.
     '''
-
-    @abc.abstractmethod
-    def feed_data(self, data: DataType):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def encode(self, obj: Any) -> DataType:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def decode(self, data: DataType) -> Any:
-        raise NotImplementedError
+    return channel_class(
+        address=address,
+        stream_class=stream_class,
+        ssl_context=ssl_context,
+        ssl_handshake_timeout=ssl_handshake_timeout,
+    )
 
 
-@logger_wrapper
-class Transport:
-    '''pymaid use Transport representation transport layer
+async def serve_stream(
+    address: Union[Tuple[str, int], str],
+    *,
+    family: socket.AddressFamily = socket.AF_UNSPEC,
+    flags: socket.AddressInfo = socket.AI_PASSIVE,
+    backlog: int = 128,
+    reuse_address: bool = True,
+    reuse_port: bool = False,
+    ssl_context: Union[None, '_ssl.SSLContext'] = None,
+    ssl_handshake_timeout: Optional[float] = None,
+    channel_class: ChannelType = StreamChannel,
+    stream_class: Stream = Stream,
+    start_serving: bool = True,
+):
+    '''Create channel listening on `address`.
 
-    Transport layer donot care app protocol.
+    The host parameter can be a string, in that case the TCP Channel is
+    bound to unix domain sock.
+
+    The host parameter can also be a tuple of string and int, in that case
+    the TCP Channel is bound to the host and port. If a host
+    appears multiple times (possibly indirectly e.g. when hostnames
+    resolve to the same IP address), the Channel is only bound once to that
+    host.
+
+    Return a Channel object which can be used to manage the streams.
+
+    This method is a coroutine.
     '''
-
-    CONN_ID = 0
-
-    def __init__(self, *, channel=None, initiative=False):
-        '''pymaid use Transport representation for transport layer
-
-        :params channel: to which this transport belongs.
-        '''
-        self.channel = channel
-        self.transport = None
-        self.conn = None
-
-        self.initiative = initiative
-        self.exc = None
-        self.conn_lost_event = Event()
-
-        self.init()
-
-    def init(self):
-        pass
-
-    def connection_made(self, transport: BaseTransport):
-        self.__class__.CONN_ID = self.__class__.CONN_ID + 1
-        self.conn_id = f'{self.__class__.__name__}-{self.__class__.CONN_ID}'
-        self.bind_transport(transport)
-        if self.channel:
-            self.conn = self.channel.connection_made(self)
-        self.logger.info(f'[{self}] made')
-
-    def connection_lost(self, exc: Optional[Exception]):
-        exc = exc or self.exc
-        log = self.logger.info
-        if exc:
-            if isinstance(exc, (BaseEx, str, int)):
-                log = self.logger.error
-            else:
-                log = self.logger.exception
-        log('[%s] closed with [%r]', self, exc, exc_info=exc)
-        if self.channel and self.conn:
-            self.channel.connection_lost(self.conn, exc)
-        self.destory()
-
-    def close(self, exc: Optional[Exception] = None):
-        self.exc = exc
-        self.transport.close()
-
-    def destory(self):
-        self.channel = None
-        self.transport = None
-        self.conn = None
-        self.write = None
-        self.exc = None
-        # when the conn_lost_event is set, the conn is destoryed
-        # donot use it after return of waiting conn_lost_event
-        self.conn_lost_event.set()
-
-    def pause_writing(self):
-        pass
-
-    def resume_writing(self):
-        pass
-
-    def bind_transport(self, transport: BaseTransport):
-        raise NotImplementedError
-
-    def __repr__(self):
-        return f'<{self.conn_id} initiative={self.initiative}>'
-
-
-@logger_wrapper
-class Stream(Transport):
-    '''Raw stream transport'''
-
-    def init(self):
-        self.sockname = None
-        self.peername = None
-
-    def set_socket_default_options(self, sock):
-        if sock.family == socket.AF_INET:
-            setsockopt = sock.setsockopt
-            getsockopt = sock.getsockopt
-            SOL_SOCKET, SOL_TCP = socket.SOL_SOCKET, socket.SOL_TCP
-
-            setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            ns = settings.namespaces['pymaid']  # should always exists
-            if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < ns['SO_SNDBUF']:
-                setsockopt(SOL_SOCKET, socket.SO_SNDBUF, ns['SO_SNDBUF'])
-            if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < ns['SO_RCVBUF']:
-                setsockopt(SOL_SOCKET, socket.SO_RCVBUF, ns['SO_RCVBUF'])
-
-            if ns['PM_KEEPALIVE']:
-                setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-                setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, ns['PM_KEEPIDLE'])
-                setsockopt(SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL'])
-                setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
-
-    def bind_transport(self, transport: BaseTransport):
-        self.transport = transport
-        self.sockname = transport.get_extra_info('sockname')
-        self.peername = transport.get_extra_info('peername')
-
-        if sock := self.transport.get_extra_info('socket'):
-            self.set_socket_default_options(sock)
-
-        self.write = transport.write
-        self.can_write_eof = transport.can_write_eof
-        self.shutdown = self.write_eof = transport.write_eof
-
-    def data_received(self, data: bytes):
-        # if conn is None, then this method should be override
-        assert self.conn, 'this method should be override'
-        self.conn.feed_data(data)
-
-    def eof_received(self) -> Optional[bool]:
-        # if conn is None, then this method should be override
-        assert self.conn, 'this method should be override'
-        return self.conn.feed_data(b'')
-
-    def destory(self):
-        super().destory()
-        self.can_write_eof = None
-        self.write_eof = None
-        self.shutdown = None
-        self.sockname = None
-        self.peername = None
-
-    def __repr__(self):
-        return (
-            f'<'
-            f'{self.conn_id} initiative={self.initiative} '
-            f'sockname={self.sockname} peername={self.peername}'
-            f'>'
-        )
-
-
-@logger_wrapper
-class Datagram(Transport):
-    '''Raw datagram transport'''
-
-    def bind_transport(self, transport: BaseTransport):
-        self.transport = transport
-        self.write = transport.sendto
-
-    def can_write_eof(self):
-        return False
-
-    def datagram_received(self, data: bytes, addr: Tuple[str, int]):
-        if self.handler:
-            self.handler.process(data, addr=addr)
-
-    def error_received(self, exc: OSError):
-        if self.handler:
-            self.handler.process(b'')
-
-
-ProtocolType = TypeVar('Protocol', bound=Protocol)
-TransportType = TypeVar('Transport', bound=Transport)
+    channel = channel_class(
+        stream_class=stream_class,
+        ssl_context=ssl_context,
+        ssl_handshake_timeout=ssl_handshake_timeout,
+    )
+    await channel.listen(
+        address,
+        family=family,
+        flags=flags,
+        backlog=backlog,
+        reuse_address=reuse_address,
+        reuse_port=reuse_port,
+    )
+    if start_serving:
+        channel.start()
+    return channel
