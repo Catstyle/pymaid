@@ -14,7 +14,7 @@ from .types import HandlerType, RouterType
 
 __all__ = ('Channel',)
 
-logger = get_logger('pymaid.rpc')
+logger = get_logger('rpc')
 
 
 class Channel(NetStreamChannel):
