@@ -7,23 +7,23 @@ from pymaid.core import sleep
 from pymaid.net import dial_stream, serve_stream
 from pymaid.net.raw import HAS_IPv6_FAMILY
 
-from tests.common.models import TestStreamChannel, TestStream
+from tests.common.models import _TestStreamChannel, _TestStream
 
 
 @pytest.mark.asyncio
 async def test_stream_channel_ipv4():
     server = await serve_stream(
         ('localhost', 8999),
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
         start_serving=True,
     )
     assert server
 
     client = await dial_stream(
         ('localhost', 8999),
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_INET
@@ -48,16 +48,16 @@ async def test_stream_channel_ipv4():
 async def test_stream_channel_ipv6():
     server = await serve_stream(
         ('::1', 8999),
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
         start_serving=True,
     )
     assert server
 
     client = await dial_stream(
         ('::1', 8999),
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_INET6
@@ -84,16 +84,16 @@ async def test_stream_channel_ipv6():
 async def test_stream_channel_unix():
     server = await serve_stream(
         '/tmp/pymaid_test_ipv6.sock',
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
         start_serving=True,
     )
     assert server
 
     client = await dial_stream(
         '/tmp/pymaid_test_ipv6.sock',
-        channel_class=TestStreamChannel,
-        stream_class=TestStream,
+        channel_class=_TestStreamChannel,
+        stream_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_UNIX

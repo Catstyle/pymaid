@@ -1,9 +1,9 @@
+import pymaid
 import pytest
-import uvloop
 
 
 @pytest.fixture
 def event_loop():
-    loop = uvloop.Loop()
+    loop = pymaid.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()

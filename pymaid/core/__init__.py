@@ -12,6 +12,7 @@ __all__ = (
     'run',
     'sleep',
     'get_event_loop',
+    'get_event_loop_policy',
     'get_running_loop',
 
     'create_task',
@@ -54,6 +55,7 @@ __all__ = (
 run = asyncio.run
 sleep = asyncio.sleep
 get_event_loop = asyncio.get_event_loop
+get_event_loop_policy = asyncio.get_event_loop_policy
 get_running_loop = asyncio.get_running_loop
 
 
