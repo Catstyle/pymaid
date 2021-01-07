@@ -65,7 +65,7 @@ class Stream(SocketTransport):
 
         There is another :meth:`write`, it will take care of write_buffer.
 
-        :rvalue: indicate whether sent out all data this time.
+        :returns: bool, indicate whether sent out all data this time or not.
         '''
         if not self.write_buffer:
             # Optimization: try to send now.
@@ -185,8 +185,6 @@ class Stream(SocketTransport):
         except (SystemExit, KeyboardInterrupt):
             raise
         except BaseException as exc:
-            self._loop.remove_writer(self._sock_fd)
-            self.write_buffer.clear()
             self._fatal_error(exc, 'Fatal write error on socket transport')
         else:
             if n:

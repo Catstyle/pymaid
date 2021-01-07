@@ -8,7 +8,7 @@ from typing import Callable, List, Optional, TypeVar
 from pymaid.core import get_running_loop, Event
 from pymaid.utils.logger import get_logger
 
-logger = get_logger('pymaid.net.stream')
+logger = get_logger('net')
 
 
 class TransportState(enum.IntEnum):
