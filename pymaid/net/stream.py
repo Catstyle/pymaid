@@ -141,8 +141,6 @@ class Stream(SocketTransport):
         return self.KEEP_OPEN_ON_EOF
 
     def _read_ready(self):
-        if self.state == self.STATE.CLOSED:
-            return
         try:
             data = self._sock.recv(self.MAX_SIZE)
         except (BlockingIOError, InterruptedError):
@@ -155,20 +153,17 @@ class Stream(SocketTransport):
 
         if not data:
             try:
-                keep_open = self.eof_received()
+                if self.eof_received():
+                    # We're keeping the connection open so the
+                    # protocol can write more, but we still can't
+                    # receive more, so remove the reader Callable.
+                    self._loop.remove_reader(self._sock_fd)
+                else:
+                    self.close()
             except (SystemExit, KeyboardInterrupt):
                 raise
             except BaseException as exc:
                 self._fatal_error(exc, 'Fatal error: eof_received() failed.')
-                return
-
-            if keep_open:
-                # We're keeping the connection open so the
-                # protocol can write more, but we still can't
-                # receive more, so remove the reader Callable.
-                self._loop.remove_reader(self._sock_fd)
-            else:
-                self.close()
             return
 
         try:
@@ -183,8 +178,6 @@ class Stream(SocketTransport):
     def _write_ready(self):
         assert self.write_buffer, 'data should not be empty'
 
-        if self.state == self.STATE.CLOSED:
-            return
         try:
             n = self._sock.send(self.write_buffer)
         except (BlockingIOError, InterruptedError):
