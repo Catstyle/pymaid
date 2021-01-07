@@ -31,6 +31,9 @@ async def sock_connect(address: Tuple[str, int]) -> socket.socket:
             sock = socket.socket(af, socktype, proto)
             sock.setblocking(False)
             await loop.sock_connect(sock, sa)
+            if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
+                sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             # Break explicitly a reference cycle
             err = None
             return sock
@@ -95,6 +98,9 @@ async def sock_listen(
                 # Assume it's a bad family/type/protocol combination.
                 continue
             sock.setblocking(False)
+            if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
+                sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             if reuse_address:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
             if reuse_port:
