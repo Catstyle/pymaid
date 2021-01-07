@@ -3,7 +3,7 @@ from pymaid.net.stream import Stream
 from pymaid.types import DataType
 
 
-class TestStreamChannel(StreamChannel):
+class _TestStreamChannel(StreamChannel):
 
     # for test case only
     def connection_made(self, sock):
@@ -11,10 +11,11 @@ class TestStreamChannel(StreamChannel):
         return self.connected_stream
 
 
-class TestStream(Stream):
+class _TestStream(Stream):
 
     # for test case only
     def data_received(self, data: DataType):
+        self.logger.debug(f'{self!r} data_received, {len(data)=}')
         self.received_data = data
 
 

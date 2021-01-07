@@ -6,7 +6,7 @@ import pytest
 from pymaid.core import sleep
 from pymaid.net.raw import HAS_IPv6_FAMILY
 
-from tests.common.models import TestStream
+from tests.common.models import _TestStream
 
 
 @pytest.mark.skipif(
@@ -15,7 +15,7 @@ from tests.common.models import TestStream
 @pytest.mark.asyncio
 async def test_stream_ipv4():
     sock1, sock2 = socket.socketpair(socket.AF_INET.value)
-    s1, s2 = TestStream(sock1), TestStream(sock2)
+    s1, s2 = _TestStream(sock1), _TestStream(sock2)
     await s1.write(b'from pymaid')
     await sleep(0)
     assert s2.received_data == b'from pymaid'
@@ -30,7 +30,7 @@ async def test_stream_ipv4():
 @pytest.mark.asyncio
 async def test_stream_ipv6():
     sock1, sock2 = socket.socketpair(socket.AF_INET6.value)
-    s1, s2 = TestStream(sock1), TestStream(sock2)
+    s1, s2 = _TestStream(sock1), _TestStream(sock2)
     await s1.write(b'from pymaid')
     await sleep(0)
     assert s2.received_data == b'from pymaid'
@@ -45,7 +45,7 @@ async def test_stream_ipv6():
 @pytest.mark.asyncio
 async def test_stream_unix():
     sock1, sock2 = socket.socketpair(socket.AF_UNIX.value)
-    s1, s2 = TestStream(sock1), TestStream(sock2)
+    s1, s2 = _TestStream(sock1), _TestStream(sock2)
     await s1.write(b'from pymaid')
     await sleep(0)
     assert s2.received_data == b'from pymaid'
