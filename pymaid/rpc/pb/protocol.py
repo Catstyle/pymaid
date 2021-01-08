@@ -1,23 +1,27 @@
-from struct import Struct
+import struct
 from typing import Optional, Sequence, Tuple, TypeVar
 
 from google.protobuf.message import Message
 
-from pymaid.conf import settings
 from pymaid.net.protocol import DataType, Protocol
 
 from .error import PBError
 from .pymaid_pb2 import Context as Meta
 
-st = Struct(settings.get('PM_PB_HEADER', ns='pymaid'))
-header_size = st.size
-pack_header = st.pack
-unpack_header = st.unpack
 
 Message = TypeVar('Message', bound=Message)
 
 
 class Protocol(Protocol):
+
+    HEADER_FORMAT = '!HH'
+    HEADER_STRUCT = struct.Struct(HEADER_FORMAT)
+
+    MAX_PACKET_LENGTH = 8 * 1024
+
+    header_size = HEADER_STRUCT.size
+    pack_header = HEADER_STRUCT.pack
+    unpack_header = HEADER_STRUCT.unpack
 
     @classmethod
     def feed_data(cls, data: DataType) -> Tuple[int, Sequence[Message]]:
@@ -25,10 +29,9 @@ class Protocol(Protocol):
         messages = []
 
         used_size = 0
-        max_packet = settings.get('MAX_PACKET_LENGTH', ns='pymaid')
         try:
             while 1:
-                consumed, meta, payload = cls.decode(data, max_packet)
+                consumed, meta, payload = cls.decode(data)
                 if not consumed:
                     break
                 assert meta
@@ -43,34 +46,30 @@ class Protocol(Protocol):
 
     @classmethod
     def encode(cls, meta: Meta, message: Message) -> bytes:
-        meta.payload_size = message.ByteSize()
         return (
-            pack_header(meta.ByteSize())
+            cls.pack_header(meta.ByteSize(), message.ByteSize())
             + meta.SerializeToString()
             + message.SerializeToString()
         )
 
     @classmethod
     def decode(
-        cls, data: memoryview, max_packet: int
+        cls, data: DataType,
     ) -> Tuple[int, Optional[Meta], Optional[memoryview]]:
-        nbytes = data.nbytes
-        if nbytes < header_size:
+        header_size = cls.header_size
+        if (data_size := len(data)) < header_size:
             return 0, None, None
 
-        needed_size = header_size
-        meta_size = unpack_header(data[:needed_size])[0]
-        needed_size += meta_size
-        if nbytes < needed_size:
+        meta_size, payload_size = cls.unpack_header(data[:header_size])
+        if (used_size := header_size + meta_size + payload_size) > data_size:
             return 0, None, None
-
-        meta = Meta.FromString(data[header_size:needed_size])
-        if meta.payload_size > max_packet:
+        if payload_size > cls.MAX_PACKET_LENGTH:
             raise PBError.PacketTooLarge(
-                data={'max': max_packet, 'size': meta.payload_size}
+                data={'max': cls.MAX_PACKET_LENGTH, 'size': payload_size}
             )
-        if header_size + meta_size + meta.payload_size > nbytes:
-            return 0, None, None
-        needed_size += meta.payload_size
 
-        return needed_size, meta, data[header_size + meta_size: needed_size]
+        return (
+            used_size,
+            Meta.FromString(data[header_size:header_size + meta_size]),
+            data[header_size + meta_size: used_size],
+        )
