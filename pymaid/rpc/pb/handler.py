@@ -28,14 +28,7 @@ class PBHandler(Handler):
                 self.contexts[meta.transmission_id].feed_message(meta, payload)
                 continue
 
-            if meta.packet_type not in {Request, Response}:
-                task = self.handle_error(
-                    meta,
-                    PBError.InvalidPacketType(
-                        data={'packet_type': meta.packet_type}
-                    )
-                )
-            elif meta.packet_type == Request:
+            if meta.packet_type == Request:
                 name = meta.service_method
                 if (rpc := get_route(name)) is None:
                     task = self.handle_error(
@@ -54,6 +47,13 @@ class PBHandler(Handler):
                     f'{meta.transmission_id=}, ignored.'
                 )
                 continue
+            else:
+                task = self.handle_error(
+                    meta,
+                    PBError.InvalidPacketType(
+                        data={'packet_type': meta.packet_type}
+                    )
+                )
             self.pending_tasks.append(task)
             self.new_task_received.set()
 
