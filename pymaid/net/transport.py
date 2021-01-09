@@ -12,7 +12,7 @@ from .base import logger, TransportState
 class Transport(abc.ABC):
 
     logger = logger
-    ID = 1
+    ID = 0
 
     def _fatal_error(self, exc, message='Fatal error on transport'):
         # Should be called from exception handler only.
@@ -49,8 +49,8 @@ class SocketTransport(Transport):
     ):
         self._loop = get_running_loop()
         self.wrap_sock(sock)
-        self.id = self.__class__.ID
         self.__class__.ID += 1
+        self.id = self.__class__.ID
 
         self.on_open = on_open or []
         self.on_close = on_close or []
