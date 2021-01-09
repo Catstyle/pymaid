@@ -20,6 +20,7 @@ async def serve_stream(
     *,
     name: str = 'StreamChannel',
     stream_class: connection.ConnectionType = connection.Connection,
+    backlog: int = 128,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
     close_conn_onerror: bool = True,
@@ -45,7 +46,7 @@ async def serve_stream(
         ch.router.include_services(services)
     if router:
         ch.router.include_router(router)
-    await ch.listen(address)
-    await ch.start()
+    await ch.listen(address, backlog=backlog)
+    ch.start()
     async with ch:
         await ch.serve_forever()
