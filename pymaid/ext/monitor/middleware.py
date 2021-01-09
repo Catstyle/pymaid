@@ -15,8 +15,7 @@ class HeartbeatMiddleware(BaseMiddleware):
         self.heartbeat_interval = heartbeat_interval
         self.heartbeat_count = heartbeat_count
 
-    def on_connect(self, channel, transport):
-        transport.heartbeat_count = 0
+    def on_connection_made(self, channel, transport):
         loop = get_running_loop()
 
         def clear_heartbeat_counter():
@@ -29,15 +28,19 @@ class HeartbeatMiddleware(BaseMiddleware):
         def heartbeat_timeout():
             transport.heartbeat_count += 1
             if transport.heartbeat_count >= self.heartbeat_count:
-                transport.heartbeat_timer.cancel()
                 transport.close(MonitorError.HeartbeatTimeout())
+            else:
+                transport.heartbeat_timer = loop.call_later(
+                    self.heartbeat_interval, heartbeat_timeout,
+                )
 
+        transport.heartbeat_count = 0
         transport.heartbeat_timer = loop.call_later(
             self.heartbeat_interval, heartbeat_timeout,
         )
         transport.clear_heartbeat_counter = clear_heartbeat_counter
 
-    def on_close(self, channel, transport):
+    def on_connection_lost(self, channel, transport):
         transport.heartbeat_timer.cancel()
         del transport.heartbeat_timer
         del transport.clear_heartbeat_counter

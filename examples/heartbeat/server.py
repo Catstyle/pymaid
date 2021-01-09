@@ -8,15 +8,10 @@ from examples.template import get_server_parser, parse_args
 
 
 async def main(args):
-    mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.count)])
-    if isinstance(args.address, str):
-        server = pymaid.rpc.pb.channel.UnixStreamChannel(middleware_manager=mm)
-    else:
-        server = pymaid.rpc.pb.channel.StreamChannel(middleware_manager=mm)
-    await server.listen(args.address)
-    await server.start()
-    async with server:
-        await server.serve_forever()
+    mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.retry)])
+    await pymaid.rpc.pb.serve_stream(
+        args.address, backlog=1024, services=[], middleware_manager=mm
+    )
 
 
 if __name__ == "__main__":

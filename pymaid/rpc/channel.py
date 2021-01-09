@@ -46,7 +46,6 @@ class Channel(NetStreamChannel):
             ssl_handshake_timeout=ssl_handshake_timeout,
         )
         self.name = name
-        self.connections = {}
         self.middleware_manager = middleware_manager or MiddlewareManager()
 
         self.protocol = protocol
@@ -115,7 +114,7 @@ class Channel(NetStreamChannel):
             f'{self.name} '
             f'state={self.state.name} '
             f'listeners={len(self.listeners)} '
-            f'connections={len(self.connections)} '
+            f'streams={len(self.streams)} '
             f'middlewares={len(self.middleware_manager.middlewares)}'
             '>'
         )
