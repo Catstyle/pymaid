@@ -141,7 +141,11 @@ class SocketTransport(Transport):
 
     def __del__(self, _warn=warnings.warn):
         if getattr(self, '_sock', None):
-            _warn(f'unclosed transport {self!r}', ResourceWarning, source=self)
+            _warn(
+                f'unclosed transport {self.__class__.__name__}',
+                ResourceWarning,
+                source=self,
+            )
             self._sock.close()
             self._sock = None
 

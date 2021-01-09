@@ -7,7 +7,7 @@ import sys
 from typing import Callable, List, Optional, Tuple, TypeVar, Union
 
 from pymaid.conf import settings
-from pymaid.core import get_running_loop, CancelledError
+from pymaid.core import get_running_loop, CancelledError, Event
 
 from .base import logger, ChannelState
 from .raw import sock_connect, sock_listen
@@ -24,6 +24,7 @@ class Channel(abc.ABC):
         self.address = address
         self.listeners = []
         self.state = self.STATE.CREATED
+        self.closed_event = Event()
         self._loop = get_running_loop()
         self._serving_forever_fut = None
 
@@ -52,7 +53,7 @@ class Channel(abc.ABC):
         raise NotImplementedError
 
     async def wait_closed(self):
-        pass
+        await self.closed_event.wait()
 
     async def serve_forever(self):
         if self._serving_forever_fut is not None:
@@ -69,7 +70,6 @@ class Channel(abc.ABC):
         except CancelledError:
             try:
                 self.close()
-                await self.wait_closed()
             finally:
                 raise
         finally:
@@ -92,7 +92,7 @@ class Channel(abc.ABC):
             loop.remove_reader(sock.fileno())
 
     def shutdown(self, reason: str = 'shutdown'):
-        if self.state == self.STATE.CLOSING:
+        if self.state >= self.STATE.CLOSING:
             return
         if self.state < self.STATE.PAUSED:
             self.pause(reason)
@@ -102,9 +102,8 @@ class Channel(abc.ABC):
     def close(
         self, reason: Union[None, str, Exception] = 'called close',
     ):
-        if self.state == self.STATE.CLOSED:
+        if self.state >= self.STATE.CLOSING:
             return
-        self.logger.info(f'{self!r} shutdown with reason: {reason}')
         if self.state == self.STATE.STARTED:
             self.pause(reason)
         if self.state == self.STATE.PAUSED:
@@ -112,7 +111,13 @@ class Channel(abc.ABC):
         for sock in self.listeners:
             sock.close()
         del self.listeners[:]
+        if not self.streams:
+            self._finnal_close(reason)
+
+    def _finnal_close(self, reason=None):
+        self.closed_event.set()
         self.state = self.STATE.CLOSED
+        self.logger.info(f'{self!r} finally closed, {reason=}')
 
     async def __aenter__(self):
         return self
@@ -171,8 +176,11 @@ class StreamChannel(Channel):
         on_close: Optional[List[Callable]] = None,
     ) -> Stream:
         sock = await sock_connect(self.address)
-        self.logger.info(f'{self!r} acquire: {sock=}')
-        return self.make_connection(sock, True, on_open, on_close)
+        conn = self.make_connection(sock, True, on_open, on_close)
+        self.logger.info(
+            f'{self!r} acquire: <{self.stream_class.__name__} {conn.id}>'
+        )
+        return conn
 
     def make_connection(self, sock, initiative, on_open=None, on_close=None):
         return self.stream_class(
@@ -185,17 +193,25 @@ class StreamChannel(Channel):
         )
 
     def connection_made(self, sock: socket.socket) -> Stream:
-        self.logger.info(f'{self!r} connection_made: {sock=}')
         stream = self.make_connection(
             sock, False, on_close=[self.connection_lost],
+        )
+        self.logger.info(
+            f'{self!r} connection_made: '
+            f'<{self.stream_class.__name__} {stream.id}>'
         )
         self.streams[stream.id] = stream
         return stream
 
     def connection_lost(self, stream: Stream, exc=None):
-        self.logger.info(f'{self!r} connection_lost: {stream=} {exc=}')
+        self.logger.info(
+            f'{self!r} connection_lost: '
+            f'<{self.stream_class.__name__} {stream.id}> {exc=}'
+        )
         assert stream.id in self.streams, (stream.id, self.streams.keys())
         del self.streams[stream.id]
+        if not self.streams and self.state >= self.STATE.CLOSING:
+            self._finnal_close(exc)
 
     def shutdown(self, reason: str = 'shutdown'):
         super().shutdown(reason)

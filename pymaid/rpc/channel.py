@@ -109,6 +109,17 @@ class Channel(NetStreamChannel):
         super().close(reason)
         self.middleware_manager.dispatch('on_close', self)
 
+    def __repr__(self):
+        return (
+            '<'
+            f'{self.name} '
+            f'state={self.state.name} '
+            f'listeners={len(self.listeners)} '
+            f'connections={len(self.connections)} '
+            f'middlewares={len(self.middleware_manager.middlewares)}'
+            '>'
+        )
+
 
 ChannelType = TypeVar('Channel', bound=Channel)
 
