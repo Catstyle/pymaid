@@ -8,10 +8,12 @@ from typing import Callable, List, Optional, Tuple, TypeVar, Union
 
 from pymaid.conf import settings
 from pymaid.core import get_running_loop, CancelledError, Event
+from pymaid.ext.middleware import MiddlewareManager
 
 from .base import logger, ChannelState
 from .raw import sock_connect, sock_listen
-from .stream import Stream
+from .stream import Stream, StreamType
+from .transport import Transport, TransportType
 
 
 class Channel(abc.ABC):
@@ -19,14 +21,34 @@ class Channel(abc.ABC):
     STATE = ChannelState
     logger = logger
 
-    def __init__(self, *, address: Union[Tuple[str, int], str] = ''):
+    def __init__(
+        self,
+        *,
+        name: str = 'Channel',
+        address: Union[Tuple[str, int], str] = '',
+        transport_class: TransportType = Transport,
+        ssl_context: _ssl.SSLContext,
+        ssl_handshake_timeout: Optional[float] = None,
+        middleware_manager: Optional[MiddlewareManager] = None,
+    ):
         '''Channel manages the sockets.'''
+        self.name = name
         self.address = address
+        self.transport_class = transport_class
+        self.ssl_context = ssl_context
+        self.ssl_handshake_timeout = ssl_handshake_timeout
+        self.transports = {}
+        self.middleware_manager = middleware_manager or MiddlewareManager()
+
         self.listeners = []
         self.state = self.STATE.CREATED
         self.closed_event = Event()
         self._loop = get_running_loop()
         self._serving_forever_fut = None
+
+    @property
+    def is_full(self):
+        return len(self.transports) >= settings.pymaid.MAX_CONNECTIONS
 
     async def listen(
         self,
@@ -111,7 +133,7 @@ class Channel(abc.ABC):
         for sock in self.listeners:
             sock.close()
         del self.listeners[:]
-        if not self.streams:
+        if not self.transports:
             self._finnal_close(reason)
 
     def _finnal_close(self, reason=None):
@@ -131,8 +153,13 @@ class Channel(abc.ABC):
 
     def __repr__(self):
         return (
-            f'<Channel state={self.state.name} '
-            f'listeners={len(self.listeners)}>'
+            '<'
+            f'{self.name} '
+            f'state={self.state.name} '
+            f'listeners={len(self.listeners)} '
+            f'transports={len(self.transports)} '
+            f'middlewares={len(self.middleware_manager.middlewares)}'
+            '>'
         )
 
 
@@ -141,20 +168,21 @@ class StreamChannel(Channel):
     def __init__(
         self,
         *,
+        name: str = 'Channel',
         address: Union[Tuple[str, int], str] = '',
-        stream_class: Stream = Stream,
+        transport_class: StreamType = Stream,
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
+        middleware_manager: Optional[MiddlewareManager] = None,
     ):
-        super().__init__(address=address)
-        self.stream_class = stream_class
-        self.ssl_context = ssl_context
-        self.ssl_handshake_timeout = ssl_handshake_timeout
-        self.streams = {}
-
-    @property
-    def is_full(self):
-        return len(self.streams) >= settings.pymaid.MAX_CONNECTIONS
+        super().__init__(
+            name=name,
+            address=address,
+            transport_class=transport_class,
+            ssl_context=ssl_context,
+            ssl_handshake_timeout=ssl_handshake_timeout,
+            middleware_manager=middleware_manager,
+        )
 
     def read_from_listener(self, sock: socket.socket, backlog: int = 128):
         connection_made = self.connection_made
@@ -176,14 +204,41 @@ class StreamChannel(Channel):
         on_close: Optional[List[Callable]] = None,
     ) -> Stream:
         sock = await sock_connect(self.address)
-        conn = self.make_connection(sock, True, on_open, on_close)
+        conn = self._make_connection(sock, True, on_open, on_close)
         self.logger.info(
-            f'{self!r} acquire: <{self.stream_class.__name__} {conn.id}>'
+            f'{self!r} acquire: <{self.transport_class.__name__} {conn.id}>'
         )
         return conn
 
-    def make_connection(self, sock, initiative, on_open=None, on_close=None):
-        return self.stream_class(
+    def connection_made(self, sock: socket.socket) -> Stream:
+        conn = self._make_connection(
+            sock, False, on_close=[self.connection_lost],
+        )
+        self.logger.info(
+            f'{self!r} connection_made: '
+            f'<{self.transport_class.__name__} {conn.id}>'
+        )
+        self.transports[conn.id] = conn
+        return conn
+
+    def connection_lost(self, conn: Stream, exc=None):
+        self.logger.info(
+            f'{self!r} connection_lost: '
+            f'<{self.transport_class.__name__} {conn.id}> {exc=}'
+        )
+        assert conn.id in self.transports, (conn.id, self.transports.keys())
+        del self.transports[conn.id]
+        if not self.transports and self.state >= self.STATE.CLOSING:
+            self._finnal_close(exc)
+
+    def shutdown(self, reason: str = 'shutdown'):
+        super().shutdown(reason)
+        for conn in self.transports.values():
+            # conn.shutdown is not coroutine
+            conn.shutdown(reason)
+
+    def _make_connection(self, sock, initiative, on_open=None, on_close=None):
+        return self.transport_class(
             sock,
             initiative=initiative,
             ssl_context=self.ssl_context,
@@ -191,33 +246,6 @@ class StreamChannel(Channel):
             on_open=on_open,
             on_close=on_close,
         )
-
-    def connection_made(self, sock: socket.socket) -> Stream:
-        stream = self.make_connection(
-            sock, False, on_close=[self.connection_lost],
-        )
-        self.logger.info(
-            f'{self!r} connection_made: '
-            f'<{self.stream_class.__name__} {stream.id}>'
-        )
-        self.streams[stream.id] = stream
-        return stream
-
-    def connection_lost(self, stream: Stream, exc=None):
-        self.logger.info(
-            f'{self!r} connection_lost: '
-            f'<{self.stream_class.__name__} {stream.id}> {exc=}'
-        )
-        assert stream.id in self.streams, (stream.id, self.streams.keys())
-        del self.streams[stream.id]
-        if not self.streams and self.state >= self.STATE.CLOSING:
-            self._finnal_close(exc)
-
-    def shutdown(self, reason: str = 'shutdown'):
-        super().shutdown(reason)
-        for stream in self.streams.values():
-            # stream.shutdown is not coroutine
-            stream.shutdown(reason)
 
 
 ChannelType = TypeVar('ChannelType', bound=Channel)

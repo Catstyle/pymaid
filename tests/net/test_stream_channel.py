@@ -15,7 +15,7 @@ async def test_stream_channel_ipv4():
     server = await serve_stream(
         ('localhost', 8999),
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
         start_serving=True,
     )
     assert server
@@ -23,7 +23,7 @@ async def test_stream_channel_ipv4():
     client = await dial_stream(
         ('localhost', 8999),
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_INET
@@ -49,7 +49,7 @@ async def test_stream_channel_ipv6():
     server = await serve_stream(
         ('::1', 8999),
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
         start_serving=True,
     )
     assert server
@@ -57,7 +57,7 @@ async def test_stream_channel_ipv6():
     client = await dial_stream(
         ('::1', 8999),
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_INET6
@@ -85,7 +85,7 @@ async def test_stream_channel_unix():
     server = await serve_stream(
         '/tmp/pymaid_test_ipv6.sock',
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
         start_serving=True,
     )
     assert server
@@ -93,7 +93,7 @@ async def test_stream_channel_unix():
     client = await dial_stream(
         '/tmp/pymaid_test_ipv6.sock',
         channel_class=_TestStreamChannel,
-        stream_class=_TestStream,
+        transport_class=_TestStream,
     )
     stream = await client.acquire()
     assert stream.family == socket.AF_UNIX

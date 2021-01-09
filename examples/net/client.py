@@ -25,7 +25,7 @@ async def wrapper(ch, count):
 
 
 async def main(args):
-    ch = await pymaid.net.dial_stream(args.address, stream_class=Stream)
+    ch = await pymaid.net.dial_stream(args.address, transport_class=Stream)
     tasks = []
     for x in range(args.concurrency):
         tasks.append(pymaid.create_task(wrapper(ch, args.request)))

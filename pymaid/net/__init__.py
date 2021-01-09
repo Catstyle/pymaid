@@ -33,7 +33,7 @@ async def dial_stream(
     address: Tuple[str, int],
     *,
     channel_class: ChannelType = StreamChannel,
-    stream_class: Stream = Stream,
+    transport_class: Stream = Stream,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
 ):
@@ -54,7 +54,7 @@ async def dial_stream(
     '''
     return channel_class(
         address=address,
-        stream_class=stream_class,
+        transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
     )
@@ -71,7 +71,7 @@ async def serve_stream(
     ssl_context: Union[None, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
     channel_class: ChannelType = StreamChannel,
-    stream_class: Stream = Stream,
+    transport_class: Stream = Stream,
     start_serving: bool = True,
 ):
     '''Create channel listening on `address`.
@@ -90,7 +90,7 @@ async def serve_stream(
     This method is a coroutine.
     '''
     channel = channel_class(
-        stream_class=stream_class,
+        transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
     )
