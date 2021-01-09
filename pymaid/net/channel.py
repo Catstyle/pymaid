@@ -228,6 +228,8 @@ class StreamChannel(Channel):
         )
         assert conn.id in self.transports, (conn.id, self.transports.keys())
         del self.transports[conn.id]
+        if self.state == self.STATE.PAUSED and not self.is_full:
+            self.start()
         if not self.transports and self.state >= self.STATE.CLOSING:
             self._finnal_close(exc)
 
