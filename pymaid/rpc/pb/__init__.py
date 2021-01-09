@@ -57,7 +57,7 @@ async def serve_stream(
     services: Optional[Sequence[ServiceType]] = None,
     router: Optional[router.Router] = None,
 ):
-    assert services or router, 'should provide services or router'
+    assert services is not None or router, 'should provide services or router'
     ch = create_stream_channel(
         address,
         name=name,
