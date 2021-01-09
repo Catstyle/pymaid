@@ -19,14 +19,14 @@ async def serve_stream(
     address: Union[Tuple[str, int], str],
     *,
     name: str = 'StreamChannel',
-    stream_class: connection.ConnectionType = connection.Connection,
+    transport_class: connection.ConnectionType = connection.Connection,
     backlog: int = 128,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
+    middleware_manager: Optional[MiddlewareManager] = None,
     close_conn_onerror: bool = True,
     protocol: Type[ProtocolType] = Protocol,
     handler_class: Optional[Type[handler.Handler]] = handler.SerialHandler,
-    middleware_manager: Optional[MiddlewareManager] = None,
     services: Optional[Sequence[ServiceType]] = None,
     router: Optional[router.Router] = None,
 ):
@@ -34,13 +34,13 @@ async def serve_stream(
     ch = channel.create_stream_channel(
         address,
         name=name,
-        stream_class=stream_class,
+        transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
+        middleware_manager=middleware_manager,
         close_conn_onerror=close_conn_onerror,
         protocol=protocol,
         handler_class=handler_class,
-        middleware_manager=middleware_manager,
     )
     if services:
         ch.router.include_services(services)

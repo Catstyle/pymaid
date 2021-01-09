@@ -28,9 +28,9 @@ class Channel(NetStreamChannel):
     def __init__(
         self,
         *,
-        name: str = 'Channel',
+        name: str = 'RPCChannel',
         address: Union[Tuple[str, int], str] = '',
-        stream_class: ConnectionType = Connection,
+        transport_class: ConnectionType = Connection,
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
         close_conn_onerror: bool = True,
@@ -40,26 +40,26 @@ class Channel(NetStreamChannel):
         middleware_manager: Optional[MiddlewareManager] = None,
     ):
         super().__init__(
+            name=name,
             address=address,
-            stream_class=stream_class,
+            transport_class=transport_class,
             ssl_context=ssl_context,
             ssl_handshake_timeout=ssl_handshake_timeout,
+            middleware_manager=middleware_manager,
         )
-        self.name = name
-        self.middleware_manager = middleware_manager or MiddlewareManager()
 
         self.protocol = protocol
         self.handler_class = handler_class
         self.router = router_class()
 
-    def make_connection(
+    def _make_connection(
         self,
         sock,
         initiative,
         on_open=None,
         on_close=None,
     ) -> ConnectionType:
-        return self.stream_class(
+        return self.transport_class(
             sock,
             initiative=initiative,
             ssl_context=self.ssl_context,
@@ -108,17 +108,6 @@ class Channel(NetStreamChannel):
         super().close(reason)
         self.middleware_manager.dispatch('on_close', self)
 
-    def __repr__(self):
-        return (
-            '<'
-            f'{self.name} '
-            f'state={self.state.name} '
-            f'listeners={len(self.listeners)} '
-            f'streams={len(self.streams)} '
-            f'middlewares={len(self.middleware_manager.middlewares)}'
-            '>'
-        )
-
 
 ChannelType = TypeVar('Channel', bound=Channel)
 
@@ -127,24 +116,24 @@ def create_stream_channel(
     address: Union[Tuple[str, int], str],
     *,
     name: str = 'StreamChannel',
-    stream_class: ConnectionType = Connection,
+    transport_class: ConnectionType = Connection,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
+    middleware_manager: Optional[MiddlewareManager] = None,
     close_conn_onerror: bool = True,
     protocol: Protocol = Protocol,
     handler_class: Optional[HandlerType] = SerialHandler,
     router_class: Optional[RouterType] = Router,
-    middleware_manager: Optional[MiddlewareManager] = None,
 ) -> ChannelType:
     return Channel(
         address=address,
         name=name,
-        stream_class=stream_class,
+        transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
+        middleware_manager=middleware_manager,
         close_conn_onerror=close_conn_onerror,
         protocol=protocol,
         handler_class=handler_class,
         router_class=router_class,
-        middleware_manager=middleware_manager,
     )

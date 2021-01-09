@@ -6,7 +6,7 @@ from typing import Callable, List, Optional, TypeVar
 from pymaid.conf import settings
 from pymaid.types import DataType
 
-from .base import SocketTransport
+from .transport import SocketTransport
 
 
 class Stream(SocketTransport):

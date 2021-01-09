@@ -12,7 +12,7 @@ class Stream(Stream):
 
 
 async def main(args):
-    ch = await pymaid.net.serve_stream(args.address, stream_class=Stream)
+    ch = await pymaid.net.serve_stream(args.address, transport_class=Stream)
     async with ch:
         await ch.serve_forever()
 
