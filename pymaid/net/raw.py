@@ -6,6 +6,7 @@ Mostly inspired from standard lib `asyncio`.
 import os
 import socket
 
+from errno import ENOTCONN, ECONNABORTED
 from typing import List, Tuple, Union
 
 from pymaid.core import get_running_loop, run_in_threadpool
@@ -27,20 +28,32 @@ async def sock_connect(address: Tuple[str, int]) -> socket.socket:
     for res in infos:
         af, socktype, proto, canonname, sa = res
         sock = None
-        try:
-            sock = socket.socket(af, socktype, proto)
-            sock.setblocking(False)
-            await loop.sock_connect(sock, sa)
-            if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
-                sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-            # Break explicitly a reference cycle
-            err = None
-            return sock
-        except socket.error as _:
-            err = _
-            if sock is not None:
-                sock.close()
+        retried = False
+        while 1:
+            try:
+                sock = socket.socket(af, socktype, proto)
+                sock.setblocking(False)
+                await loop.sock_connect(sock, sa)
+                if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
+                    sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                # NOTE:
+                # when doing a lots connect to remote side under heavy pressure
+                # it would sometimes getting ENOTCONN when call getpeername
+                # check it here, if occured, raise it to retry
+                # *why* sock_connect above does not handle this case?
+                sock.getpeername()
+                # Break explicitly a reference cycle
+                err = None
+                return sock
+            except socket.error as _:
+                if _.errno in {ECONNABORTED, ENOTCONN} and not retried:
+                    retried = True
+                    continue
+                err = _
+                if sock is not None:
+                    sock.close()
+                break
 
     if err is not None:
         try:
