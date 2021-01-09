@@ -162,6 +162,8 @@ class Handler(abc.ABC):
         self.pending_tasks.clear()
         self.closed_event.set()
         self.conn.close(reason)
+        if not self.task.done():
+            self.task.cancel()
         del self.conn
         del self.task
 
