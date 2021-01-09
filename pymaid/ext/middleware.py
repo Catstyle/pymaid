@@ -5,17 +5,23 @@ from typing import List, Optional
 class BaseMiddleware:
     '''Base class for Middleware.
 
-    *NOTE*: all on_* methods will be treated as event callbacks, and will be cached in
-        MiddlewareManager.events for faster dispatching.
+    *NOTE*: all on_* methods will be treated as event callbacks,
+        and will be cached in MiddlewareManager.events for faster dispatching.
 
-    e.g.: on_connect/on_close are examples.
+    e.g.: on_connect/on_close are for examples.
     '''
 
-    def on_connect(self, conn):
-        raise NotImplementedError()
+    def on_start(self, *args, **kwargs):
+        pass
 
-    def on_close(self, conn):
-        raise NotImplementedError()
+    def on_pause(self, *args, **kwargs):
+        pass
+
+    def on_shutdown(self, *args, **kwargs):
+        pass
+
+    def on_close(self, *args, **kwargs):
+        pass
 
 
 class MiddlewareManager:
