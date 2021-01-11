@@ -226,7 +226,7 @@ class StreamChannel(Channel):
             f'{self!r} connection_lost: '
             f'<{self.transport_class.__name__} {conn.id}> {exc=}'
         )
-        assert conn.id in self.transports, (conn.id, self.transports.keys())
+        assert conn.id in self.transports, conn.id
         del self.transports[conn.id]
         if self.state == self.STATE.PAUSED and not self.is_full:
             self.start()

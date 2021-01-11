@@ -132,7 +132,6 @@ class WSProtocol(Protocol):
                 consumed, meta, payload = self.decode(data, max_packet)
                 if not consumed:
                     break
-                assert meta
                 messages.append((meta, payload))
                 used_size += consumed
                 data = data[consumed:]

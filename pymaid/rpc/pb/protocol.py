@@ -34,8 +34,6 @@ class Protocol(Protocol):
                 consumed, meta, payload = cls.decode(data)
                 if not consumed:
                     break
-                assert meta
-                assert meta.payload_size == len(payload)
                 messages.append((meta, payload))
                 used_size += consumed
                 data = data[consumed:]
