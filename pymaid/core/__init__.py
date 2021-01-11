@@ -143,6 +143,12 @@ async def create_unix_stream_server(transport_class, path, **kwargs):
     )
 
 
+async def getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return await run_in_threadpool(
+        socket.getaddrinfo, args=(host, port, family, type, proto, flags),
+    )
+
+
 # unix domain socket not support datagram
 
 # async def create_unix_datagram_server(protocol, path, **kwargs):
