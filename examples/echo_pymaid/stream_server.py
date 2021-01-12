@@ -15,7 +15,9 @@ class EchoStream(pymaid.net.Stream):
 
 async def main(args):
     if isinstance(args.address, str):
-        server = await pymaid.create_unix_stream_server(EchoStream, args.address)
+        server = await pymaid.create_unix_stream_server(
+            EchoStream, args.address
+        )
     else:
         server = await pymaid.create_stream_server(EchoStream, *args.address)
     async with server:
