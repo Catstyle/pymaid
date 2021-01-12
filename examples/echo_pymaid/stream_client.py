@@ -3,18 +3,15 @@ import pymaid
 from examples.template import get_client_parser, parse_args
 
 
-req = b'1234567890' * 100 + b'\n'
-req_size = len(req)
-
-
 class EchoStream(pymaid.net.Stream):
 
     def init(self):
         self.nbytes = 0
+        self.receive_event = pymaid.Event()
 
     def data_received(self, data):
         self.nbytes += len(data)
-        self.receive_event.set_result(data)
+        self.receive_event.set()
 
     def eof_received(self):
         # return value indicate keep_open
@@ -26,17 +23,19 @@ async def wrapper(loop, address, count):
         transport = await pymaid.create_unix_stream(EchoStream, address)
     else:
         transport = await pymaid.create_stream(EchoStream, *address)
+
     # in this example, only use transport
     write = transport.write
+    req = b'a' * args.msize
+    receive_event = transport.protocol.receive_event
     for x in range(count):
         write(req)
-        transport.receive_event = loop.create_future()
-        resp = await transport.receive_event
-        assert len(resp) == req_size, (len(resp), req_size)
+        await receive_event.wait()
+        receive_event.clear()
     transport.write_eof()
     transport.close()
-    assert transport.nbytes == count * req_size, \
-        (transport.nbytes, count * req_size)
+    assert transport.nbytes == count * args.msize, \
+        (transport.nbytes, count * args.msize)
 
 
 async def main(args):
@@ -47,7 +46,6 @@ async def main(args):
             wrapper(loop, args.address, args.request)
         ))
 
-    # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)
 
 
