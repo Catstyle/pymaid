@@ -1,49 +1,32 @@
 from __future__ import print_function
 
 import re
-import shutil
 import subprocess
 
-from codecs import open
-from os import path, walk, remove
 from pathlib import Path
 
 from setuptools import setup, find_packages, Extension
 from setuptools.command.build_py import build_py
-from distutils.command.clean import clean
 
 root_dir = Path(__file__).parent
 __version__ = re.search(
-    "__version__ = '(.*)'", open('pymaid/__init__.py').read(), re.M
+    "__version__ = '(.*)'",
+    (root_dir / 'pymaid/__init__.py').read_text(encoding='utf-8'),
+    re.M
 ).group(1)
 assert __version__
 
 # Get the long description from the README file
 long_description = (root_dir / 'README.md').read_text(encoding='utf-8')
 
-requirements = [
+requirements = (root_dir / 'requirements.txt').read_text(encoding='utf-8')
+requirements = [line.strip() for line in requirements.split('\n')]
+
+dev_requirements = (root_dir / 'requirements-dev.txt')
+dev_requirements = [
     line.strip()
-    for line in (root_dir / 'requirements.txt').read_text(encoding='utf-8').split('\n')
+    for line in dev_requirements.read_text(encoding='utf-8').split('\n')
 ]
-
-
-class MyClean(clean):
-
-    def run(self):
-        # Delete generated files in the code tree.
-        for (dirpath, dirnames, filenames) in walk("."):
-            for filename in filenames:
-                filepath = path.join(dirpath, filename)
-                if (filepath.endswith("_pb2.py")
-                        or filepath.endswith(".pyc")
-                        or filepath.endswith(".pb.js")
-                        or filepath.endswith(".so")
-                        or filepath.endswith(".o")):
-                    remove(filepath)
-            for dirname in dirnames:
-                if dirname in ('build', 'dist', 'pymaid.egg-info', 'protos'):
-                    shutil.rmtree(path.join(dirpath, dirname))
-        clean.run(self)
 
 
 class MyBuildPy(build_py):
@@ -69,7 +52,7 @@ if __name__ == '__main__':
         version=__version__,
         license="MIT",
 
-        keywords='async rpc protobuf',
+        keywords='asyncio network rpc framework',
         classifiers=[
             # How mature is this project? Common values are
             #   3 - Alpha
@@ -96,10 +79,7 @@ if __name__ == '__main__':
             '': ['*.proto'],
         },
         install_requires=requirements,
-        tests_require=[
-            'pytest',
-            'pytest-asyncio',
-        ],
+        tests_require=dev_requirements,
         extras_require={
             'backend': [
                 'requests==2.21.0', 'PyYAML==3.13', 'xmltodict==0.12.0'
@@ -113,5 +93,5 @@ if __name__ == '__main__':
             )
         ],
 
-        cmdclass={'build_py': MyBuildPy, 'clean': MyClean},
+        cmdclass={'build_py': MyBuildPy},
     )

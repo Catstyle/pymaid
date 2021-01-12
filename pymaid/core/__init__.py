@@ -29,6 +29,8 @@ __all__ = (
     'Semaphore',
 
     'Queue',
+    'LifoQueue',
+    'PriorityQueue',
     'QueueFull',
     'QueueEmpty',
 
@@ -86,6 +88,8 @@ Semaphore = asyncio.Semaphore
 #
 
 Queue = asyncio.Queue
+LifoQueue = asyncio.LifoQueue
+PriorityQueue = asyncio.PriorityQueue
 QueueFull = asyncio.QueueFull
 QueueEmpty = asyncio.QueueEmpty
 

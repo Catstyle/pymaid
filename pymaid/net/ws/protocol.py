@@ -5,7 +5,8 @@ from typing import Tuple
 from urllib.parse import urlparse
 
 from pymaid.conf import settings
-from pymaid.net import DataType, Protocol
+from pymaid.net.protocol import Protocol
+from pymaid.types import DataType
 
 from .exceptions import ProtocolError, FrameTooLargeException
 

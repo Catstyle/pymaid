@@ -5,6 +5,10 @@ from pymaid import error
 
 class ErrorTest(TestCase):
 
+    def setUp(self):
+        error.ErrorManager.managers.clear()
+        error.ErrorManager.codes.clear()
+
     def test_base(self):
         self.assertIsNone(error.BaseEx.code)
         self.assertEqual(error.BaseEx.message, 'BaseEx')
@@ -170,8 +174,8 @@ class ErrorTest(TestCase):
             ProfileError.IncompleteInfo,
         )
 
-        # include one builtin :RpcError:
-        assert len(error.ErrorManager.managers) == 2
+        assert len(error.ErrorManager.managers) == 1, \
+            error.ErrorManager.managers
         assert 'UserError' in error.ErrorManager.managers
         assert 'ProfileError' in UserError.managers
 
