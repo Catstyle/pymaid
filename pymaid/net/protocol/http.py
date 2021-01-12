@@ -4,7 +4,7 @@ from io import BytesIO
 
 import httptools
 
-from . import BaseProtocol
+from . import Protocol
 
 
 CRITICAL_ERROR_TEXT = '''HTTP/1.0 500 INTERNAL SERVER ERROR
@@ -100,7 +100,7 @@ class HttpRequest(HttpParser):
         self.full_url = url.decode('utf-8')
 
     def on_message_complete(self):
-        await self.handler.handle_request(self)
+        self.handler.handle_request(self)
 
 
 class HttpResponse(HttpParser):
@@ -113,29 +113,28 @@ class HttpResponse(HttpParser):
         self.full_url = url.decode('utf-8')
 
     def on_message_complete(self):
-        await self.handler.handle_response(self)
+        self.handler.handle_response(self)
 
 
-class HTTP(BaseProtocol):
+class HTTP(Protocol):
 
-    def __init__(self, handler):
-        super().__init__(handler)
-        self.request_parser = httptools.HttpRequestParser(HttpRequest(handler))
-        self.response_parser = httptools.HttpResponseParser(
-            HttpResponse(handler)
-        )
+    # request_parser = httptools.HttpRequestParser(HttpRequest())
+    # response_parser = httptools.HttpResponseParser(HttpResponse())
 
-    def data_received(self, data: bytes):
+    @classmethod
+    def feed_data(cls, data: bytes):
         try:
-            self.parser.feed_data(data)
+            cls.parser.feed_data(data)
         except httptools.HttpParserUpgrade:
-            self.handle_upgrade()
+            cls.handle_upgrade()
         except httptools.HttpParserError as exc:
             traceback.print_exc()
-            self.handle_parser_exception(exc)
+            cls.handle_parser_exception(exc)
 
-    def handle_parser_exception(self, exc):
+    @classmethod
+    def handle_parser_exception(cls, exc):
         pass
 
-    def handle_upgrade(self):
+    @classmethod
+    def handle_upgrade(cls):
         pass

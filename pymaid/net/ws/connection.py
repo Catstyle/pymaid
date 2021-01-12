@@ -8,7 +8,8 @@ from socket import error as socket_error
 
 from pymaid.conf import settings
 from pymaid.core import create_task, BaseTransport, Event
-from pymaid.net import DataType, Stream
+from pymaid.net.stream import Stream
+from pymaid.types import DataType
 from pymaid.utils.logger import logger_wrapper
 
 from .exceptions import ProtocolError, WebSocketError

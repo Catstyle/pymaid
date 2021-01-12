@@ -132,7 +132,8 @@ class ErrorManager(metaclass=abc.ABCMeta):
             kwargs['__fullname__'] = f'{cls.__fullname__}.{name}'
         else:
             kwargs['__fullname__'] = name
-        # added BaseEx as base class for use specified :ErrorManager: in except clause
+        # added BaseEx as base class
+        # for use specified :ErrorManager: in except clause
         manager = type(name, (cls, BaseEx), kwargs)
         manager.codes = {}
         manager.managers = {}

@@ -7,23 +7,23 @@ from pymaid import LifoQueue, PriorityQueue, QueueFull, QueueEmpty
 
 
 class ConnectionPool(object):
-    """Inspired by redis.ConnectionPool"""
+    '''Inspired by redis.ConnectionPool'''
 
     queue_class = LifoQueue
     empty_item = None
 
     def __init__(self, name, size=50, init_count=0, channel=None,
                  **connection_kwargs):
-        """ Create a blocking connection pool.
+        '''Create a blocking connection pool.
 
         Use ``size`` to increase / decrease the pool size::
 
-        By default, connections will be created by channel.connect method.
+        By default, connections will be created by channel.acquire method.
 
-        Any additional keyword arguments are passed to the channel.connect.
-        """
+        Any additional keyword arguments are passed to the channel.acquire.
+        '''
         if not isinstance(size, int) or size < 0 or size > 100:
-            raise ValueError('"size" must be 0 < size <= 100')
+            raise ValueError('size must be 0 < size <= 100')
 
         self.name = name
         self.size = size
@@ -87,12 +87,12 @@ class ConnectionPool(object):
             pass
 
     def get_connection(self, timeout=None):
-        """
+        '''
         Get a connection from the pool, blocking for ``timeout`` util
         a connection is available from the pool.
-        """
+        '''
         self._checkpid()
-        # will raise QueueEmpty if timeout is not None, so just raise to upper level
+        # will raise QueueEmpty if timeout is not None
         item = self.pool.get(block=True, timeout=timeout)
         if item is self.empty_item:
             return self.make_connection()
@@ -108,8 +108,8 @@ class ConnectionPool(object):
             self.release(conn)
 
     def make_connection(self):
-        "Create a new connection"
-        connection = self.channel.connect(**self.connection_kwargs)
+        '''Create a new connection'''
+        connection = self.channel.acquire(**self.connection_kwargs)
         connection.pid = os.getpid()
 
         def close(conn, reason=None, reset=None):
@@ -128,7 +128,7 @@ class ConnectionPool(object):
         return connection
 
     def release(self, connection):
-        "Releases the connection back to the pool"
+        '''Releases the connection back to the pool'''
         self._checkpid()
         if connection.pid != self.pid:
             return
@@ -150,12 +150,12 @@ class ConnectionPool(object):
                 connection.close('useless')
 
     def disconnect(self, reason=None):
-        "Disconnects all connections in the pool"
+        '''Disconnects all connections in the pool'''
         for connection in self._connections[:]:
             connection.close(reason)
 
     def __repr__(self):
-        return "[ConnectionPool|%s][connect_kwargs|%s][max|%d][created|%d]" % (
+        return '[ConnectionPool|%s][connect_kwargs|%s][max|%d][created|%d]' % (
             self.name, self.connection_kwargs, self.size,
             len(self._connections)
         )
