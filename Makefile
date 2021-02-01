@@ -11,8 +11,8 @@ clean:
 
 compile: clean
 	$(PYTHON) compile.py --python-out . .
+	-pre-commit run -a
 	$(PYTHON) setup.py build
-	pre-commit run -a
 
 test:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -20,4 +20,7 @@ test:
 	$(PYTHON) -m pytest --cov=pymaid -v
 
 release: clean compile test
-	$(PYTHON) setup.py sdist bdist_wheel
+	$(PYTHON) setup.py sdist bdist_wheel --plat-name manylinux2010-x86_64
+
+upload:
+	twine upload dist/*

@@ -1,12 +1,10 @@
 from __future__ import print_function
 
 import re
-import subprocess
 
 from pathlib import Path
 
 from setuptools import setup, find_packages, Extension
-from setuptools.command.build_py import build_py
 
 root_dir = Path(__file__).parent
 __version__ = re.search(
@@ -29,18 +27,6 @@ dev_requirements = [
 ]
 
 
-class MyBuildPy(build_py):
-
-    def run(self):
-        errno = subprocess.call([
-            'python', 'compile.py', '.', '--python-out', '.'
-        ])
-        if errno != 0 and errno != 2:
-            print('call `python compile.py` failed with errno: %d' % errno)
-            exit(errno)
-        build_py.run(self)
-
-
 if __name__ == '__main__':
     setup(
         name="pymaid",
@@ -50,7 +36,7 @@ if __name__ == '__main__':
         author_email="Catstyle.Lee@gmail.com",
         url="https://github.com/catstyle/pymaid",
         version=__version__,
-        license="MIT",
+        license="GPLv3",
 
         keywords='asyncio network rpc framework',
         classifiers=[
@@ -65,12 +51,14 @@ if __name__ == '__main__':
             'Topic :: Software Development :: Build Tools',
 
             # Pick your license as you wish (should match "license" above)
-            'License :: OSI Approved :: MIT License',
+            'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
 
             # Specify the Python versions you support here.
             # In particular, ensure that you indicate whether you support
             # Python 2, Python 3 or both.
             'Programming Language :: Python :: 3.8',
+
+            'Operating System :: OS Independent',
         ],
         python_requires='>=3.8',
 
@@ -92,6 +80,4 @@ if __name__ == '__main__':
                 optional=not (root_dir / '.cibuildwheel').exists(),
             )
         ],
-
-        cmdclass={'build_py': MyBuildPy},
     )
