@@ -30,6 +30,10 @@ class Stream(SocketTransport):
         self.ssl_handshake_timeout = ssl_handshake_timeout
         self._write_empty_waiter = None
 
+        # for internal usage, can be overrided if needed
+        if not hasattr(self, '_data_received'):
+            self._data_received = self.data_received
+
         for cb in self.on_open:
             cb(self)
 
