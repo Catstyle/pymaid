@@ -6,10 +6,15 @@ from examples.template import get_client_parser, parse_args
 
 class Stream(Stream):
 
+    # the same as the init function below
+    # def init(self):
+    #     self.data_size = 0
+
     def data_received(self, data):
         self.data_size += len(data)
 
 
+# the same as the init method below
 def init(stream):
     stream.data_size = 0
 
@@ -20,7 +25,7 @@ async def wrapper(ch, count):
     for _ in range(count):
         await stream.write(b'a' * 8000)
     stream.shutdown()
-    await stream.closed_event.wait()
+    await stream.wait_closed()
     assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)
 
 

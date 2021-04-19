@@ -1,10 +1,12 @@
 import struct
 
+from base64 import b64encode
+from hashlib import sha1
+from io import BytesIO
 from itertools import cycle
-from typing import Tuple
+from typing import List, IO, Tuple
 from urllib.parse import urlparse
 
-from pymaid.conf import settings
 from pymaid.net.protocol import Protocol
 from pymaid.types import DataType
 
@@ -12,14 +14,13 @@ from .exceptions import ProtocolError, FrameTooLargeException
 
 try:
     from .speedups import apply_mask
-    mask_payload = unmask_payload = apply_mask
 except ImportError:
 
     # from_bytes/to_bytes is faster
     # but it is under potential risk of being attack
     # because multiply *mask* is not memory friendly
 
-    # def mask_payload(payload, mask) -> bytes:
+    # def apply_mask(payload, mask) -> bytes:
     #     p_size = len(payload)
     #     m_size = len(mask)
     #     if p_size > m_size:
@@ -33,16 +34,13 @@ except ImportError:
     #         int.from_bytes(payload, 'little') ^ int.from_bytes(mask, 'little')  # noqa
     #     ).to_bytes(p_size, 'little')
 
-    def mask_payload(payload: DataType, mask: bytes) -> bytes:
+    def apply_mask(payload: DataType, mask: bytes) -> bytes:
         if len(mask) != 4:
             raise ValueError('mask must be 4 bytes')
         return bytes(b ^ m for b, m in zip(payload, cycle(mask)))
 
-    # it's the same operation
-    unmask_payload = mask_payload
 
-
-__all__ = ['WSProtocol', 'Header', 'mask_payload', 'unmask_payload']
+__all__ = ['WSProtocol', 'Frame', 'apply_mask']
 
 st = struct.Struct('!BB')
 pack_header = st.pack
@@ -95,6 +93,31 @@ def parse_url(url: str):
     return hostname, port, resource, is_secure
 
 
+def parse_request(buf: IO):
+    pass
+
+
+def parse_response(buf: IO):
+    pass
+
+
+def parse_headers(buf: IO):
+    headers = {}
+    readline = buf.readline
+    while 1:
+        line = readline(1024)
+        if line == b'\r\n':
+            break
+        line = line.strip()
+        if not line:
+            # empty string, not enough data
+            headers = {}
+            break
+        key, value = line.split(b':', 1)
+        headers[key] = value.strip()
+    return headers
+
+
 class WSProtocol(Protocol):
 
     HANDSHAKE_REQ = (
@@ -102,7 +125,7 @@ class WSProtocol(Protocol):
         b'Upgrade: websocket\r\n'
         b'Connection: Upgrade\r\n'
         b'Sec-WebSocket-Key: %s\r\n'
-        b'Sec-WebSocket-Version: %s\r\n\r\n'
+        b'Sec-WebSocket-Version: %s\r\n'
     )
     HANDSHAKE_RESP = (
         b'HTTP/1.1 101 Switching Protocols\r\n'
@@ -115,59 +138,146 @@ class WSProtocol(Protocol):
     SUPPORTED_VERSIONS = (b'13', b'8', b'7')
     GUID = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
-    OPCODE_CONTINUATION = 0x00
-    OPCODE_TEXT = 0x01
-    OPCODE_BINARY = 0x02
-    OPCODE_CLOSE = 0x08
-    OPCODE_PING = 0x09
-    OPCODE_PONG = 0x0a
+    MAX_HEADER_SIZE = 4096
 
-    def feed_data(self, data: DataType) -> bytes:
-        data = memoryview(data)
-        messages = []
+    @classmethod
+    def feed_data(cls, buf: BytesIO) -> Tuple[int, List['Frame']]:
+        frames = []
 
-        used_size = 0
-        max_packet = settings.get('MAX_PACKET_LENGTH', ns='pymaid')
-        try:
-            while 1:
-                consumed, meta, payload = self.decode(data, max_packet)
-                if not consumed:
-                    break
-                messages.append((meta, payload))
-                used_size += consumed
-                data = data[consumed:]
-        finally:
-            data.release()
+        total_used = 0
+        while 1:
+            used_size, frame = cls.decode(buf)
+            if not frame:
+                break
+            frames.append(frame)
+            total_used += used_size
 
-        return used_size, messages
+        return total_used, frames
 
-    def encode_frame(self, opcode, payload):
+    @classmethod
+    def encode_frame(cls, opcode: int, data: DataType) -> bytes:
         # no mater what opcode, message should be binary type
-        if isinstance(payload, str):
-            payload = payload.encode('utf-8')
-        return (
-            Header.encode_header(True, opcode, b'', len(payload), 0) + payload
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return Frame.encode(True, opcode, b'', len(data), 0) + data
+
+    @classmethod
+    def encode(cls, data: DataType) -> bytes:
+        '''Encode a frame with data as its payload.
+
+        :params data: data to send
+        '''
+        return cls.encode_frame(
+            isinstance(data, str) and Frame.OPCODE_TEXT or Frame.OPCODE_BINARY,
+            data,
         )
 
-    def encode(self, opcode, payload: DataType) -> bytes:
-        '''Send a frame over the websocket with message as its payload.'''
-        return self.encode_frame(
-            self.OPCODE_BINARY
-            if isinstance(payload, bytes)
-            else self.OPCODE_TEXT,
-            payload,
+    @classmethod
+    def decode(cls, buf: IO) -> Tuple[int, 'Frame']:
+        '''Decode a `Frame` from the buffer.
+
+        :return: The frame and payload as a tuple.
+        '''
+        used_size, frame = Frame.decode(buf)
+        if not frame:
+            return 0, None
+
+        if frame.flags:
+            raise ProtocolError(f'invalid flags: {frame.flags}')
+
+        return used_size, frame
+
+    @classmethod
+    def build_request(cls, resource, key, **headers):
+        basic = cls.HANDSHAKE_REQ % (resource, key, cls.VERSION)
+        extra = b''.join(
+            b'%s: %s\r\n' % (
+                key if isinstance(key, bytes) else key.encode('utf-8'),
+                value if isinstance(value, bytes) else value.encode('utf-8')
+            )
+            for key, value in headers.items()
         )
+        return b'%s%s\r\n' % (basic, extra)
 
-    def decode(self, data: DataType) -> Tuple[int, DataType]:
-        pass
+    @classmethod
+    def parse_request(cls, buf: IO) -> bytes:
+        '''Parse a upgrade request from the buffer.
 
-    def handshake_frame(self, resource, key):
-        return self.HANDSHAKE_REQ % (resource, key, self.VERSION)
+        :params readline: `Callable` that returns a `CRLF` terminated line
+        :returns: A upgrade response bytes body
+        '''
+        line = buf.readline()
+        if len(line) >= cls.MAX_HEADER_SIZE:
+            raise ProtocolError(
+                f'header size too large, max={cls.MAX_HEADER_SIZE}'
+            )
+        assert line, 'should not reach here when read_buffer is empty'
+
+        datas = line.split()
+        if len(datas) != 3:
+            raise ProtocolError(f'invalid request status line: {line}')
+        method, path, version = datas
+        if method != b'GET' or version != b'HTTP/1.1':
+            raise ProtocolError(
+                f'websocket requried GET HTTP/1.1, got `{line}`'
+            )
+
+        headers = parse_headers(buf)
+        if not headers:
+            return
+        return cls.build_response(headers)
+
+    @classmethod
+    def build_response(cls, headers: dict) -> bytes:
+        if (b'websocket' != headers.get(b'Upgrade')
+                or b'Upgrade' != headers.get(b'Connection')):
+            raise ProtocolError('invalid websocket handshake header')
+
+        version = headers.get(b'Sec-WebSocket-Version')
+        if version not in cls.SUPPORTED_VERSIONS:
+            raise ProtocolError(f'unsupported {version=}')
+
+        if not (sec_key := headers.get(b'Sec-WebSocket-Key', b'')):
+            raise ProtocolError('missing Sec-WebSocket-Key')
+
+        resp_key = b64encode(sha1(sec_key + cls.GUID).digest())
+        return cls.HANDSHAKE_RESP % resp_key
+
+    @classmethod
+    def parse_response(cls, buf: IO, secret_key: bytes):
+        line = buf.readline(1024)
+        assert line, 'should not reach here when read_buffer is empty'
+
+        status = line.split(b' ', 2)
+        if len(status) != 3:
+            raise ProtocolError(f'invalid response status line: {line}')
+        status = int(status[1])
+        if status != 101:
+            raise ProtocolError(f'handshake failed with status: {status}')
+
+        headers = parse_headers(buf)
+        if not headers:
+            return False
+        cls.validate_upgrade(headers, secret_key)
+        return True
+
+    @classmethod
+    def validate_upgrade(cls, headers: dict, upgrade_key: bytes):
+        if (b'websocket' != headers.get(b'Upgrade')
+                or b'Upgrade' != headers.get(b'Connection')):
+            raise ProtocolError('invalid websocket handshake header')
+
+        accept = headers.get(b'Sec-WebSocket-Accept', '').lower()
+        if isinstance(accept, str):
+            accept = accept.encode('utf-8')
+        value = upgrade_key + cls.GUID
+        if b64encode(sha1(value).digest()).strip().lower() != accept:
+            raise ProtocolError('invalid accept value')
 
 
-class Header:
+class Frame:
 
-    __slots__ = ('fin', 'mask', 'opcode', 'flags', 'length')
+    __slots__ = ('fin', 'mask', 'opcode', 'flags', 'length', 'payload')
 
     FIN_MASK = 0x80
     OPCODE_MASK = 0x0f
@@ -181,34 +291,39 @@ class Header:
     # bitwise mask that will determine the reserved bits for a frame header
     HEADER_FLAG_MASK = RSV0_MASK | RSV1_MASK | RSV2_MASK
 
+    OPCODE_CONTINUATION = 0x00
+    OPCODE_TEXT = 0x01
+    OPCODE_BINARY = 0x02
+    OPCODE_CLOSE = 0x08
+    OPCODE_PING = 0x09
+    OPCODE_PONG = 0x0a
+
     def __init__(self, fin=0, opcode=0, flags=0, length=0):
         self.mask = bytearray()
         self.fin = fin
         self.opcode = opcode
         self.flags = flags
         self.length = length
+        self.payload = b''
 
     def __repr__(self):
         return (
-            f'<Header fin={self.fin} opcode={self.opcode} '
+            f'<Frame fin={self.fin} opcode={self.opcode} '
             f'length={self.length} flags={self.flags} at 0x{id(self):x}>'
         )
 
     @classmethod
-    def decode_header(cls, data: DataType) -> Tuple[int, 'Header']:
-        '''Decode a WebSocket header.
+    def decode(cls, buf: IO) -> Tuple[int, 'Frame']:
+        '''Decode a WebSocket frame.
 
         :param data: `DataType`
-        :returns: A `Header` instance.
+        :returns: A `Frame` instance.
         '''
-        nbytes = len(data)
-        if nbytes < 2:
+        if len((header := buf.read(2))) < 2:
             return 0, None
 
-        used_size = 2
-        header = data[:2]
         first_byte, second_byte = unpack_header(header)
-        header = cls(
+        frame = cls(
             fin=first_byte & cls.FIN_MASK == cls.FIN_MASK,
             opcode=first_byte & cls.OPCODE_MASK,
             flags=first_byte & cls.HEADER_FLAG_MASK,
@@ -216,47 +331,59 @@ class Header:
         )
         has_mask = second_byte & cls.MASK_MASK == cls.MASK_MASK
 
-        if header.opcode > 0x07:
-            if not header.fin:
-                raise ProtocolError(
-                    f'Received fragmented control frame: {data}'
-                )
+        if frame.opcode > 0x07:
+            if not frame.fin:
+                raise ProtocolError('Received fragmented control frame')
             # Control frames MUST have a payload length of 125 bytes or less
-            if header.length > 125:
+            if frame.length > 125:
                 raise FrameTooLargeException(
-                    f'Control frame cannot be larger than 125 bytes: {data}'
+                    f'Control frame cannot be larger than 125 bytes: '
+                    f'{frame.length}'
                 )
 
-        if header.length == 126:
-            # 16 bit length
-            if nbytes < (used_size + 2):
+        used_size = 2
+        if frame.length == 126:
+            # extended payload length: 16 bits
+            if len((epl := buf.read(2))) < 2:
                 return 0, None
-            header.length = unpack_H(data[used_size: used_size + 2])[0]
+            frame.length = unpack_H(epl)[0]
             used_size += 2
-        elif header.length == 127:
-            # 64 bit length
-            if nbytes < (used_size + 8):
+        elif frame.length == 127:
+            # extended payload length: 64 bits
+            if len((epl := buf.read(8))) < 8:
                 return 0, None
-            header.length = unpack_Q(data[used_size: used_size + 8])[0]
+            frame.length = unpack_Q(epl)[0]
             used_size += 8
 
         if has_mask:
-            if nbytes < (used_size + 4):
+            if len((mask_key := buf.read(4))) < 4:
                 return 0, None
-            header.mask = bytearray(data[used_size: used_size + 4])
+            frame.mask = bytearray(mask_key)
             used_size += 4
-        return used_size, header
+
+        payload = buf.read(frame.length)
+        if len(payload) < frame.length:
+            return 0, None
+            # raise ProtocolError('Unexpected EOF reading frame payload')
+        used_size += frame.length
+
+        if frame.mask:
+            payload = apply_mask(payload, frame.mask)
+
+        frame.payload = payload
+
+        return used_size, frame
 
     @classmethod
-    def encode_header(cls, fin, opcode, mask, length, flags) -> bytes:
-        '''Encodes a WebSocket header.
+    def encode(cls, fin, opcode, mask, length, flags) -> bytes:
+        '''Encodes a WebSocket frame.
 
         :param fin: Whether this is the final frame for this opcode.
         :param opcode: The opcode of the payload, see `OPCODE_*`
         :param mask: Whether the payload is masked.
         :param length: The length of the frame.
         :param flags: The RSV* flags.
-        :return: A bytestring encoded header.
+        :return: A bytestring encoded frame.
         '''
         first_byte = opcode
         second_byte = 0

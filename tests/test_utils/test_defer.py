@@ -154,7 +154,8 @@ async def test_multiple_decorators():
     func()
     m.assert_called_once_with('called by defer')
 
-    # NOTICE, if decorator donot wraps the function calling, its order does not matter
+    # NOTICE
+    # if decorator donot wraps the function calling, its order does not matter
     m = mock.Mock()
 
     @with_defer
@@ -182,7 +183,8 @@ async def test_multiple_decorators():
     await func()
     am.assert_called_once_with('called by defer')
 
-    # NOTICE, if a decorator donot wraps the function calling, its order does not matter
+    # NOTICE
+    # if decorator donot wraps the function calling, its order does not matter
     am = mock.Mock()
 
     @with_defer

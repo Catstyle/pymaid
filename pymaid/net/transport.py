@@ -67,7 +67,7 @@ class SocketTransport(Transport):
 
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
-        self._loop.add_reader(self._sock_fd, self._read_ready)
+        self._loop.add_reader(self._sock_fd, self._reader)
 
     def set_socket_default_options(self):
         pass
@@ -79,6 +79,7 @@ class SocketTransport(Transport):
     def close(self, exc=None):
         if self.state == self.STATE.CLOSING:
             return
+        self.logger.debug(f'{self!r} close {exc=}')
         self.state = self.STATE.CLOSING
         loop = self._loop
         loop.remove_reader(self._sock_fd)
@@ -95,12 +96,13 @@ class SocketTransport(Transport):
         for key in keys:
             setattr(self, key, getattr(self._sock, key))
 
-    def _read_ready(self):
-        raise NotImplementedError('_read_ready')
+    def _reader(self):
+        raise NotImplementedError('_reader')
 
     def _force_close(self, exc):
         if self.state == self.STATE.CLOSED:
             return
+        self.logger.debug(f'{self!r} force close {exc=}')
         if self.write_buffer:
             self.write_buffer.clear()
             self._loop.remove_writer(self._sock_fd)

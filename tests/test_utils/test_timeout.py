@@ -303,10 +303,12 @@ async def test_shift_by_negative_expired():
 
 @pytest.mark.asyncio
 async def test_shift_by_expired():
-    async with timeout(0.001) as cm:
+    async with timeout(0.01) as cm:
         with pytest.raises(pymaid.CancelledError):
             await pymaid.sleep(10)
-        with pytest.raises(RuntimeError, match='cannot reschedule expired timeout'):
+        with pytest.raises(
+            RuntimeError, match='cannot reschedule expired timeout'
+        ):
             await cm.shift_by(10)
 
 
@@ -314,10 +316,12 @@ async def test_shift_by_expired():
 async def test_shift_to_expired():
     loop = pymaid.get_event_loop()
     t0 = loop.time()
-    async with timeout_at(t0 + 0.001) as cm:
+    async with timeout_at(t0 + 0.01) as cm:
         with pytest.raises(pymaid.CancelledError):
             await pymaid.sleep(10)
-        with pytest.raises(RuntimeError, match='cannot reschedule expired timeout'):
+        with pytest.raises(
+            RuntimeError, match='cannot reschedule expired timeout'
+        ):
             await cm.shift_to(t0 + 10)
 
 

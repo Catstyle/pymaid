@@ -30,6 +30,7 @@ class Channel(abc.ABC):
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
         middleware_manager: Optional[MiddlewareManager] = None,
+        **kwargs,
     ):
         '''Channel manages the sockets.'''
         self.name = name
@@ -37,10 +38,12 @@ class Channel(abc.ABC):
         self.transport_class = transport_class
         self.ssl_context = ssl_context
         self.ssl_handshake_timeout = ssl_handshake_timeout
+        self.acquire_kwargs = kwargs
+
         self.transports = {}
+        self.listeners = []
         self.middleware_manager = middleware_manager or MiddlewareManager()
 
-        self.listeners = []
         self.state = self.STATE.CREATED
         self.closed_event = Event()
         self._loop = get_running_loop()
@@ -174,6 +177,7 @@ class StreamChannel(Channel):
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
         middleware_manager: Optional[MiddlewareManager] = None,
+        **kwargs,
     ):
         super().__init__(
             name=name,
@@ -182,6 +186,7 @@ class StreamChannel(Channel):
             ssl_context=ssl_context,
             ssl_handshake_timeout=ssl_handshake_timeout,
             middleware_manager=middleware_manager,
+            **kwargs,
         )
 
     def read_from_listener(self, sock: socket.socket, backlog: int = 128):
@@ -204,7 +209,10 @@ class StreamChannel(Channel):
         on_close: Optional[List[Callable]] = None,
     ) -> Stream:
         sock = await sock_connect(self.address)
-        conn = self._make_connection(sock, True, on_open, on_close)
+        conn = self._make_connection(
+            sock, True, on_open, on_close, **self.acquire_kwargs,
+        )
+        await conn.wait_ready()
         self.logger.info(
             f'{self!r} acquire: <{self.transport_class.__name__} {conn.id}>'
         )
@@ -214,24 +222,24 @@ class StreamChannel(Channel):
         conn = self._make_connection(
             sock, False, on_close=[self.connection_lost],
         )
+        self.transports[conn.id] = conn
         self.logger.info(
             f'{self!r} connection_made: '
             f'<{self.transport_class.__name__} {conn.id}>'
         )
-        self.transports[conn.id] = conn
         return conn
 
     def connection_lost(self, conn: Stream, exc=None):
-        self.logger.info(
-            f'{self!r} connection_lost: '
-            f'<{self.transport_class.__name__} {conn.id}> {exc=}'
-        )
         assert conn.id in self.transports, conn.id
         del self.transports[conn.id]
         if self.state == self.STATE.PAUSED and not self.is_full:
             self.start()
         if not self.transports and self.state >= self.STATE.CLOSING:
             self._finnal_close(exc)
+        self.logger.info(
+            f'{self!r} connection_lost: '
+            f'<{self.transport_class.__name__} {conn.id}> {exc=}'
+        )
 
     def shutdown(self, reason: str = 'shutdown'):
         super().shutdown(reason)
@@ -239,7 +247,9 @@ class StreamChannel(Channel):
             # conn.shutdown is not coroutine
             conn.shutdown(reason)
 
-    def _make_connection(self, sock, initiative, on_open=None, on_close=None):
+    def _make_connection(
+        self, sock, initiative, on_open=None, on_close=None, **kwargs,
+    ):
         return self.transport_class(
             sock,
             initiative=initiative,
@@ -247,6 +257,7 @@ class StreamChannel(Channel):
             ssl_handshake_timeout=self.ssl_handshake_timeout,
             on_open=on_open,
             on_close=on_close,
+            **kwargs,
         )
 
 

@@ -4,49 +4,39 @@ import pymaid.net.ws
 from examples.template import get_client_parser, parse_args
 
 
-req = b'1234567890' * 100 + b'\n'
-req_size = len(req)
-
-
 class EchoStream(pymaid.net.ws.WebSocket):
 
-    def init(self):
-        self.nbytes = 0
+    KEEP_OPEN_ON_EOF = False
+
+    # the same as the init function below
+    # def init(self):
+    #     self.data_size = 0
 
     def data_received(self, data):
-        self.nbytes += len(data)
-        self.receive_event.set_result(data)
-
-    def eof_received(self):
-        # return value indicate keep_open
-        return False
+        self.data_size += len(data)
 
 
-async def wrapper(loop, address, count):
-    if isinstance(address, str):
-        transport = await pymaid.create_unix_stream(EchoStream, address)
-    else:
-        transport = await pymaid.create_stream(EchoStream, *address)
-    # in this example, only use transport
-    write = transport.write
-    for x in range(count):
-        write(req)
-        transport.receive_event = loop.create_future()
-        resp = await transport.receive_event
-        assert len(resp) == req_size, (len(resp), req_size)
-    transport.write_eof()
-    transport.close()
-    assert transport.nbytes == count * req_size, \
-        (transport.nbytes, count * req_size)
+# the same as the init method above
+def init(stream):
+    stream.data_size = 0
+
+
+async def wrapper(ch, count):
+    stream = await ch.acquire(on_open=[init])
+
+    for _ in range(count):
+        # NOTE: websocket should use `send` instead of `write`
+        await stream.send(b'a' * 8000)
+    stream.shutdown()
+    await stream.wait_closed()
+    assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)
 
 
 async def main(args):
-    loop = pymaid.get_event_loop()
+    ch = await pymaid.net.dial_stream(args.address, transport_class=EchoStream)
     tasks = []
     for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(
-            wrapper(loop, args.address, args.request)
-        ))
+        tasks.append(pymaid.create_task(wrapper(ch, args.request)))
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)

@@ -61,6 +61,11 @@ class Stream(SocketTransport):
             setsockopt(SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL'])
             setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
 
+    async def wait_ready(self):
+        '''Wait for connection made event if needed.'''
+        if hasattr(self, 'conn_made_event'):
+            await self.conn_made_event.wait()
+
     def write_sync(self, data: DataType) -> bool:
         '''Write data to low level socket, in a synchronized way.
 
@@ -85,9 +90,11 @@ class Stream(SocketTransport):
             else:
                 data = data[n:]
                 if not data:
+                    if self.state == self.STATE.CLOSING:
+                        self._loop.call_soon(self._finnal_close, None)
                     return True
             # Not all was written; register write handler.
-            self._loop.add_writer(self._sock_fd, self._write_ready)
+            self._loop.add_writer(self._sock_fd, self._writer)
 
         # Add it to the buffer.
         self.write_buffer.extend(data)
@@ -120,7 +127,9 @@ class Stream(SocketTransport):
         if not self.write_buffer:
             return
         if self._write_empty_waiter is not None:
-            raise RuntimeError('wait_write_all has been called')
+            raise RuntimeError(
+                'cannot call wait_write_all multiple times at the same time'
+            )
         self._write_empty_waiter = self._loop.create_future()
         if timeout is not None:
             timer = self._loop.call_later(
@@ -133,7 +142,13 @@ class Stream(SocketTransport):
                 timer.cancel()
             self._write_empty_waiter = None
 
+    # Public api for upper usage.
     def data_received(self, data: DataType):
+        '''Callback when data received from low level transport.
+
+        Upper level usage should always use this callback waiting for data.
+        Should be overrided.
+        '''
         self.logger.debug(f'{self!r} data_received, {len(data)=}, ignored!')
 
     def eof_received(self) -> bool:
@@ -144,7 +159,17 @@ class Stream(SocketTransport):
         self.logger.debug(f'{self!r} eof_received')
         return self.KEEP_OPEN_ON_EOF
 
-    def _read_ready(self):
+    # for internal
+    def mark_ready(self):
+        '''Hook to set conn_made_event.
+
+        By default, this will directly set conn_made_event.
+        Override it if needed.
+        '''
+        if hasattr(self, 'conn_made_event'):
+            self.conn_made_event.set()
+
+    def _reader(self):
         try:
             data = self._sock.recv(self.MAX_SIZE)
         except (BlockingIOError, InterruptedError):
@@ -158,9 +183,8 @@ class Stream(SocketTransport):
         if not data:
             try:
                 if self.eof_received():
-                    # We're keeping the connection open so the
-                    # protocol can write more, but we still can't
-                    # receive more, so remove the reader Callable.
+                    # We're keeping the connection open so can write more,
+                    # but we still can't receive more, so remove the reader.
                     self._loop.remove_reader(self._sock_fd)
                 else:
                     self.close()
@@ -171,15 +195,13 @@ class Stream(SocketTransport):
             return
 
         try:
-            self.data_received(data)
+            self._data_received(data)
         except (SystemExit, KeyboardInterrupt):
             raise
         except BaseException as exc:
-            self._fatal_error(
-                exc, 'Fatal error: stream.data_received() call failed.'
-            )
+            self._fatal_error(exc, 'Fatal error: data_received() call failed.')
 
-    def _write_ready(self):
+    def _writer(self):
         assert self.write_buffer, 'data should not be empty'
 
         try:

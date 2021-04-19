@@ -9,8 +9,9 @@ class TransportState(enum.IntEnum):
 
     UNKNOWN = 0
     OPENED = 10
-    CLOSING = 20
-    CLOSED = 30
+    CONNECTED = 50
+    CLOSING = 90
+    CLOSED = 100
 
 
 class ChannelState(enum.IntEnum):

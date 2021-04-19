@@ -107,7 +107,9 @@ except ImportError:
             return state
 
         def reset(self):
-            '''Reset validator to start new incremental UTF-8 decode/validation.'''
+            '''
+            Reset validator to start new incremental UTF-8 decode/validation.
+            '''
             self.state = Utf8Validator.UTF8_ACCEPT
             self.codepoint = 0
             self.i = 0

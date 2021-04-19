@@ -6,21 +6,18 @@ from examples.template import get_server_parser, parse_args
 
 class EchoStream(pymaid.net.ws.WebSocket):
 
-    def data_received(self, data: bytes):
-        self.write(data)
+    KEEP_OPEN_ON_EOF = False
 
-    def eof_received(self):
-        # return value indicate keep_open
-        return False
+    def data_received(self, data: bytes):
+        self.send_sync(data)
 
 
 async def main(args):
-    if isinstance(args.address, str):
-        server = await pymaid.create_unix_stream_server(EchoStream, args.address)
-    else:
-        server = await pymaid.create_stream_server(EchoStream, *args.address)
-    async with server:
-        await server.serve_forever()
+    ch = await pymaid.net.serve_stream(
+        args.address, transport_class=EchoStream
+    )
+    async with ch:
+        await ch.serve_forever()
 
 
 if __name__ == "__main__":
