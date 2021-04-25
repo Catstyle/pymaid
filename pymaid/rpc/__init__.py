@@ -20,27 +20,28 @@ async def serve_stream(
     *,
     name: str = 'StreamChannel',
     transport_class: connection.ConnectionType = connection.Connection,
+    channel_class: channel.ChannelType = channel.Channel,
     backlog: int = 128,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
     middleware_manager: Optional[MiddlewareManager] = None,
-    close_conn_onerror: bool = True,
     protocol: Type[ProtocolType] = Protocol,
     handler_class: Optional[Type[handler.Handler]] = handler.SerialHandler,
+    router_class: Type[router.Router] = router.Router,
     services: Optional[Sequence[ServiceType]] = None,
     router: Optional[router.Router] = None,
 ):
     assert services is not None or router, 'should provide services or router'
-    ch = channel.create_stream_channel(
-        address,
+    ch = channel_class(
+        address=address,
         name=name,
         transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
         middleware_manager=middleware_manager,
-        close_conn_onerror=close_conn_onerror,
         protocol=protocol,
         handler_class=handler_class,
+        router_class=router_class,
     )
     if services:
         ch.router.include_services(services)

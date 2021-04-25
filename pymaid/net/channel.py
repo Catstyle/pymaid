@@ -4,14 +4,14 @@ import socket
 import ssl as _ssl
 import sys
 
-from typing import Callable, List, Optional, Tuple, TypeVar, Union
+from typing import Optional, Tuple, TypeVar, Union
 
 from pymaid.conf import settings
 from pymaid.core import get_running_loop, CancelledError, Event
 from pymaid.ext.middleware import MiddlewareManager
 
 from .base import logger, ChannelState
-from .raw import sock_connect, sock_listen
+from .raw import sock_listen
 from .stream import Stream, StreamType
 from .transport import Transport, TransportType
 
@@ -25,7 +25,6 @@ class Channel(abc.ABC):
         self,
         *,
         name: str = 'Channel',
-        address: Union[Tuple[str, int], str] = '',
         transport_class: TransportType = Transport,
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
@@ -34,11 +33,9 @@ class Channel(abc.ABC):
     ):
         '''Channel manages the sockets.'''
         self.name = name
-        self.address = address
         self.transport_class = transport_class
         self.ssl_context = ssl_context
         self.ssl_handshake_timeout = ssl_handshake_timeout
-        self.acquire_kwargs = kwargs
 
         self.transports = {}
         self.listeners = []
@@ -172,7 +169,6 @@ class StreamChannel(Channel):
         self,
         *,
         name: str = 'Channel',
-        address: Union[Tuple[str, int], str] = '',
         transport_class: StreamType = Stream,
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
@@ -181,7 +177,6 @@ class StreamChannel(Channel):
     ):
         super().__init__(
             name=name,
-            address=address,
             transport_class=transport_class,
             ssl_context=ssl_context,
             ssl_handshake_timeout=ssl_handshake_timeout,
@@ -201,22 +196,6 @@ class StreamChannel(Channel):
                 return
             conn.setblocking(False)
             connection_made(conn)
-
-    async def acquire(
-        self,
-        *,
-        on_open: Optional[List[Callable]] = None,
-        on_close: Optional[List[Callable]] = None,
-    ) -> Stream:
-        sock = await sock_connect(self.address)
-        conn = self._make_connection(
-            sock, True, on_open, on_close, **self.acquire_kwargs,
-        )
-        await conn.wait_ready()
-        self.logger.info(
-            f'{self!r} acquire: <{self.transport_class.__name__} {conn.id}>'
-        )
-        return conn
 
     def connection_made(self, sock: socket.socket) -> Stream:
         conn = self._make_connection(

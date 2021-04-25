@@ -10,7 +10,7 @@ from examples.template import get_server_parser, parse_args
 async def main(args):
     mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.retry)])
     await pymaid.rpc.pb.serve_stream(
-        args.address, backlog=1024, services=[], middleware_manager=mm
+        args.address, backlog=args.backlog, services=[], middleware_manager=mm
     )
 
 

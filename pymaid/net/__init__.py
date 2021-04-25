@@ -20,44 +20,53 @@
 __all__ = ['Protocol', 'Transport', 'Stream', 'Datagram']
 
 import socket
-import ssl as _ssl
+import ssl
 
-from typing import Optional, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 
 from .channel import ChannelType, StreamChannel
+from .raw import sock_connect
 from .stream import Stream
 
 
 async def dial_stream(
     address: Tuple[str, int],
     *,
-    channel_class: ChannelType = StreamChannel,
     transport_class: Stream = Stream,
-    ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
+    ssl_context: Union[None, bool, 'ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
+    on_open: Optional[List[Callable]] = None,
+    on_close: Optional[List[Callable]] = None,
+    **kwargs,
 ):
-    '''Create channel can connect to `address`.
+    '''Create a `Stream` instance that connect to `address`.
 
-    The host parameter can be a string, in that case the TCP Channel is
+    The address parameter can be a string, in that case the stream is
     connect to unix domain sock.
 
-    The host parameter can also be a tuple of string and int, in that case
-    the TCP Channel is connect to the host and port. If a host
+    The address parameter can also be a tuple of string and int, in that case
+    the stream is connect to the address and port. If a address
     appears multiple times (possibly indirectly e.g. when hostnames
-    resolve to the same IP address), the Channel is only connect once to that
-    host.
-
-    Return a Channel object which can be used to manage the streams.
+    resolve to the same IP address), the stream is only connect once to that
+    address.
 
     This method is a coroutine.
+
+    :returns: a `Stream` object.
     '''
-    return channel_class(
-        address=address,
-        transport_class=transport_class,
+    sock = await sock_connect(address)
+    stream = transport_class(
+        sock,
+        initiative=True,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
+        on_open=on_open,
+        on_close=on_close,
+        **kwargs,
     )
+    await stream.wait_ready()
+    return stream
 
 
 async def serve_stream(
@@ -68,22 +77,23 @@ async def serve_stream(
     backlog: int = 128,
     reuse_address: bool = True,
     reuse_port: bool = False,
-    ssl_context: Union[None, '_ssl.SSLContext'] = None,
+    ssl_context: Union[None, 'ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
     channel_class: ChannelType = StreamChannel,
     transport_class: Stream = Stream,
     start_serving: bool = True,
+    **kwargs,
 ):
     '''Create channel listening on `address`.
 
-    The host parameter can be a string, in that case the TCP Channel is
+    The address parameter can be a string, in that case the TCP Channel is
     bound to unix domain sock.
 
-    The host parameter can also be a tuple of string and int, in that case
-    the TCP Channel is bound to the host and port. If a host
+    The address parameter can also be a tuple of string and int, in that case
+    the TCP Channel is bound to the address and port. If a address
     appears multiple times (possibly indirectly e.g. when hostnames
     resolve to the same IP address), the Channel is only bound once to that
-    host.
+    address.
 
     Return a Channel object which can be used to manage the streams.
 
@@ -93,6 +103,7 @@ async def serve_stream(
         transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
+        **kwargs,
     )
     await channel.listen(
         address,

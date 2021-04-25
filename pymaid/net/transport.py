@@ -57,6 +57,10 @@ class SocketTransport(Transport):
         self.closed_event = Event()
         self.state = self.STATE.OPENED
         self.write_buffer = self.BUFFER_FACTORY()
+        self.init()
+
+    def init(self):
+        pass
 
     def wrap_sock(self, sock: socket.socket):
         self._sock = sock

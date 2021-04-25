@@ -4,6 +4,7 @@ import threading
 from contextlib import contextmanager
 
 from pymaid import LifoQueue, PriorityQueue, QueueFull, QueueEmpty
+from pymaid.net import dial_stream
 
 
 class ConnectionPool(object):
@@ -12,23 +13,30 @@ class ConnectionPool(object):
     queue_class = LifoQueue
     empty_item = None
 
-    def __init__(self, name, size=50, init_count=0, channel=None,
-                 **connection_kwargs):
+    def __init__(
+        self,
+        name,
+        address=None,
+        *,
+        size=50,
+        init_count=0,
+        **connection_kwargs,
+    ):
         '''Create a blocking connection pool.
 
         Use ``size`` to increase / decrease the pool size::
 
-        By default, connections will be created by channel.acquire method.
+        By default, connections will be created by dial_stream.
 
-        Any additional keyword arguments are passed to the channel.acquire.
+        Any additional keyword arguments are passed to the dial_stream.
         '''
         if not isinstance(size, int) or size < 0 or size > 100:
             raise ValueError('size must be 0 < size <= 100')
 
         self.name = name
+        self.address = address
         self.size = size
         self.init_count = init_count
-        self.channel = channel
         self.connection_kwargs = connection_kwargs
         self.reset()
 
@@ -72,8 +80,8 @@ class ConnectionPool(object):
             return
         if init_count > self.size:
             raise ValueError('init_count should not greater than pool size')
-        if not self.channel:
-            raise ValueError('calling initpool with channel is None')
+        if not self.address:
+            raise ValueError('calling initpool with address is None')
         self.init_count = init_count
         try:
             for _ in range(init_count):
@@ -109,7 +117,7 @@ class ConnectionPool(object):
 
     def make_connection(self):
         '''Create a new connection'''
-        connection = self.channel.acquire(**self.connection_kwargs)
+        connection = dial_stream(self.address, **self.connection_kwargs)
         connection.pid = os.getpid()
 
         def close(conn, reason=None, reset=None):

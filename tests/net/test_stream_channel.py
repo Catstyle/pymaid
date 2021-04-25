@@ -20,12 +20,10 @@ async def test_stream_channel_ipv4():
     )
     assert server
 
-    client = await dial_stream(
+    stream = await dial_stream(
         ('localhost', 8999),
-        channel_class=_TestStreamChannel,
         transport_class=_TestStream,
     )
-    stream = await client.acquire()
     assert stream.family == socket.AF_INET
     # localhost resolved to 127.0.0.1
     assert stream.peername == ('127.0.0.1', 8999)
@@ -38,7 +36,6 @@ async def test_stream_channel_ipv4():
     assert server.connected_stream.received_data == b'from pymaid'
 
     stream.close()
-    client.close()
     server.connected_stream.close()
     server.close()
 
@@ -54,12 +51,10 @@ async def test_stream_channel_ipv6():
     )
     assert server
 
-    client = await dial_stream(
+    stream = await dial_stream(
         ('::1', 8999),
-        channel_class=_TestStreamChannel,
         transport_class=_TestStream,
     )
-    stream = await client.acquire()
     assert stream.family == socket.AF_INET6
     assert stream.peername[:2] == ('::1', 8999)
 
@@ -71,7 +66,6 @@ async def test_stream_channel_ipv6():
     assert server.connected_stream.received_data == b'from pymaid'
 
     stream.close()
-    client.close()
     server.connected_stream.close()
     server.close()
 
@@ -90,12 +84,10 @@ async def test_stream_channel_unix():
     )
     assert server
 
-    client = await dial_stream(
+    stream = await dial_stream(
         '/tmp/pymaid_test_ipv6.sock',
-        channel_class=_TestStreamChannel,
         transport_class=_TestStream,
     )
-    stream = await client.acquire()
     assert stream.family == socket.AF_UNIX
     assert stream.peername == '/tmp/pymaid_test_ipv6.sock'
 
@@ -111,7 +103,6 @@ async def test_stream_channel_unix():
     assert server.connected_stream.received_data == b'from pymaid'
 
     stream.close()
-    client.close()
     server.connected_stream.close()
     server.close()
     os.unlink('/tmp/pymaid_test_ipv6.sock')

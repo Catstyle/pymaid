@@ -6,21 +6,15 @@ from examples.template import get_client_parser, parse_args
 
 class Stream(Stream):
 
-    # the same as the init function below
-    # def init(self):
-    #     self.data_size = 0
+    def init(self):
+        self.data_size = 0
 
     def data_received(self, data):
         self.data_size += len(data)
 
 
-# the same as the init method below
-def init(stream):
-    stream.data_size = 0
-
-
-async def wrapper(ch, count):
-    stream = await ch.acquire(on_open=[init])
+async def wrapper(address, count):
+    stream = await pymaid.net.dial_stream(address, transport_class=Stream)
 
     for _ in range(count):
         await stream.write(b'a' * 8000)
@@ -30,10 +24,9 @@ async def wrapper(ch, count):
 
 
 async def main(args):
-    ch = await pymaid.net.dial_stream(args.address, transport_class=Stream)
     tasks = []
     for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(wrapper(ch, args.request)))
+        tasks.append(pymaid.create_task(wrapper(args.address, args.request)))
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)
