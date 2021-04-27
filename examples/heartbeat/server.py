@@ -9,9 +9,11 @@ from examples.template import get_server_parser, parse_args
 
 async def main(args):
     mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.retry)])
-    await pymaid.rpc.pb.serve_stream(
+    ch = await pymaid.rpc.pb.serve_stream(
         args.address, backlog=args.backlog, services=[], middleware_manager=mm
     )
+    async with ch:
+        await ch.serve_forever()
 
 
 if __name__ == "__main__":

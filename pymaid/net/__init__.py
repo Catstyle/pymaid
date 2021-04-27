@@ -69,9 +69,32 @@ async def dial_stream(
     return stream
 
 
+def create_channel(
+    channel_class: ChannelType = StreamChannel,
+    *,
+    transport_class: Stream = Stream,
+    ssl_context: Union[None, 'ssl.SSLContext'] = None,
+    ssl_handshake_timeout: Optional[float] = None,
+    **kwargs,
+):
+    '''Create channel instance.
+
+    :returns: a `Channel` instance which can be used to manage the streams.
+    '''
+    return channel_class(
+        transport_class=transport_class,
+        ssl_context=ssl_context,
+        ssl_handshake_timeout=ssl_handshake_timeout,
+        **kwargs,
+    )
+
+
 async def serve_stream(
     address: Union[Tuple[str, int], str],
     *,
+    name: str = 'StreamChannel',
+    channel_class: ChannelType = StreamChannel,
+    transport_class: Stream = Stream,
     family: socket.AddressFamily = socket.AF_UNSPEC,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
     backlog: int = 128,
@@ -79,27 +102,25 @@ async def serve_stream(
     reuse_port: bool = False,
     ssl_context: Union[None, 'ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
-    channel_class: ChannelType = StreamChannel,
-    transport_class: Stream = Stream,
     start_serving: bool = True,
     **kwargs,
 ):
-    '''Create channel listening on `address`.
+    '''Create a channel instance listening on `address` and serve forever.
 
     The address parameter can be a string, in that case the TCP Channel is
     bound to unix domain sock.
 
     The address parameter can also be a tuple of string and int, in that case
-    the TCP Channel is bound to the address and port. If a address
-    appears multiple times (possibly indirectly e.g. when hostnames
-    resolve to the same IP address), the Channel is only bound once to that
-    address.
+    the TCP Channel is bound to the address and port.
 
-    Return a Channel object which can be used to manage the streams.
+    If a address appears multiple times (possibly indirectly,
+    e.g. when hostnames resolve to the same IP address),
+    the Channel is only bound once to that address.
 
     This method is a coroutine.
     '''
-    channel = channel_class(
+    channel = create_channel(
+        channel_class=channel_class,
         transport_class=transport_class,
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,

@@ -19,5 +19,6 @@ class ChannelState(enum.IntEnum):
     CREATED = 0
     STARTED = 10
     PAUSED = 20
-    CLOSING = 30
-    CLOSED = 40
+    SHUTTING_DOWN = 50
+    CLOSING = 90
+    CLOSED = 100

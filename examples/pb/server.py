@@ -38,7 +38,9 @@ class EchoImpl(EchoService):
 
 
 async def main(args):
-    await pymaid.rpc.pb.serve_stream(args.address, services=[EchoImpl()])
+    ch = await pymaid.rpc.pb.serve_stream(args.address, services=[EchoImpl()])
+    async with ch:
+        await ch.serve_forever()
 
 
 if __name__ == "__main__":

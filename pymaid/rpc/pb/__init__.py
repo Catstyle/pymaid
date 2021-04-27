@@ -49,7 +49,7 @@ async def serve_stream(
     **kwargs,
 ):
     from pymaid.rpc import serve_stream as raw_serve_stream
-    await raw_serve_stream(
+    return await raw_serve_stream(
         address=address,
         protocol=protocol,
         handler_class=handler_class,

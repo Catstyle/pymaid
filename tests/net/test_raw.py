@@ -3,16 +3,17 @@ import socket
 
 import pytest
 
+from pymaid.core import sleep
 from pymaid.net.raw import sock_connect, sock_listen
 from pymaid.net.raw import HAS_IPv6_FAMILY
 
 
 @pytest.mark.asyncio
 async def test_sock_listen_ipv4():
-    sockets = await sock_listen(('localhost', 8999))
+    sockets = await sock_listen(('localhost', 8990))
     assert sockets
     for sock in sockets:
-        assert sock.family == socket.AF_INET
+        assert sock.family in (socket.AF_INET, socket.AF_INET6)
         assert sock.type == socket.SOCK_STREAM
         sock.close()
 
@@ -20,7 +21,7 @@ async def test_sock_listen_ipv4():
 @pytest.mark.skipif(not HAS_IPv6_FAMILY, reason='does not support ipv6')
 @pytest.mark.asyncio
 async def test_sock_listen_ipv6():
-    sockets = await sock_listen(('::1', 8999))
+    sockets = await sock_listen(('::1', 8991))
     assert sockets
     for sock in sockets:
         assert sock.family == socket.AF_INET6
@@ -45,18 +46,20 @@ async def test_sock_listen_unix():
 
 @pytest.mark.asyncio
 async def test_sock_connect_ipv4():
-    sockets = await sock_listen(('localhost', 8999))
+    sockets = await sock_listen(('localhost', 8992), socket.AF_INET)
     assert sockets
+    assert len(sockets) == 1
 
-    sock = await sock_connect(('localhost', 8999))
+    sock = await sock_connect(('localhost', 8992))
     assert sock.family == socket.AF_INET
     # localhost resolved to 127.0.0.1
-    assert sock.getpeername() == ('127.0.0.1', 8999)
+    assert sock.getpeername()[:2] == ('127.0.0.1', 8992)
 
     for listen_sock in sockets:
         peer, addr = listen_sock.accept()
         break
     sock.send(b'from pymaid')
+    await sleep(0.001)
     assert peer.recv(1024) == b'from pymaid'
 
     peer.close()
@@ -67,18 +70,19 @@ async def test_sock_connect_ipv4():
 @pytest.mark.skipif(not HAS_IPv6_FAMILY, reason='does not support ipv6')
 @pytest.mark.asyncio
 async def test_sock_connect_ipv6():
-    sockets = await sock_listen(('::1', 8999))
+    sockets = await sock_listen(('::1', 8993))
     assert sockets
     assert len(sockets) == 1
 
-    sock = await sock_connect(('::1', 8999))
+    sock = await sock_connect(('::1', 8993))
     assert sock.family == socket.AF_INET6
-    assert sock.getpeername()[:2] == ('::1', 8999)
+    assert sock.getpeername()[:2] == ('::1', 8993)
 
     for listen_sock in sockets:
         peer, addr = listen_sock.accept()
         break
     sock.send(b'from pymaid')
+    await sleep(0.001)
     assert peer.recv(1024) == b'from pymaid'
 
     peer.close()

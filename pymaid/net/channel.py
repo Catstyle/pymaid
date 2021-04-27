@@ -7,7 +7,7 @@ import sys
 from typing import Optional, Tuple, TypeVar, Union
 
 from pymaid.conf import settings
-from pymaid.core import get_running_loop, CancelledError, Event
+from pymaid.core import get_running_loop, Event, CancelledError
 from pymaid.ext.middleware import MiddlewareManager
 
 from .base import logger, ChannelState
@@ -40,8 +40,10 @@ class Channel(abc.ABC):
         self.transports = {}
         self.listeners = []
         self.middleware_manager = middleware_manager or MiddlewareManager()
+        self.extra_transport_kwargs = kwargs
 
         self.state = self.STATE.CREATED
+        self.nursed = False
         self.closed_event = Event()
         self._loop = get_running_loop()
         self._serving_forever_fut = None
@@ -85,15 +87,21 @@ class Channel(abc.ABC):
         if not self.listeners:
             raise RuntimeError(f'channel {self!r} has no listeners')
 
+        if not self.nursed:
+            raise RuntimeError(
+                'you should wrap this channel into async context manager, like'
+                '''
+    async with ch:
+        await ch.serve_forever()'''
+            )
+
         self._serving_forever_fut = self._loop.create_future()
 
         try:
             await self._serving_forever_fut
         except CancelledError:
-            try:
-                self.close()
-            finally:
-                raise
+            # received CancelledError when event loop exit
+            pass
         finally:
             self._serving_forever_fut = None
 
@@ -107,19 +115,19 @@ class Channel(abc.ABC):
             loop.add_reader(sock.fileno(), self.read_from_listener, sock)
 
     def pause(self, reason: str = ''):
-        self.logger.info(f'{self!r} pause with reason: {reason}')
+        self.logger.info(f'{self!r} pause with reason: {reason!r}')
         self.state = self.STATE.PAUSED
         loop = self._loop
         for sock in self.listeners:
             loop.remove_reader(sock.fileno())
 
     def shutdown(self, reason: str = 'shutdown'):
-        if self.state >= self.STATE.CLOSING:
+        if self.state >= self.STATE.SHUTTING_DOWN:
             return
         if self.state < self.STATE.PAUSED:
             self.pause(reason)
-        self.state = self.STATE.CLOSING
-        self.logger.info(f'{self!r} shutdown with reason: {reason}')
+        self.logger.info(f'{self!r} shutdown with reason: {reason!r}')
+        self.state = self.STATE.SHUTTING_DOWN
 
     def close(
         self, reason: Union[None, str, Exception] = 'called close',
@@ -130,6 +138,8 @@ class Channel(abc.ABC):
             self.pause(reason)
         if self.state == self.STATE.PAUSED:
             self.shutdown(reason)
+        self.logger.info(f'{self!r} close with reason: {reason!r}')
+        self.state = self.STATE.CLOSING
         for sock in self.listeners:
             sock.close()
         del self.listeners[:]
@@ -138,14 +148,15 @@ class Channel(abc.ABC):
 
     def _finnal_close(self, reason=None):
         self.closed_event.set()
+        self.logger.info(f'{self!r} finally closed with reason: {reason!r}')
         self.state = self.STATE.CLOSED
-        self.logger.info(f'{self!r} finally closed, {reason=}')
 
     async def __aenter__(self):
+        self.nursed = True
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self.shutdown()
+        self.shutdown(exc_val)
         self.close(exc_val)
         await self.wait_closed()
         if exc_val:
@@ -168,7 +179,7 @@ class StreamChannel(Channel):
     def __init__(
         self,
         *,
-        name: str = 'Channel',
+        name: str = 'StreamChannel',
         transport_class: StreamType = Stream,
         ssl_context: _ssl.SSLContext,
         ssl_handshake_timeout: Optional[float] = None,
@@ -226,9 +237,7 @@ class StreamChannel(Channel):
             # conn.shutdown is not coroutine
             conn.shutdown(reason)
 
-    def _make_connection(
-        self, sock, initiative, on_open=None, on_close=None, **kwargs,
-    ):
+    def _make_connection(self, sock, initiative, on_open=None, on_close=None):
         return self.transport_class(
             sock,
             initiative=initiative,
@@ -236,7 +245,7 @@ class StreamChannel(Channel):
             ssl_handshake_timeout=self.ssl_handshake_timeout,
             on_open=on_open,
             on_close=on_close,
-            **kwargs,
+            **self.extra_transport_kwargs,
         )
 
 

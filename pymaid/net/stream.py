@@ -57,7 +57,7 @@ class Stream(SocketTransport):
 
         if sock.family != socket.AF_UNIX and ns['PM_KEEPALIVE']:
             setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, ns['PM_KEEPIDLE'])
+            # setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, ns['PM_KEEPIDLE'])
             setsockopt(SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL'])
             setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
 

@@ -54,11 +54,18 @@ __all__ = (
 # event loop
 #
 
-run = asyncio.run
+asyncio_run = asyncio.run
 sleep = asyncio.sleep
 get_event_loop = asyncio.get_event_loop
 get_event_loop_policy = asyncio.get_event_loop_policy
 get_running_loop = asyncio.get_running_loop
+
+
+def run(*args, **kwargs):
+    try:
+        asyncio_run(*args, **kwargs)
+    except (SystemExit, KeyboardInterrupt):
+        pass
 
 
 #

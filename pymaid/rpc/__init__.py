@@ -1,3 +1,4 @@
+import socket
 import ssl as _ssl
 from typing import Optional, Sequence, Tuple, Type, Union
 
@@ -19,11 +20,16 @@ async def serve_stream(
     address: Union[Tuple[str, int], str],
     *,
     name: str = 'StreamChannel',
-    transport_class: connection.ConnectionType = connection.Connection,
     channel_class: channel.ChannelType = channel.Channel,
+    transport_class: connection.ConnectionType = connection.Connection,
+    family: socket.AddressFamily = socket.AF_UNSPEC,
+    flags: socket.AddressInfo = socket.AI_PASSIVE,
     backlog: int = 128,
+    reuse_address: bool = True,
+    reuse_port: bool = False,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
+    start_serving: bool = True,
     middleware_manager: Optional[MiddlewareManager] = None,
     protocol: Type[ProtocolType] = Protocol,
     handler_class: Optional[Type[handler.Handler]] = handler.SerialHandler,
@@ -33,7 +39,6 @@ async def serve_stream(
 ):
     assert services is not None or router, 'should provide services or router'
     ch = channel_class(
-        address=address,
         name=name,
         transport_class=transport_class,
         ssl_context=ssl_context,
@@ -47,7 +52,14 @@ async def serve_stream(
         ch.router.include_services(services)
     if router:
         ch.router.include_router(router)
-    await ch.listen(address, backlog=backlog)
-    ch.start()
-    async with ch:
-        await ch.serve_forever()
+    await ch.listen(
+        address,
+        family=family,
+        flags=flags,
+        backlog=backlog,
+        reuse_address=reuse_address,
+        reuse_port=reuse_port,
+    )
+    if start_serving:
+        ch.start()
+    return ch

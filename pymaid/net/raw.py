@@ -75,18 +75,18 @@ async def sock_listen(
 ) -> List[socket.socket]:
     '''Create sockets listening on `address`.
 
-    The address parameter can be a string, in that case the TCP server is
+    The address parameter can be a string, in that case the TCP sock is
     bound to unix domain sock.
 
     The address parameter can also be a tuple of string and int, in that case
-    the TCP server is bound to host and port.
+    the TCP sock is bound to host and port.
     If a host appears multiple times (possibly indirectly e.g. when hostnames
-    resolve to the same IP address), the server is only bound once to that
+    resolve to the same IP address), the sock is only bound once to that
     host.
 
-    Return a Server object which can be used to stop the service.
-
     This is a coroutine.
+
+    :returns: `socket.socket` objects that listening on `address`.
     '''
     sockets = []
 
@@ -128,7 +128,8 @@ async def sock_listen(
             except OSError as err:
                 raise OSError(
                     err.errno,
-                    f'error while binding on address {infos}: {err.strerror}'
+                    f'error while binding on address {res}: {err.strerror}, '
+                    f'infos={infos}'
                 ) from None
             sock.listen(backlog)
             sockets.append(sock)
