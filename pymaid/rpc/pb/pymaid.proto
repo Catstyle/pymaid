@@ -33,9 +33,6 @@ message Context {
     // for response
     bool is_cancelled = 6;
     bool is_failed = 7;
-
-    // request/response data size
-    uint32 payload_size = 8;
 }
 
 message RpcAck {

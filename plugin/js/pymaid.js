@@ -1,4 +1,4 @@
-goog.require('proto.pymaid.pb');
+goog.require('proto.pymaid.rpc.pb');
 
 (function(global, factory) {
     global['pymaid'] = factory();
@@ -6,9 +6,9 @@ goog.require('proto.pymaid.pb');
     var pymaid = {};
 
     var pb = pymaid.pb = {};
-    pb.Controller = proto.pymaid.pb.Controller;
-    pb.Void = proto.pymaid.pb.Void;
-    pb.ErrorMessage = proto.pymaid.pb.ErrorMessage;
+    pb.Context = proto.pymaid.rpc.pb.Context;
+    pb.Void = proto.pymaid.rpc.pb.Void;
+    pb.ErrorMessage = proto.pymaid.rpc.pb.ErrorMessage;
 
     /**
      * Serialization/Deserialization utils
@@ -145,47 +145,47 @@ goog.require('proto.pymaid.pb');
     // 4 is for '!HH'
     PBParser._headerSize = JSONParser._headerSize = 4;
 
-    PBParser.pack = function(controllerBinary, contentBinary) {
-        var ctrlSize = controllerBinary.byteLength;
+    PBParser.pack = function(contextBinary, contentBinary) {
+        var ctxSize = contextBinary.byteLength;
         var contentSize = contentBinary.byteLength;
 
-        var ab = new ArrayBuffer(this._headerSize + ctrlSize + contentSize);
+        var ab = new ArrayBuffer(this._headerSize + ctxSize + contentSize);
         var dv = new DataView(ab, 0, 4);
-        var ctrl = new Uint8Array(ab, 4, ctrlSize);
-        var content = new Uint8Array(ab, 4 + ctrlSize, contentSize);
-        dv.setUint16(0, ctrlSize);
+        var ctx = new Uint8Array(ab, 4, ctxSize);
+        var content = new Uint8Array(ab, 4 + ctxSize, contentSize);
+        dv.setUint16(0, ctxSize);
         dv.setUint16(2, contentSize);
-        ctrl.set(controllerBinary);
+        ctx.set(contextBinary);
         content.set(contentBinary);
         return ab;
     };
 
     PBParser.unpack = function(ab) {
         var dv = new DataView(ab, 0, 4);
-        var ctrlSize = dv.getUint16(0);
+        var ctxSize = dv.getUint16(0);
         var contentSize = dv.getUint16(2);
 
-        var ctrlLimit = this._headerSize + ctrlSize;
+        var ctxLimit = this._headerSize + ctxSize;
         return {
-            controller: pb.deserialize(pb.Controller, ab.slice(this._headerSize, ctrlLimit)),
-            content: ab.slice(ctrlLimit, ctrlLimit + contentSize)
+            context: pb.deserialize(pb.Context, ab.slice(this._headerSize, ctxLimit)),
+            content: ab.slice(ctxLimit, ctxLimit + contentSize)
         };
     };
 
-    // haibin: comment out for now
-    // JSONParser.pack = function(controller, content) {
-    //     var ctrlJson = JSON.stringify(controller.toObject());
+    // TODO: comment out for now
+    // JSONParser.pack = function(context, content) {
+    //     var ctxJson = JSON.stringify(context.toObject());
     //     var contentJson = JSON.stringify(content.toObject());
-    //     var ctrlSize = ctrlJson.byteLength;
+    //     var ctxSize = ctxJson.byteLength;
     //     var contentSize = contentJson.byteLength;
 
-    //     var ab = new ArrayBuffer(this._headerSize + ctrlSize + contentSize);
+    //     var ab = new ArrayBuffer(this._headerSize + ctxSize + contentSize);
     //     var header = new Uint16Array(ab, 0, 2);
-    //     var ctrl = new Uint8Array(ab, 4, ctrlSize);
-    //     var content = new Uint8Array(ab, 4 + ctrlSize, contentSize);
-    //     header[0] = ctrlSize;
+    //     var ctx = new Uint8Array(ab, 4, ctxSize);
+    //     var content = new Uint8Array(ab, 4 + ctxSize, contentSize);
+    //     header[0] = ctxSize;
     //     header[1] = contentSize;
-    //     bb.append(controller.encodeJSON());
+    //     bb.append(context.encodeJSON());
     //     bb.append(content.encodeJSON());
     //     bb.flip();
     //     return bb.toBuffer();
@@ -193,12 +193,12 @@ goog.require('proto.pymaid.pb');
 
     // JSONParser.unpack = function(ab) {
     //     var bb = dcodeIO.ByteBuffer.wrap(ab);
-    //     var ctrlSize = bb.readUint16();
+    //     var ctxSize = bb.readUint16();
     //     var contentSize = bb.readUint16();
 
-    //     var controllerBuf = bb.readString(ctrlSize);
+    //     var contextBuf = bb.readString(ctxSize);
     //     return {
-    //         controller: pb.Controller.decode(JSON.parse(controllerBuf)),
+    //         context: pb.Context.decode(JSON.parse(contextBuf)),
     //         content: JSON.parse(bb.readString(contentSize))
     //     };
     // };
@@ -363,23 +363,23 @@ goog.require('proto.pymaid.pb');
 
     WSConnectionPrototype.onmessage = function(evt) {
         var packet = this.parser.unpack(evt.data);
-        var controller = packet.controller, content = packet.content;
+        var context = packet.context, content = packet.content;
 
-        if (controller.packet_type == pb.Controller.PacketType.RESPONSE) {
-            var tid = controller.transmission_id;
+        if (context.packet_type == pb.Context.PacketType.RESPONSE) {
+            var tid = context.transmission_id;
             var cb = this.transmissions[tid];
             if (!cb) {
                 console.log(
                     'pymaid: [WSConnection|'+this.connid+'][transmission|'+tid+']' +
-                    '[service_method|'+controller.service_method+'] has no cb'
+                    '[service_method|'+context.service_method+'] has no cb'
                 );
                 // what to do?
                 return;
             }
             delete this.transmissions[tid];
-            cb(controller, content);
+            cb(context, content);
         } else {
-            this.channel && this.channel.listener.onmessage(controller, content, this);
+            this.channel && this.channel.listener.onmessage(context, content, this);
         }
     };
 
@@ -445,29 +445,29 @@ goog.require('proto.pymaid.pb');
 
                     var data = {
                         service_method: serviceName + '.' + name,
-                        packet_type: pb.Controller.PacketType.REQUEST,
+                        packet_type: pb.Context.PacketType.REQUEST,
                     };
                     if (requireResponse) {
                         var tid = conn.transmissionId;
                         data['transmission_id'] = tid;
                         conn.transmissionId++;
                     }
-                    var controller = pb.instantiate(pb.Controller, data);
+                    var context = pb.instantiate(pb.Context, data);
                     if (!(req instanceof requestType)) {
                         req = pb.instantiate(requestType, req);
                     }
                     console.log(
-                        'pymaid: [Stub][controller|'+pb.format(controller)+']'+
+                        'pymaid: [Stub][context|'+pb.format(context)+']'+
                         '[req|'+pb.format(req)+']'
                     );
-                    conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(req)));
+                    conn.send(conn.parser.pack(pb.serialize(context), pb.serialize(req)));
 
                     if (!requireResponse) {
                         setTimeout(cb.bind(this, null, null), 0);
                     } else {
-                        conn.transmissions[tid] = function(controller, resp) {
+                        conn.transmissions[tid] = function(context, resp) {
                             var err = null, content;
-                            if (controller.is_failed) {
+                            if (context.is_failed) {
                                 err = content = pb.deserialize(pb.ErrorMessage, resp);
                                 if (err.data) {
                                     err.data = JSON.parse(err.data);
@@ -477,7 +477,7 @@ goog.require('proto.pymaid.pb');
                             }
                             console.log(
                                 'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-                                '[onmessage][controller|'+pb.format(controller)+']'+
+                                '[onmessage][context|'+pb.format(context)+']'+
                                 '[content|'+pb.format(content)+']'
                             );
                             cb(err, resp);
@@ -537,8 +537,8 @@ goog.require('proto.pymaid.pb');
         this.implementations[name] = this.implementations['.'+name] = impl;
     };
 
-    ListenerPrototype.onmessage = function(controller, content, conn) {
-        var serviceMethod = controller.service_method;
+    ListenerPrototype.onmessage = function(context, content, conn) {
+        var serviceMethod = context.service_method;
         var dot = serviceMethod.lastIndexOf('.');
         var serviceName = serviceMethod.substr(0, dot);
         var methodName = serviceMethod.substr(dot+1);
@@ -552,18 +552,18 @@ goog.require('proto.pymaid.pb');
         var req = pb.deserialize(method.input_type, content), respType = method.output_type;
         console.log(
             'pymaid: [WSConnection|'+conn.connid+'][address|'+conn.address+']'+
-            '[onmessage][controller|'+pb.format(controller)+']'+'[content|'+pb.format(req)+']'
+            '[onmessage][context|'+pb.format(context)+']'+'[content|'+pb.format(req)+']'
         );
-        impl[methodName](controller, req, function(err, content) {
+        impl[methodName](context, req, function(err, content) {
             if (respType === pb.Void) {
                 // when handle notification
                 return;
             }
-            controller.setPacketType(pb.Controller.PacketType.RESPONSE);
+            context.setPacketType(pb.Context.PacketType.RESPONSE);
             if (err) {
-                controller.setIsFailed(true);
+                context.setIsFailed(true);
                 conn.send(conn.parser.pack(
-                    pb.serialize(controller),
+                    pb.serialize(context),
                     pb.serialize(pb.instantiate(pb.ErrorMessage, err))
                 ));
             } else {
@@ -573,7 +573,7 @@ goog.require('proto.pymaid.pb');
                 if (!(content instanceof respType)) {
                     content = pb.deserialize(respType, content);
                 }
-                conn.send(conn.parser.pack(pb.serialize(controller), pb.serialize(content)));
+                conn.send(conn.parser.pack(pb.serialize(context), pb.serialize(content)));
             }
         });
     };
