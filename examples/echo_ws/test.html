@@ -1,0 +1,43 @@
+<!DOCTYPE HTML>
+<html lang='en'>
+    <head>
+        <title></title>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    </head>
+    <body>
+        <div>
+            <input id='msg' type='textarea' ></input>
+            <button id='send' >Send</button>
+        </div>
+        <div id='content'>
+        </div>
+        <script type="text/javascript">
+            let address = 'ws://127.0.0.1:8888'
+            let ws = new WebSocket(address);
+
+            function appendContent(msg) {
+                let content = document.getElementById('content');
+                let p = document.createElement('p')
+                p.innerText = msg;
+                content.appendChild(p);
+            }
+            ws.onopen = function() {
+                appendContent(`connected to ${address}`);
+            };
+
+            ws.onmessage = async function(evt) {
+                let msg = await evt.data.text();
+                appendContent(`received: ${msg}`);
+            };
+
+            document.getElementById('send').onclick = function() {
+                let msg = document.getElementById('msg').value;
+                document.getElementById('msg').value = '';
+                ws.send(msg);
+            };
+        </script>
+    </body>
+</html>
