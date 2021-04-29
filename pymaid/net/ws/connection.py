@@ -47,7 +47,7 @@ class WebSocket(Stream):
         self.resource = resource.encode('utf-8')
         self.ws_kwargs = kwargs
         self.utf8validator = Utf8Validator()
-        self.read_buffer = BytesIO()
+        self.__read_buffer = BytesIO()
         if self.initiative:
             self._start_handshake()
             self._parse = self._parse_upgrade_response
@@ -55,12 +55,12 @@ class WebSocket(Stream):
             self._parse = self._parse_upgrade_request
         self.on_close.append(self.cleanup)
 
-    async def send(self, message: DataType):
+    async def write(self, message: DataType):
         '''Send a frame over the websocket with message as its payload.'''
-        await self.write(self.PROTOCOL.encode(message))
+        await self._write(self.PROTOCOL.encode(message))
 
-    def send_sync(self, message: DataType):
-        self.write_sync(self.PROTOCOL.encode(message))
+    def write_sync(self, message: DataType):
+        self._write_sync(self.PROTOCOL.encode(message))
 
     async def recv(self):
         '''Read and return a message from the stream.
@@ -91,7 +91,9 @@ class WebSocket(Stream):
         '''
         payload = frame.payload
         if not payload:
-            self.write_sync(self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, ''))
+            self._write_sync(
+                self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, '')
+            )
             self.close(1000)
             return
 
@@ -110,13 +112,13 @@ class WebSocket(Stream):
         if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016
                 or code == 1100 or 2000 <= code <= 2999):
             raise ProtocolError(f'Invalid close code {code}')
-        self.write_sync(
+        self._write_sync(
             self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, status_code),
         )
         self.close(code)
 
     def handle_ping(self, frame):
-        self.send_sync(
+        self._write_sync(
             self.PROTOCOL.encode_frame(Frame.OPCODE_PONG, frame.payload)
         )
 
@@ -179,11 +181,11 @@ class WebSocket(Stream):
 
     @staticmethod
     def cleanup(self, exc=None):
-        del self.read_buffer
+        del self.__read_buffer
 
     def _data_received(self, data: DataType):
-        self.read_buffer.seek(0, 2)
-        self.read_buffer.write(data)
+        self.__read_buffer.seek(0, 2)
+        self.__read_buffer.write(data)
         self._parse()
 
     def _parse_frames(self):
@@ -191,47 +193,44 @@ class WebSocket(Stream):
 
         NOTE: correct frames will be lost if some frames are incorrect.
         '''
-        buf = self.read_buffer
+        buf = self.__read_buffer
         buf.seek(0, 0)
 
         used_size, frames = self.PROTOCOL.feed_data(buf)
         if frames:
             buf.seek(used_size, 0)
-            self.read_buffer = BytesIO()
-            self.read_buffer.write(buf.read())
+            self.__read_buffer = BytesIO()
+            self.__read_buffer.write(buf.read())
             if data := self.handle_frames(frames):
                 self.data_received(data)
 
     def _parse_upgrade_request(self) -> bool:
-        buf = self.read_buffer
+        buf = self.__read_buffer
         buf.seek(0, 0)
 
         if resp := self.PROTOCOL.parse_request(buf):
-            self.write_sync(resp)
+            self._write_sync(resp)
 
         self.mark_ready()
-        self.read_buffer = BytesIO()
-        self.read_buffer.write(buf.read())
+        self.__read_buffer = BytesIO()
+        self.__read_buffer.write(buf.read())
         return True
 
     def _parse_upgrade_response(self) -> bool:
-        buf = self.read_buffer
+        buf = self.__read_buffer
         buf.seek(0, 0)
 
         if not self.PROTOCOL.parse_response(buf, self.secret_key):
             return False
 
         self.mark_ready()
-        self.read_buffer = BytesIO()
-        self.read_buffer.write(buf.read())
+        self.__read_buffer = BytesIO()
+        self.__read_buffer.write(buf.read())
         return True
 
     def _start_handshake(self):
         self.logger.debug(f'{self.id} start handshake')
         key = self.secret_key = b64encode(urandom(16)).strip()
-        self.write_sync(
+        self._write_sync(
             self.PROTOCOL.build_request(self.resource, key, **self.ws_kwargs)
         )
-
-    def _write(self, opcode: int, payload: DataType):
-        self._send()

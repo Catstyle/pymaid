@@ -20,8 +20,7 @@ async def wrapper(address, count):
     stream = await pymaid.net.dial_stream(address, transport_class=EchoStream)
 
     for _ in range(count):
-        # NOTE: websocket should use `send` instead of `write`
-        await stream.send(b'a' * 8000)
+        await stream.write(b'a' * 8000)
     stream.shutdown()
     await stream.wait_closed()
     assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)

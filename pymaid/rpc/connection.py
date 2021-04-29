@@ -1,15 +1,23 @@
 from typing import TypeVar
 
-from pymaid.net.stream import Stream
+from pymaid.net.transport import Transport
 
 
-class Connection(Stream):
+class Connection:
     '''Connection represent a communication way for client <--> server
 
     It holds the low level transport.
     '''
 
     KEEP_OPEN_ON_EOF = True
+
+    def __new__(cls, *args, **kwargs):
+        if not issubclass(cls, Transport):
+            raise TypeError(
+                'Connection need to pipe up with `Transport`, '
+                'e.g. "Transport | Connection"'
+            )
+        return super().__new__(cls)
 
     def __init__(
         self,
@@ -22,17 +30,17 @@ class Connection(Stream):
         super().__init__(sock, **kwargs)
         self.protocol = protocol
         self.handler = handler
-        self.read_buffer = bytearray()
+        self.__read_buffer = bytearray()
 
         # NOTE: cyclic
         handler.start(self)
 
     def data_received(self, data: bytes):
         '''Received data from low level transport'''
-        self.read_buffer.extend(data)
-        used_size, messages = self.protocol.feed_data(self.read_buffer)
+        self.__read_buffer.extend(data)
+        used_size, messages = self.protocol.feed_data(self.__read_buffer)
         if used_size:
-            self.read_buffer = self.read_buffer[used_size:]
+            self.__read_buffer = self.__read_buffer[used_size:]
             self.handler.feed_messages(messages)
 
     def eof_received(self):
@@ -53,7 +61,7 @@ class Connection(Stream):
         super()._finnal_close(exc)
         self.handler.close(exc)
         del self.handler
-        del self.read_buffer[:]
+        del self.__read_buffer[:]
 
 
 ConnectionType = TypeVar('Connection', bound=Connection)

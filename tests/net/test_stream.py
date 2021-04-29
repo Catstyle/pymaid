@@ -5,6 +5,7 @@ import pytest
 
 from pymaid.core import sleep
 from pymaid.net.raw import HAS_IPv6_FAMILY
+from pymaid.net.stream import Stream
 
 from tests.common.models import _TestStream
 
@@ -51,3 +52,15 @@ async def test_stream_unix():
     assert s2.received_data == b'from pymaid'
     s1.close()
     s2.close()
+
+
+@pytest.mark.skipif(
+    not getattr(socket, 'AF_UNIX', None),
+    reason='does not support unix domain sock'
+)
+@pytest.mark.asyncio
+async def test_stream_data_received_overrided():
+    sock1, sock2 = socket.socketpair(socket.AF_UNIX.value)
+
+    with pytest.raises(TypeError):
+        Stream(sock1)

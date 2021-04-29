@@ -1,6 +1,9 @@
 import pymaid
 import pymaid.rpc.pb
 
+from pymaid.net.ws import WebSocket
+from pymaid.rpc.connection import Connection
+
 from examples.template import get_client_parser, parse_args
 from examples.pb.stub import worker
 
@@ -13,7 +16,16 @@ async def main(args):
     address = args.address
     request = args.request
     for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(worker(address, service, request)))
+        tasks.append(
+            pymaid.create_task(
+                worker(
+                    address,
+                    service,
+                    request,
+                    transport_class=WebSocket | Connection,
+                )
+            )
+        )
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)

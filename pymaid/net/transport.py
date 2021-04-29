@@ -9,7 +9,28 @@ from pymaid.core import get_running_loop, Event
 from .base import logger, TransportState
 
 
-class Transport(abc.ABC):
+class PipeTransport(abc.ABCMeta):
+
+    def __or__(self, other):
+        if not isinstance(other, type):
+            raise RuntimeError('piping transport requires classes')
+        if issubclass(other, Transport):
+            raise RuntimeError(
+                f'{other.__name__} already pipeline with transport '
+                f'{other.__bases__}'
+            )
+        return type(
+            other.__name__, (other, self), {'__module__': other.__module__}
+        )
+
+    def __ror__(self, other):
+        raise RuntimeError(
+            'piping transport requires base transport on the left\n'
+            f'you might want to try `{self.__name__} | {other.__name__}`'
+        )
+
+
+class Transport(metaclass=PipeTransport):
 
     logger = logger
     ID = 0

@@ -9,7 +9,7 @@ class EchoStream(pymaid.net.ws.WebSocket):
     KEEP_OPEN_ON_EOF = False
 
     def data_received(self, data: bytes):
-        self.send_sync(data)
+        self.write_sync(data)
 
 
 async def main(args):

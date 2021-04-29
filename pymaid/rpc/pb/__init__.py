@@ -4,6 +4,7 @@ from typing import Callable, List, Optional, Tuple, Type, Union
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import dial_stream as raw_dial_stream
 from pymaid.net.protocol import ProtocolType
+from pymaid.net.stream import Stream
 from pymaid.rpc.connection import Connection, ConnectionType
 
 from . import context
@@ -17,7 +18,7 @@ __all__ = ('connection', 'context', 'handler', 'protocol')
 async def dial_stream(
     address: Union[Tuple[str, int], str],
     *,
-    transport_class: ConnectionType = Connection,
+    transport_class: ConnectionType = Stream | Connection,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
     ssl_handshake_timeout: Optional[float] = None,
     on_open: Optional[List[Callable]] = None,
@@ -43,6 +44,7 @@ async def dial_stream(
 async def serve_stream(
     address: Union[Tuple[str, int], str],
     *,
+    transport_class: ConnectionType = Stream | Connection,
     protocol: ProtocolType = protocol.Protocol,
     handler_class: Type[handler.Handler] = handler.PBSerialHandler,
     router_class: Type[router.Router] = router.PBRouter,
@@ -51,6 +53,7 @@ async def serve_stream(
     from pymaid.rpc import serve_stream as raw_serve_stream
     return await raw_serve_stream(
         address=address,
+        transport_class=transport_class,
         protocol=protocol,
         handler_class=handler_class,
         router_class=router_class,

@@ -1,3 +1,4 @@
+import abc
 import socket
 import ssl as _ssl
 
@@ -13,6 +14,13 @@ class Stream(SocketTransport):
 
     MAX_SIZE = 256 * 1024  # recv size passed to sock.recv
     KEEP_OPEN_ON_EOF = False
+
+    WRAP_METHODS = {
+        '_data_received': 'data_received',
+
+        'write': '_write',
+        'write_sync': '_write_sync',
+    }
 
     def __init__(
         self,
@@ -30,12 +38,16 @@ class Stream(SocketTransport):
         self.ssl_handshake_timeout = ssl_handshake_timeout
         self._write_empty_waiter = None
 
-        # for internal usage, can be overrided if needed
-        if not hasattr(self, '_data_received'):
-            self._data_received = self.data_received
+        self.wrap_methods()
 
         for cb in self.on_open:
             cb(self)
+
+    def wrap_methods(self):
+        # for internal usage, can be overrided if needed
+        for target, source in self.WRAP_METHODS.items():
+            if not hasattr(self, target):
+                setattr(self, target, getattr(self, source))
 
     def set_socket_default_options(self):
         super().set_socket_default_options()
@@ -66,7 +78,7 @@ class Stream(SocketTransport):
         if hasattr(self, 'conn_made_event'):
             await self.conn_made_event.wait()
 
-    def write_sync(self, data: DataType) -> bool:
+    def _write_sync(self, data: DataType) -> bool:
         '''Write data to low level socket, in a synchronized way.
 
         Do some optimization by sending data directly if possible.
@@ -100,7 +112,7 @@ class Stream(SocketTransport):
         self.write_buffer.extend(data)
         return False
 
-    async def write(self, data: DataType):
+    async def _write(self, data: DataType):
         '''Write data to low level socket, in an asynchronized way.
 
         Do some optimization by sending data directly if possible.
@@ -112,7 +124,7 @@ class Stream(SocketTransport):
 
         .. _handle backpressure correctly: https://vorpus.org/blog/some-thoughts-on-asynchronous-api-design-in-a-post-asyncawait-world/#bug-1-backpressure  # noqa
         '''
-        if not self.write_sync(data):
+        if not self._write_sync(data):
             await self.wait_write_all()
 
     async def wait_write_all(self, timeout=None):
@@ -143,6 +155,7 @@ class Stream(SocketTransport):
             self._write_empty_waiter = None
 
     # Public api for upper usage.
+    @abc.abstractmethod
     def data_received(self, data: DataType):
         '''Callback when data received from low level transport.
 
@@ -168,6 +181,7 @@ class Stream(SocketTransport):
         '''
         if hasattr(self, 'conn_made_event'):
             self.conn_made_event.set()
+        self.logger.debug(f'{self!r} now ready to work')
 
     def _reader(self):
         try:
