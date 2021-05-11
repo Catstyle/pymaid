@@ -3,7 +3,6 @@ import struct
 from base64 import b64encode
 from hashlib import sha1
 from io import BytesIO
-from itertools import cycle
 from typing import List, IO, Tuple
 
 from pymaid.net.http import parse_headers
@@ -16,28 +15,21 @@ try:
     from .speedups import apply_mask
 except ImportError:
 
-    # from_bytes/to_bytes is faster
-    # but it is under potential risk of being attack
-    # because multiply *mask* is not memory friendly
+    # https://www.willmcgugan.com/blog/tech/post/speeding-up-websockets-60x/
 
-    # def apply_mask(payload, mask) -> bytes:
-    #     p_size = len(payload)
-    #     m_size = len(mask)
-    #     if p_size > m_size:
-    #         q = p_size // m_size
-    #         r = p_size % m_size
-    #         mask = mask * q + mask[:r]
-    #     elif p_size < m_size:
-    #         mask = mask[:p_size]
-
-    #     return (
-    #         int.from_bytes(payload, 'little') ^ int.from_bytes(mask, 'little')  # noqa
-    #     ).to_bytes(p_size, 'little')
+    _XOR_TABLE = [bytes(a ^ b for a in range(256)) for b in range(256)]
 
     def apply_mask(payload: DataType, mask: bytes) -> bytes:
         if len(mask) != 4:
             raise ValueError('mask must be 4 bytes')
-        return bytes(b ^ m for b, m in zip(payload, cycle(mask)))
+
+        a, b, c, d = (_XOR_TABLE[n] for n in mask)
+        data_bytes = bytearray(payload)
+        data_bytes[::4] = data_bytes[::4].translate(a)
+        data_bytes[1::4] = data_bytes[1::4].translate(b)
+        data_bytes[2::4] = data_bytes[2::4].translate(c)
+        data_bytes[3::4] = data_bytes[3::4].translate(d)
+        return bytes(data_bytes)
 
 
 __all__ = ['WSProtocol', 'Frame', 'apply_mask']
