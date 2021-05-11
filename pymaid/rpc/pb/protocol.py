@@ -55,11 +55,13 @@ class Protocol(Protocol):
         cls, data: DataType,
     ) -> Tuple[int, Optional[Meta], Optional[memoryview]]:
         header_size = cls.header_size
-        if (data_size := len(data)) < header_size:
+        data_size = len(data)
+        if data_size < header_size:
             return 0, None, None
 
         meta_size, payload_size = cls.unpack_header(data[:header_size])
-        if (used_size := header_size + meta_size + payload_size) > data_size:
+        used_size = header_size + meta_size + payload_size
+        if used_size > data_size:
             return 0, None, None
         if payload_size > cls.MAX_PACKET_LENGTH:
             raise PBError.PacketTooLarge(

@@ -104,7 +104,7 @@ class SocketTransport(Transport):
     def close(self, exc=None):
         if self.state == self.STATE.CLOSING:
             return
-        self.logger.debug(f'{self!r} close {exc=}')
+        self.logger.debug(f'{self!r} close exc={exc}')
         self.state = self.STATE.CLOSING
         loop = self._loop
         loop.remove_reader(self._sock_fd)
@@ -127,7 +127,7 @@ class SocketTransport(Transport):
     def _force_close(self, exc):
         if self.state == self.STATE.CLOSED:
             return
-        self.logger.debug(f'{self!r} force close {exc=}')
+        self.logger.debug(f'{self!r} force close exc={exc}')
         if self.write_buffer:
             self.write_buffer.clear()
             self._loop.remove_writer(self._sock_fd)
@@ -136,7 +136,7 @@ class SocketTransport(Transport):
         self._finnal_close(exc)
 
     def _finnal_close(self, exc=None):
-        self.logger.info(f'{self!r} final close {exc=}')
+        self.logger.info(f'{self!r} final close exc={exc}')
         self.state = self.STATE.CLOSED
         for cb in self.on_close:
             cb(self, exc)

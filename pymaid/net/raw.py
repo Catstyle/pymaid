@@ -15,7 +15,7 @@ HAS_IPv6_FAMILY = hasattr(socket, 'AF_INET6')
 HAS_IPv6_PROTOCOL = hasattr(socket, 'IPPROTO_IPV6')
 
 
-async def sock_connect(address: Tuple[str, int]) -> socket.socket:
+async def sock_connect(address: Union[Tuple[str, int], str]) -> socket.socket:
     if isinstance(address, str):
         infos = [(socket.AF_UNIX, socket.SOCK_STREAM, 0, '', address)]
     else:

@@ -84,7 +84,7 @@ async def test_timeout_not_relevant_exception():
 async def test_timeout_cancelled_error_is_not_converted_to_timeout():
     await pymaid.sleep(0)
     with pytest.raises(pymaid.CancelledError):
-        async with timeout(0.001):
+        async with timeout(0.01):
             raise pymaid.CancelledError
 
 

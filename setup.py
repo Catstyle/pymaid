@@ -56,11 +56,13 @@ if __name__ == '__main__':
             # Specify the Python versions you support here.
             # In particular, ensure that you indicate whether you support
             # Python 2, Python 3 or both.
+            'Programming Language :: Python :: 3.7',
             'Programming Language :: Python :: 3.8',
+            'Programming Language :: Python :: 3.9',
 
             'Operating System :: OS Independent',
         ],
-        python_requires='>=3.8',
+        python_requires='>=3.7',
 
         packages=find_packages(),
         package_data={
@@ -70,7 +72,7 @@ if __name__ == '__main__':
         tests_require=dev_requirements,
         extras_require={
             'backend': [
-                'requests==2.21.0', 'PyYAML==3.13', 'xmltodict==0.12.0'
+                'requests==2.25.1', 'PyYAML==5.4.1', 'xmltodict==0.12.0'
             ],
         },
         ext_modules=[

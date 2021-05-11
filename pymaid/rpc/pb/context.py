@@ -41,7 +41,8 @@ class PBInboundContext(PBContext, InboundContext):
 
     def feed_message(self, meta, payload):
         '''Received request from transport layer'''
-        assert meta.packet_type == Meta.REQUEST, f'invalid {meta.packet_type=}'
+        assert meta.packet_type == Meta.REQUEST, \
+            f'invalid packet_type={meta.packet_type}'
         if self.request_fed_count > 0 and not self.method.client_streaming:
             raise RPCError.MultipleRequestForUnaryMethod(
                 data={
@@ -92,7 +93,7 @@ class PBOutboundContext(PBContext, OutboundContext):
     def feed_message(self, meta, payload):
         '''Received response from transport layer '''
         assert not meta.packet_type or meta.packet_type == Meta.RESPONSE, \
-            f'invalid {meta.packet_type=}'
+            f'invalid packet_type={meta.packet_type}'
         if self.response_fed_count > 0 and not self.method.server_streaming:
             raise RPCError.MultipleResponseForUnaryMethod(
                 data={

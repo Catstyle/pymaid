@@ -228,7 +228,7 @@ class StreamChannel(Channel):
             self._finnal_close(exc)
         self.logger.info(
             f'{self!r} connection_lost: '
-            f'<{self.transport_class.__name__} {conn.id}> {exc=}'
+            f'<{self.transport_class.__name__} {conn.id}> exc={exc}'
         )
 
     def shutdown(self, reason: str = 'shutdown'):

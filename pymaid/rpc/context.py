@@ -99,7 +99,8 @@ class Context:
         return self
 
     async def __anext__(self):
-        if m := await self.recv_message():
+        m = await self.recv_message()
+        if m:
             return m
         raise StopAsyncIteration()
 

@@ -19,7 +19,7 @@ class _TestStream(Stream):
 
     # for test case only
     def data_received(self, data: DataType):
-        self.logger.debug(f'{self!r} data_received, {len(data)=}')
+        self.logger.debug(f'{self!r} data_received, size={len(data)}')
         self.received_data = data
         self.data_received_event.set()
 

@@ -31,7 +31,7 @@ from .stream import Stream
 
 
 async def dial_stream(
-    address: Tuple[str, int],
+    address: Union[Tuple[str, int], str],
     *,
     transport_class: Stream = Stream,
     ssl_context: Union[None, bool, 'ssl.SSLContext'] = None,

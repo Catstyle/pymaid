@@ -162,7 +162,9 @@ class Stream(SocketTransport):
         Upper level usage should always use this callback waiting for data.
         Should be overrided.
         '''
-        self.logger.debug(f'{self!r} data_received, {len(data)=}, ignored!')
+        self.logger.debug(
+            f'{self!r} data_received, size={len(data)}, ignored!'
+        )
 
     def eof_received(self) -> bool:
         '''Returned value indicate whether to keep the transport open or not.

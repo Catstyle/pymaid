@@ -169,7 +169,7 @@ class Handler(abc.ABC):
 
     @abc.abstractmethod
     def feed_messages(self, messages):
-        # self.logger.debug(f'{self} feed {len(messages)=}')
+        # self.logger.debug(f'{self!r} feed size={len(messages)}')
         raise NotImplementedError('feed_messages')
 
     async def handle_error(self, error):
@@ -177,7 +177,7 @@ class Handler(abc.ABC):
 
         Just write error logs.
         '''
-        self.logger.error(f'{self!r} caught an unhandled error, {error=!r}')
+        self.logger.error(f'{self!r} caught an unhandled error, {error!r}')
 
     def __repr__(self):
         return (

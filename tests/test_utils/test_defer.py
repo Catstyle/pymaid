@@ -1,4 +1,5 @@
 from functools import wraps
+from platform import python_version_tuple
 from unittest import mock
 
 import pytest
@@ -24,6 +25,10 @@ def wrapped(func):
         return _
 
 
+async def async_noop():
+    pass
+
+
 def test_defer():
     m = mock.Mock()
 
@@ -43,13 +48,14 @@ def test_defer():
 
     func(10)
     assert m.call_count == 10
-    args = [c.args[0] for c in m.call_args_list]
-    assert args == [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+    if python_version_tuple() >= ('3', '8', '0'):
+        args = [c.args[0] for c in m.call_args_list]
+        assert args == [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 
 
 @pytest.mark.asyncio
 async def test_defer_async():
-    am = mock.AsyncMock()
+    am = mock.MagicMock()
 
     @with_defer
     async def func():
@@ -59,7 +65,7 @@ async def test_defer_async():
     am.assert_called_once_with('called by defer')
 
     # async and sync comb
-    am = mock.AsyncMock()
+    am = mock.MagicMock()
     m = mock.Mock()
 
     @with_defer
@@ -70,8 +76,9 @@ async def test_defer_async():
 
     await func(10)
     assert am.call_count == 10
-    args = [c.args[0] for c in am.call_args_list]
-    assert args == [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+    if python_version_tuple() >= ('3', '8', '0'):
+        args = [c.args[0] for c in am.call_args_list]
+        assert args == [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
     m.assert_called_once_with('called by defer')
 
 
@@ -85,11 +92,10 @@ def test_no_with_defer():
 
 
 def test_sync_function_defer_async():
-    am = mock.AsyncMock()
 
     @with_defer
     def func():
-        defer(am, 'called by defer')
+        defer(async_noop, 'called by defer')
 
     # sync function but defer async
     with pytest.raises(ValueError):
@@ -129,7 +135,7 @@ async def test_invalid_defer_scope():
     with pytest.raises(RuntimeError):
         func()
 
-    am = mock.AsyncMock()
+    am = mock.MagicMock()
 
     @with_defer
     async def func():

@@ -23,14 +23,15 @@ class PBHandler(Handler):
             # because just feed message into context won't block,
             # and it makes serial streaming posible
             meta, payload = message
-            # self.logger.debug(f'{self} feed {meta=}')
+            # self.logger.debug(f'{self} feed meta={meta}')
             if meta.transmission_id in self.contexts:
                 self.contexts[meta.transmission_id].feed_message(meta, payload)
                 continue
 
             if meta.packet_type == Request:
                 name = meta.service_method
-                if (rpc := get_route(name)) is None:
+                rpc = get_route(name)
+                if rpc is None:
                     task = self.handle_error(
                         meta, PBError.RPCNotFound(data={'name': name})
                     )
@@ -44,7 +45,7 @@ class PBHandler(Handler):
                 # response should be handled above as existed context
                 self.logger.warning(
                     f'{self!r} received unknown response, '
-                    f'{meta.transmission_id=}, ignored.'
+                    f'id={meta.transmission_id}, ignored.'
                 )
                 continue
             else:

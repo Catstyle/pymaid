@@ -22,6 +22,7 @@ class WebSocket(Stream):
 
     PROTOCOL = WSProtocol
     KEEP_OPEN_ON_EOF = True
+    REQUIRE_MASK_CLIENT_FRAMES = True
 
     def __init__(
         self,
@@ -57,7 +58,11 @@ class WebSocket(Stream):
 
     async def write(self, message: DataType):
         '''Send a frame over the websocket with message as its payload.'''
-        await self._write(self.PROTOCOL.encode(message))
+        await self._write(
+            self.PROTOCOL.encode(
+                message, self.get_mask_key() if self.need_mask else b''
+            )
+        )
 
     def write_sync(self, message: DataType):
         self._write_sync(self.PROTOCOL.encode(message))
@@ -135,6 +140,12 @@ class WebSocket(Stream):
         message = []
 
         for frame in frames:
+
+            if self.initiative and frame.mask:
+                raise ProtocolError('masked server-to-client frame')
+            elif not self.initiative and not frame.mask:
+                raise ProtocolError('unmasked client-to-server frame')
+
             f_opcode = frame.opcode
             if f_opcode in (Frame.OPCODE_TEXT, Frame.OPCODE_BINARY):
                 # a new frame
@@ -179,9 +190,23 @@ class WebSocket(Stream):
         else:
             return message
 
+    def get_mask_key(self):
+        return urandom(4)
+
     @staticmethod
     def cleanup(self, exc=None):
         del self.__read_buffer
+
+    @property
+    def need_mask(self):
+        '''All frames sent from the client to the server are masked by a 32-bit
+        value that is contained within the frame.
+
+        https://tools.ietf.org/html/rfc6455#section-5.3
+
+        :NOTE: These rules might be relaxed in a future specification.
+        '''
+        return self.initiative and self.REQUIRE_MASK_CLIENT_FRAMES
 
     def _data_received(self, data: DataType):
         self.__read_buffer.seek(0, 2)
@@ -201,15 +226,16 @@ class WebSocket(Stream):
             buf.seek(used_size, 0)
             self.__read_buffer = BytesIO()
             self.__read_buffer.write(buf.read())
-            if data := self.handle_frames(frames):
+            data = self.handle_frames(frames)
+            if data:
                 self.data_received(data)
 
     def _parse_upgrade_request(self) -> bool:
         buf = self.__read_buffer
         buf.seek(0, 0)
 
-        if resp := self.PROTOCOL.parse_request(buf):
-            self._write_sync(resp)
+        resp = self.PROTOCOL.parse_request(buf)
+        self._write_sync(resp)
 
         self.mark_ready()
         self.__read_buffer = BytesIO()
@@ -231,6 +257,12 @@ class WebSocket(Stream):
     def _start_handshake(self):
         self.logger.debug(f'{self.id} start handshake')
         key = self.secret_key = b64encode(urandom(16)).strip()
+        if isinstance(self.peername, str):
+            host = self.peername.encode('utf-8')
+        else:
+            host = ('%s:%d' % self.peername).encode('utf-8')
         self._write_sync(
-            self.PROTOCOL.build_request(self.resource, key, **self.ws_kwargs)
+            self.PROTOCOL.build_request(
+                host, self.resource, key, **self.ws_kwargs
+            )
         )
