@@ -8,5 +8,8 @@ message Message {
 }
 
 service EchoService {
-    rpc Echo(Message) returns (Message);
-}
+    rpc UnaryUnaryEcho(Message) returns (Message) {};
+    rpc UnaryStreamEcho(Message) returns (stream Message) {};
+    rpc StreamUnaryEcho(stream Message) returns (Message) {};
+    rpc StreamStreamEcho(stream Message) returns (stream Message) {};
+};

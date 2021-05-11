@@ -3,7 +3,25 @@ goog.require('proto.echo.Message');
     (global['pbrpc'] = global['pbrpc'] || {})['EchoService'] = {
         name: 'echo.EchoService',
 
-        Echo: {
+        UnaryUnaryEcho: {
+            input_type: proto.echo.Message,
+            output_type: proto.echo.Message,
+        },
+
+
+        UnaryStreamEcho: {
+            input_type: proto.echo.Message,
+            output_type: proto.echo.Message,
+        },
+
+
+        StreamUnaryEcho: {
+            input_type: proto.echo.Message,
+            output_type: proto.echo.Message,
+        },
+
+
+        StreamStreamEcho: {
             input_type: proto.echo.Message,
             output_type: proto.echo.Message,
         },
