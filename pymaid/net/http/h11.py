@@ -1,5 +1,5 @@
 from io import BytesIO
-from typing import List, Tuple
+from queue import deque
 
 import httptools
 
@@ -76,18 +76,39 @@ class Http:
 
     def __init__(self):
         self.headers = CIMultiDict()
-        self.body = BytesIO()
+        self.buffer = BytesIO()
 
-    def append_header(self, name, value):
+    @property
+    def body(self):
+        return self.buffer.getvalue()
+
+    def append_header(self, name: str, value: str):
         '''Add header.
 
-        When handling multiple values for one header, follow the rule metioned
+        When handling multiple values for one header, follow the rule mentioned
         in `Mozilla implementation`_.
 
         .. _Mozilla implementation: https://github.com/bnoordhuis/mozilla-\
             central/blob/master/netwerk/protocol/http/nsHttpHeaderArray.h#L185
         '''
-        assert name and value, f'empty header: name={name} or value={value}'
+
+        # TODO: what to do with `Transfer-Encoding: chunked`
+        if name in self.HEADER_SINGLETON and name in self.headers:
+            return
+            raise ValueError('multiple value for singleton header')
+
+        if name in self.HEADER_MUST_HAVE_VALUE and not value:
+            raise ValueError('header that must have value get empty value')
+
+        # it seems append to multidict will handle this automatically
+        # if name in self.HEADER_MULTIPLE_VALUE_SPECIAL_CASE:
+        #     pass
+
+        # assert name and value, f'empty header: name={name} or value={value}'
+
+        # TODO: empty value means no-op
+        if not value:
+            return
         self.headers.extend([(name, value)])
 
     # def validate_headers(self):
@@ -95,8 +116,8 @@ class Http:
     #     pass
 
     def extend_body(self, body: bytes):
-        self.body.write(body)
-        if self.body.tell() >= settings.pymaid.MAX_BODY_SIZE:
+        self.buffer.write(body)
+        if self.buffer.tell() >= settings.pymaid.MAX_BODY_SIZE:
             raise
 
 
@@ -155,7 +176,8 @@ class Parser:
 
     def __init__(self):
         self.instance = None
-        self.queue = []
+        # TODO: add a max length limitation?
+        self.queue = deque()
         self.parser = self.ParserClass(self)
 
     def handle_parser_exception(self, exc):
@@ -204,7 +226,7 @@ class RequestParser(Parser):
     ParserClass = httptools.HttpRequestParser
     ProtocolClass = HttpRequest
 
-    def feed_data(self, data: bytes) -> Tuple[int, List[HttpRequest]]:
+    def feed_data(self, data: bytes) -> int:
         data = memoryview(data)
         # httptools will consume all data
         used = len(data)
@@ -218,9 +240,7 @@ class RequestParser(Parser):
             used = exc.args[0]
         except httptools.HttpParserError as exc:
             raise exc
-        data = self.queue[:]
-        del self.queue[:]
-        return used, data
+        return used
 
     def on_url(self, url: bytes):
         self.instance.uri = parse_uri(url.decode('utf-8'))
@@ -240,7 +260,7 @@ class ResponseParser(Parser):
     ParserClass = httptools.HttpResponseParser
     ProtocolClass = HttpResponse
 
-    def feed_data(self, data: bytes) -> Tuple[int, List[HttpResponse]]:
+    def feed_data(self, data: bytes) -> int:
         data = memoryview(data)
         # httptools will consume all data
         used = len(data)
@@ -248,9 +268,7 @@ class ResponseParser(Parser):
             self.parser.feed_data(data)
         except httptools.HttpParserError as exc:
             raise exc
-        data = self.queue[:]
-        del self.queue[:]
-        return used, data
+        return used
 
     def on_status(self, status: bytes):
         self.instance.status = status.decode('utf-8')
