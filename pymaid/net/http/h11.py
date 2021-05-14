@@ -7,6 +7,8 @@ from multidict import CIMultiDict
 from pymaid.conf import settings
 from pymaid.net.utils.uri import parse_uri
 
+from .error import HttpError
+
 
 CRITICAL_ERROR_TEXT = '''HTTP/1.0 500 INTERNAL SERVER ERROR
 Server: pymaid
@@ -78,6 +80,11 @@ class Http:
         self.headers = CIMultiDict()
         self.buffer = BytesIO()
 
+        self.http_version = ''
+        self.should_upgrade = False
+        self.should_keep_alive = False
+        self.chunked = False
+
     @property
     def body(self):
         return self.buffer.getvalue()
@@ -95,10 +102,20 @@ class Http:
         # TODO: what to do with `Transfer-Encoding: chunked`
         if name in self.HEADER_SINGLETON and name in self.headers:
             return
-            raise ValueError('multiple value for singleton header')
+            raise HttpError.BadRequest(
+                _message_='multiple value for singleton header',
+                data={
+                    'name': name,
+                    'value': value,
+                    'in_header': self.headers.getall(name),
+                },
+            )
 
         if name in self.HEADER_MUST_HAVE_VALUE and not value:
-            raise ValueError('header that must have value get empty value')
+            raise HttpError.BadRequest(
+                _message_='header that must have value get empty value',
+                data={'name': name},
+            )
 
         # it seems append to multidict will handle this automatically
         # if name in self.HEADER_MULTIPLE_VALUE_SPECIAL_CASE:
@@ -127,9 +144,6 @@ class HttpRequest(Http):
         super().__init__()
         self.uri = ''
         self.method = ''
-        self.http_version = ''
-        self.should_upgrade = False
-        self.should_keep_alive = False
 
 
 class HttpResponse(Http):
@@ -180,6 +194,22 @@ class Parser:
         self.queue = deque()
         self.parser = self.ParserClass(self)
 
+    def feed_data(self, data: bytes) -> int:
+        data = memoryview(data)
+        # httptools will consume all data
+        used = len(data)
+        try:
+            self.parser.feed_data(data)
+        except httptools.HttpParserUpgrade as exc:
+            # do nothing about HttpParserUpgrade
+            # just return a complete instance for upper level to handle
+
+            # the first args is the offset of used data
+            used = exc.args[0]
+        except httptools.HttpParserError as exc:
+            raise exc
+        return used
+
     def handle_parser_exception(self, exc):
         '''Default exception handler.
 
@@ -200,10 +230,19 @@ class Parser:
         '''
         self.instance.append_header(name.decode(), value.decode())
 
+    def on_chunk_header(self):
+        self.instance.chunked = True
+
     def on_headers_complete(self):
         '''Called when the headers have been completely sent.'''
-        # self.instance.validate_headers()
-        self.instance.http_version = self.parser.get_http_version()
+        instance = self.instance
+        parser = self.parser
+
+        # instance.validate_headers()
+
+        instance.http_version = parser.get_http_version()
+        instance.should_upgrade = parser.should_upgrade()
+        instance.keep_alive = parser.should_keep_alive()
 
     def on_body(self, body: bytes):
         '''Called when part of the body has been received.
@@ -226,49 +265,18 @@ class RequestParser(Parser):
     ParserClass = httptools.HttpRequestParser
     ProtocolClass = HttpRequest
 
-    def feed_data(self, data: bytes) -> int:
-        data = memoryview(data)
-        # httptools will consume all data
-        used = len(data)
-        try:
-            self.parser.feed_data(data)
-        except httptools.HttpParserUpgrade as exc:
-            # do nothing about HttpParserUpgrade
-            # just return a complete instance for upper level to handle
-
-            # the first args is the offset of used data
-            used = exc.args[0]
-        except httptools.HttpParserError as exc:
-            raise exc
-        return used
-
     def on_url(self, url: bytes):
         self.instance.uri = parse_uri(url.decode('utf-8'))
 
     def on_headers_complete(self):
         super().on_headers_complete()
-        instance = self.instance
-        parser = self.parser
-
-        instance.method = parser.get_method().decode('utf-8')
-        instance.should_upgrade = parser.should_upgrade()
-        instance.keep_alive = parser.should_keep_alive()
+        self.instance.method = self.parser.get_method().decode('utf-8')
 
 
 class ResponseParser(Parser):
 
     ParserClass = httptools.HttpResponseParser
     ProtocolClass = HttpResponse
-
-    def feed_data(self, data: bytes) -> int:
-        data = memoryview(data)
-        # httptools will consume all data
-        used = len(data)
-        try:
-            self.parser.feed_data(data)
-        except httptools.HttpParserError as exc:
-            raise exc
-        return used
 
     def on_status(self, status: bytes):
         self.instance.status = status.decode('utf-8')

@@ -20,6 +20,13 @@ Transfer-Encoding: chunked
 
 b\r\n+\xce\xcfM\xb5MI,I\x04\x00\r\n0\r\n\r\n'''
 
+CHUNKED_REQUEST1_4 = b'''POST /test.php?a=b+c HTTP/1.2
+User-Agent: Fooo
+Host: bar
+Transfer-Encoding: gzip, chunked
+
+5\r\nhello\r\n6\r\n world\r\n'''
+
 
 RESPONSE1_HEAD = b'''HTTP/1.1 200 OK
 Date: Mon, 23 May 2005 22:38:34 GMT
