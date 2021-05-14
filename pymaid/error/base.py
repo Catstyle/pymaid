@@ -10,8 +10,13 @@ class BaseEx(Exception):
     message = 'BaseEx'
 
     def __init__(self, *args, **kwargs):
+        if '_message_' in kwargs:
+            message = kwargs.pop('_message_')
+        else:
+            message = self.message
         if args or kwargs:
-            self.message = self.message.format(*args, **kwargs)
+            message = message.format(*args, **kwargs)
+        self.message = message
         self.data = kwargs.get('data', {})
 
 
@@ -62,7 +67,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
         setattr(cls, name, manager)
 
     @classmethod
-    def add_error(cls, name, message):
+    def add_error(cls, name, message, *, code=None):
         frame = getframe(1)  # get caller frame
         if cls.__fullname__:
             fullname = f'{cls.__fullname__}.{name}'
@@ -71,7 +76,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
         error = type(
             name, (Error, cls),
             {
-                'code': fullname,
+                'code': code if code is not None else fullname,
                 'message': message,
                 '__module__': frame.f_locals.get('__name__', ''),
                 '__fullname__': fullname,
@@ -82,7 +87,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
         return error
 
     @classmethod
-    def add_warning(cls, name, message):
+    def add_warning(cls, name, message, *, code=None):
         frame = getframe(1)  # get caller frame
         if cls.__fullname__:
             fullname = f'{cls.__fullname__}.{name}'
@@ -92,7 +97,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
             name,
             (Warning, cls),
             {
-                'code': fullname,
+                'code': code if code is not None else fullname,
                 'message': message,
                 '__module__': frame.f_locals.get('__name__', ''),
                 '__fullname__': fullname,
