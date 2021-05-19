@@ -3,13 +3,12 @@ import os
 from base64 import b64encode
 from hashlib import sha1
 
-import pytest
-
 from pymaid.net.ws.protocol import WSProtocol
 
+from tests.common import ws_data
 
-@pytest.mark.asyncio
-async def test_build_request_handshake():
+
+def test_build_request_handshake():
     key = b64encode(os.urandom(16)).strip()
     req = WSProtocol.build_request(b'pymaid.test', b'/', key)
     assert req == (
@@ -35,8 +34,7 @@ async def test_build_request_handshake():
     ) % (key,)
 
 
-@pytest.mark.asyncio
-async def test_build_request_handshake_error():
+def test_build_request_handshake_error():
     key = b64encode(os.urandom(16)).strip()
     req = WSProtocol.build_request(b'', b'/', key)
     assert req == (
@@ -62,8 +60,7 @@ async def test_build_request_handshake_error():
     ) % (key,)
 
 
-@pytest.mark.asyncio
-async def test_build_response_handshake():
+def test_build_response_handshake():
     key = b64encode(os.urandom(16)).strip()
     resp = WSProtocol.build_response({
         b'Upgrade': b'WebSocket',
@@ -91,3 +88,55 @@ async def test_build_response_handshake():
         b'Sec-WebSocket-Version: 13\r\n'
         b'Origin: pymaid.test\r\n\r\n'
     ) % (key,)
+
+
+def test_binary_data_frame():
+    consumed, frames = WSProtocol.feed_data(ws_data.BINARY_DATA_1024_MASKED)
+    assert consumed == len(ws_data.BINARY_DATA_1024_MASKED)
+    assert len(frames) == 1
+
+    frame = frames[0]
+    assert frame.opcode == frame.OPCODE_BINARY
+    assert frame.fin
+    assert not frame.flags
+    assert frame.mask == b'\xc3\xa8u`'
+    assert frame.length == 1024
+    assert frame.payload == b'a' * 1024
+
+    consumed, frames = WSProtocol.feed_data(ws_data.BINARY_DATA_1024_UNMASKED)
+    assert consumed == len(ws_data.BINARY_DATA_1024_UNMASKED)
+    assert len(frames) == 1
+
+    frame = frames[0]
+    assert frame.opcode == frame.OPCODE_BINARY
+    assert frame.fin
+    assert not frame.flags
+    assert frame.mask == b''
+    assert frame.length == 1024
+    assert frame.payload == b'a' * 1024
+
+
+def test_text_data_frame():
+    consumed, frames = WSProtocol.feed_data(ws_data.TEXT_DATA_1024_MASKED)
+    assert consumed == len(ws_data.TEXT_DATA_1024_MASKED)
+    assert len(frames) == 1
+
+    frame = frames[0]
+    assert frame.opcode == frame.OPCODE_TEXT
+    assert frame.fin
+    assert not frame.flags
+    assert frame.mask == b'\xc3\xa8u`'
+    assert frame.length == 1024
+    assert frame.payload == b'a' * 1024
+
+    consumed, frames = WSProtocol.feed_data(ws_data.TEXT_DATA_1024_UNMASKED)
+    assert consumed == len(ws_data.TEXT_DATA_1024_UNMASKED)
+    assert len(frames) == 1
+
+    frame = frames[0]
+    assert frame.opcode == frame.OPCODE_TEXT
+    assert frame.fin
+    assert not frame.flags
+    assert frame.mask == b''
+    assert frame.length == 1024
+    assert frame.payload == b'a' * 1024

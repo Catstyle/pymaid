@@ -1,7 +1,6 @@
 from base64 import b64encode
 from io import BytesIO
 from os import urandom
-from socket import error as socket_error
 
 from pymaid.core import Event
 from pymaid.net.stream import Stream
@@ -9,7 +8,7 @@ from pymaid.types import DataType
 from pymaid.utils.logger import logger_wrapper
 
 from .exceptions import ProtocolError
-from .protocol import WSProtocol, Frame, unpack_H
+from .protocol import WSProtocol, Frame, CloseReason
 from .utf8validator import Utf8Validator
 
 
@@ -47,7 +46,6 @@ class WebSocket(Stream):
         self.conn_made_event = Event()
         self.resource = resource.encode('utf-8')
         self.ws_kwargs = kwargs
-        self.utf8validator = Utf8Validator()
         self.__read_buffer = BytesIO()
         if self.initiative:
             self._start_handshake()
@@ -55,6 +53,10 @@ class WebSocket(Stream):
         else:
             self._parse = self._parse_upgrade_request
         self.on_close.append(self.cleanup)
+
+        self.current_opcode = None
+        self.current_message = []
+        self.utf8validator = Utf8Validator()
 
     async def write(self, message: DataType):
         '''Send a frame over the websocket with message as its payload.'''
@@ -65,22 +67,11 @@ class WebSocket(Stream):
         )
 
     def write_sync(self, message: DataType):
-        self._write_sync(self.PROTOCOL.encode(message))
-
-    async def recv(self):
-        '''Read and return a message from the stream.
-
-        If `None` is returned, then the socket is considered closed/errored.
-        '''
-
-        try:
-            return self.read_message()
-        except UnicodeError:
-            self.close(1007)
-        except ProtocolError:
-            self.close(1002)
-        except socket_error:
-            self.close()
+        self._write_sync(
+            self.PROTOCOL.encode(
+                message, self.get_mask_key() if self.need_mask else b''
+            )
+        )
 
     def mark_ready(self):
         # we are finished upgrade handshake
@@ -88,109 +79,25 @@ class WebSocket(Stream):
         self.conn_made_event.set()
         self._parse = self._parse_frames
 
-    def handle_close(self, frame):
+    def handle_close(self, frame: Frame):
         '''Called when a close frame has been decoded from the stream.
 
         :param frame: The decoded `Frame`.
-        :param payload: The bytestring payload associated with the close frame.
         '''
-        payload = frame.payload
-        if not payload:
-            self._write_sync(
-                self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, '')
-            )
-            self.close(1000)
-            return
-
-        if len(payload) < 2:
-            raise ProtocolError(f'Invalid close frame: {frame} {payload}')
-
-        status_code = payload[:2]
-        payload = payload[2:]
-
-        if payload:
-            val = self.utf8validator.validate(payload)
-            if not val[0]:
-                raise UnicodeError
-
-        code = unpack_H(status_code)[0]
-        if (code < 1000 or 1004 <= code <= 1006 or 1012 <= code <= 1016
-                or code == 1100 or 2000 <= code <= 2999):
-            raise ProtocolError(f'Invalid close code {code}')
         self._write_sync(
-            self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, status_code),
+            self.PROTOCOL.encode_frame(Frame.OPCODE_CLOSE, frame.payload),
         )
-        self.close(code)
+        self.close(frame.close_reason)
 
-    def handle_ping(self, frame):
+    def handle_ping(self, frame: Frame):
         self._write_sync(
             self.PROTOCOL.encode_frame(Frame.OPCODE_PONG, frame.payload)
         )
 
-    def handle_pong(self, frame):
+    def handle_pong(self, frame: Frame):
         pass
 
-    def handle_frames(self, frames) -> bytes:
-        '''Return the next text or binary message from the socket.
-
-        This is an internal method as calling this will not cleanup correctly
-        if an exception is called. Use :meth:`recv` instead.
-        '''
-        opcode = None
-        message = []
-
-        for frame in frames:
-
-            if self.initiative and frame.mask:
-                raise ProtocolError('masked server-to-client frame')
-            elif not self.initiative and not frame.mask:
-                raise ProtocolError('unmasked client-to-server frame')
-
-            f_opcode = frame.opcode
-            if f_opcode in (Frame.OPCODE_TEXT, Frame.OPCODE_BINARY):
-                # a new frame
-                if opcode:
-                    raise ProtocolError(
-                        f'The opcode in non-fin frame is expected to be zero, '
-                        f'got {f_opcode}'
-                    )
-
-                # Start reading a new message, reset the validator
-                self.utf8validator.reset()
-                opcode = f_opcode
-            elif f_opcode == Frame.OPCODE_CONTINUATION:
-                if not opcode:
-                    raise ProtocolError('Unexpected frame with opcode=0')
-            elif f_opcode == Frame.OPCODE_PING:
-                self.handle_ping(frame)
-                continue
-            elif f_opcode == Frame.OPCODE_PONG:
-                self.handle_pong(frame)
-                continue
-            elif f_opcode == Frame.OPCODE_CLOSE:
-                self.handle_close(frame)
-                return
-            else:
-                raise ProtocolError(f'Unexpected opcode={f_opcode}')
-
-            if frame.fin:
-                opcode = None
-
-            message.append(frame.payload)
-        message = b''.join(message)
-
-        if opcode == Frame.OPCODE_TEXT:
-            stat = self.utf8validator.validate(message)
-            if not stat[0]:
-                raise UnicodeError(
-                    f'Encountered invalid UTF-8 while processing '
-                    f'text message at payload octet index {stat[3]}'
-                )
-            return message
-        else:
-            return message
-
-    def get_mask_key(self):
+    def get_mask_key(self) -> bytes:
         return urandom(4)
 
     @staticmethod
@@ -221,14 +128,97 @@ class WebSocket(Stream):
         buf = self.__read_buffer
         buf.seek(0, 0)
 
-        used_size, frames = self.PROTOCOL.feed_data(buf)
+        mbuf = buf.getbuffer()
+        try:
+            used_size, frames = self.PROTOCOL.feed_data(mbuf)
+        finally:
+            mbuf.release()
         if frames:
             buf.seek(used_size, 0)
             self.__read_buffer = BytesIO()
             self.__read_buffer.write(buf.read())
-            data = self.handle_frames(frames)
-            if data:
-                self.data_received(data)
+            try:
+                self._handle_frames(frames)
+            except ProtocolError as ex:
+                self._write_sync(
+                    self.PROTOCOL.encode_frame(
+                        Frame.OPCODE_CLOSE,
+                        ex.payload,
+                        self.get_mask_key() if self.need_mask else b''
+                    )
+                )
+                self.close(ex.reason)
+
+    def _handle_frames(self, frames) -> bytes:
+        opcode = self.current_opcode
+        message = self.current_message
+        data_received = self.data_received
+
+        for frame in frames:
+
+            if isinstance(frame, ProtocolError):
+                raise frame
+
+            if self.initiative and frame.mask:
+                raise ProtocolError('masked server-to-client frame')
+            elif not self.initiative and not frame.mask:
+                raise ProtocolError('unmasked client-to-server frame')
+
+            f_opcode = frame.opcode
+            if f_opcode == Frame.OPCODE_TEXT:
+                # a new frame
+                if opcode:
+                    raise ProtocolError(
+                        f'The opcode in non-fin frame is expected to be zero, '
+                        f'got {f_opcode}'
+                    )
+                opcode = f_opcode
+                # Start reading a new message, reset the validator
+                self.utf8validator.reset()
+            elif f_opcode == Frame.OPCODE_BINARY:
+                # a new frame
+                if opcode:
+                    raise ProtocolError(
+                        f'The opcode in non-fin frame is expected to be zero, '
+                        f'got {f_opcode}'
+                    )
+                opcode = f_opcode
+            elif f_opcode == Frame.OPCODE_CONTINUATION:
+                if not opcode:
+                    raise ProtocolError('Unexpected frame with opcode=0')
+            elif f_opcode == Frame.OPCODE_PING:
+                self.handle_ping(frame)
+                continue
+            elif f_opcode == Frame.OPCODE_PONG:
+                self.handle_pong(frame)
+                continue
+            elif f_opcode == Frame.OPCODE_CLOSE:
+                self.handle_close(frame)
+                return
+            else:
+                raise ProtocolError(f'Unexpected opcode={f_opcode}')
+
+            if opcode == Frame.OPCODE_TEXT:
+                # payload may be empty or one byte
+                # making pyaload not a valid code point
+                # need to used utf8validator instead
+                resp = self.utf8validator.validate(frame.payload)
+                if not resp[0]:
+                    raise ProtocolError(
+                        'Invalid UTF-8 payload',
+                        CloseReason.INVALID_FRAME_PAYLOAD_DATA,
+                    )
+            message.append(frame.payload)
+
+            if frame.fin:
+                if opcode == Frame.OPCODE_TEXT:
+                    data_received(b''.join(message).decode('utf-8'))
+                else:
+                    data_received(b''.join(message))
+                opcode = None
+                del message[:]
+
+        self.current_opcode = opcode
 
     def _parse_upgrade_request(self) -> bool:
         buf = self.__read_buffer

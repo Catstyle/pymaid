@@ -16,20 +16,23 @@ class EchoStream(pymaid.net.ws.WebSocket):
         self.data_size += len(data)
 
 
-async def wrapper(address, count):
+async def wrapper(address, count, msize):
     stream = await pymaid.net.dial_stream(address, transport_class=EchoStream)
 
+    msg = b'a' * msize
     for _ in range(count):
-        await stream.write(b'a' * 8000)
+        await stream.write(msg)
     stream.shutdown()
     await stream.wait_closed()
-    assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)
+    assert stream.data_size == msize * count, (stream.data_size, msize * count)
 
 
 async def main(args):
     tasks = []
     for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(wrapper(args.address, args.request)))
+        tasks.append(
+            pymaid.create_task(wrapper(args.address, args.request, args.msize))
+        )
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)
