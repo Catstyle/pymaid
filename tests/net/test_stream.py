@@ -48,7 +48,7 @@ async def test_stream_unix():
     sock1, sock2 = socket.socketpair(socket.AF_UNIX.value)
     s1, s2 = _TestStream(sock1), _TestStream(sock2)
     await s1.write(b'from pymaid')
-    await sleep(0)
+    await sleep(0.001)
     assert s2.received_data == b'from pymaid'
     s1.close()
     s2.close()

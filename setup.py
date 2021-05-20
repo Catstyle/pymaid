@@ -35,6 +35,10 @@ if __name__ == '__main__':
         author="Catstyle",
         author_email="Catstyle.Lee@gmail.com",
         url="https://github.com/catstyle/pymaid",
+        project_urls={
+            'Source': 'https://github.com/catstyle/pymaid/',
+            'Tracker': "https://github.com/catstyle/pymaid/issues",
+        },
         version=__version__,
         license="GPLv3",
 
@@ -64,10 +68,11 @@ if __name__ == '__main__':
         ],
         python_requires='>=3.7',
 
-        packages=find_packages(),
+        packages=find_packages(include=['pymaid', 'pymaid.*']),
         package_data={
             '': ['*.proto'],
         },
+        data_files=[('', ['requirements.txt', 'requirements-dev.txt'])],
         install_requires=requirements,
         tests_require=dev_requirements,
         extras_require={

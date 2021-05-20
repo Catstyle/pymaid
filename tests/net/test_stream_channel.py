@@ -97,7 +97,7 @@ async def test_stream_channel_unix():
     # remove below one sleep will fail
     # seems like connection_made/data_received only run one
     # but why INET/INET6 does not has this issue?
-    await sleep(0)
+    await sleep(0.001)
     await stream.write(b'from pymaid')
 
     assert server.connected_stream

@@ -1,4 +1,4 @@
-protobuf==3.16.0
+protobuf==3.17.0
 orjson==3.5.2
 wsaccel==0.6.3
 uvloop==0.15.2
