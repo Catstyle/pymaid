@@ -2,6 +2,16 @@
 
 PYTHON ?= python
 
+UNAME := $(shell uname)
+UNAME_M := $(shell uname -m)
+OPTS :=
+ifeq ($(UNAME),Darwin)
+	OPTS += --plat-name macosx_10_9_$(UNAME_M)
+endif
+ifeq ($(UNAME),Linux)
+	OPTS += --plat-name manylinux1_$(UNAME_M)
+endif
+
 _default: compile
 
 clean:
@@ -25,7 +35,7 @@ release_sdist:
 
 release_wheel:
 	$(PYTHON) -m pip install -U pip wheel
-	$(PYTHON) setup.py bdist_wheel --plat-name manylinux_2_5_x86_64
+	$(PYTHON) setup.py bdist_wheel $(OPTS)
 
 upload:
 	twine upload dist/*
