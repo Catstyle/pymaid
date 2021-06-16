@@ -3,6 +3,7 @@
 .. _websockets: https://github.com/aaugustin/websockets/blob/main/src/websockets/uri.py  # noqa
 '''
 from dataclasses import dataclass
+from os.path import isdir
 from typing import Optional, Tuple
 from urllib.parse import quote, urlsplit
 
@@ -16,7 +17,7 @@ class URI:
 
     :param str scheme: scheme
     :param str host: lower-case host
-    :param int port: None for `file`,
+    :param int port: 0 for `unix` scheme,
         otherwise always set even if it's the default
     :param str path: path, `/` for default
     :param str query: optional query
@@ -24,23 +25,20 @@ class URI:
     :param bool secure: secure flag
     :param str user_info: ``(username, password)`` tuple when the URI contains
         `User Information`_, else ``None``.
-
-    :param str low_scheme: scheme that used in lower layer, current support
-        only ``file`` scheme.
+    :param str address: a combination of host:port for convenience
 
     .. _User Information: https://tools.ietf.org/html/rfc3986#section-3.2.1
     '''
 
     scheme: str
     host: str
-    port: Optional[int]
+    port: int
     path: str
     query: str
     fragment: str
     secure: bool
     user_info: Optional[Tuple[str, str]]
-
-    low_scheme: Optional[str]
+    address: str
 
 
 def parse_uri(uri: str) -> URI:
@@ -49,19 +47,15 @@ def parse_uri(uri: str) -> URI:
     :raises ValueError: if ``uri`` is not a valid URI.
     '''
     parsed = urlsplit(uri)
-
-    low_scheme = None
     scheme = parsed.scheme
-    if '+' in scheme:
-        assert scheme.count('+') == 1, 'not support multi `+` now'
-        low_scheme, scheme = scheme.split('+')
-        if low_scheme != 'file':
-            raise ValueError('low_scheme now only support `file`')
 
-    if scheme not in {'http', 'https', 'ws', 'wss', 'file', ''}:
+    # NOTE:
+    #  unix/tcp/udp are layer 4 protocols
+    # http/https/ws/wss are layer 7 protocols
+    if scheme not in {'unix', 'tcp', 'udp', 'http', 'https', 'ws', 'wss', ''}:
         raise ValueError(
-            'only {http, https, ws, wss, file} scheme support now, '
-            f'got {uri!r}, {scheme!r}'
+            'only {http, https, ws, wss, unix} scheme support now, '
+            f'got uri={uri!r}, scheme={scheme!r}'
         )
 
     secure = scheme in {'https', 'wss'}
@@ -70,19 +64,24 @@ def parse_uri(uri: str) -> URI:
     query = parsed.query
     fragment = parsed.fragment
 
-    if 'file' in {low_scheme, scheme}:
-        port = None
+    if 'unix' == scheme:
+        port = 0
         # when using unix domain socket, assume path is the address
         if host:
             raise ValueError(
-                '`file` scheme should not has host, '
-                'e.g. file:///absolute/path/to/sock'
+                f'`unix` scheme should not has host, '
+                'e.g. unix:///absolute/path/to/sock; '
+                f'got uri={uri!r} parsed={parsed!r}'
             )
-        if not path:
+        if not path or isdir(path):
             raise ValueError(
-                '`file` scheme should be with absolute path, ',
-                'e.g. file:///absolute/path/to/sock'
+                '`unix` scheme should be with absolute path, '
+                'e.g. unix:///absolute/path/to/sock; '
+                f'got uri={uri!r} parsed={parsed!r}'
             )
+        # used absolute path as host for unix scheme
+        host = path
+        path = '/'
     else:
         port = parsed.port or (443 if secure else 80)
 
@@ -119,5 +118,5 @@ def parse_uri(uri: str) -> URI:
         fragment,
         secure,
         user_info,
-        low_scheme,
+        f'{host}:{port}',
     )

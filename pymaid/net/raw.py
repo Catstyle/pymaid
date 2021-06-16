@@ -3,38 +3,98 @@
 Mostly inspired from standard lib `asyncio`.
 '''
 
-import os
+import re
 import socket
 
 from errno import ENOTCONN, ECONNABORTED
-from typing import List, Tuple, Union
+from typing import List
 
 from pymaid.core import get_running_loop, run_in_threadpool
 
 HAS_IPv6_FAMILY = hasattr(socket, 'AF_INET6')
 HAS_IPv6_PROTOCOL = hasattr(socket, 'IPPROTO_IPV6')
 
+HAS_UNIX_FAMILY = hasattr(socket, 'AF_UNIX')
 
-async def sock_connect(address: Union[Tuple[str, int], str]) -> socket.socket:
-    if isinstance(address, str):
-        infos = [(socket.AF_UNIX, socket.SOCK_STREAM, 0, '', address)]
+STREAM_OPTS = {
+    'tcp': (socket.AF_UNSPEC, socket.SOCK_STREAM),
+    'tcp4': (socket.AF_INET, socket.SOCK_STREAM),
+    'tcp6': (socket.AF_INET6, socket.SOCK_STREAM),
+    'unix': (socket.AF_UNIX, socket.SOCK_STREAM),
+}
+
+DATAGRAM_OPTS = {
+    'udp': (socket.AF_UNSPEC, socket.SOCK_DGRAM),
+    'udp4': (socket.AF_INET, socket.SOCK_DGRAM),
+    'udp6': (socket.AF_INET6, socket.SOCK_DGRAM),
+    'unix': (socket.AF_UNIX, socket.SOCK_DGRAM),
+}
+
+NET_OPTS = {
+    **STREAM_OPTS,
+    **DATAGRAM_OPTS,
+    'any': (socket.AF_UNSPEC, 0),
+    'unix': (socket.AF_UNIX, 0),
+}
+
+ADDRESS_REGEX = re.compile(r'([\w\.]+):?(\w*)|\[([\w:]+)\]:?(\w*)')
+
+
+async def getaddrinfo(
+    address: str,
+    family: socket.AddressFamily,
+    socket_kind: socket.SocketKind,
+    flags: int = 0,
+):
+    if address.startswith('/'):
+        if family not in {socket.AF_UNIX, socket.AF_UNSPEC}:
+            raise ValueError(
+                'address starts with `/` should be unix family, '
+                f'got address={address} family={family}'
+            )
+        if socket_kind == 0:
+            infos = [
+                (socket.AF_UNIX, socket.SOCK_STREAM, 0, '', address),
+                (socket.AF_UNIX, socket.SOCK_DGRAM, 0, '', address),
+            ]
+        else:
+            infos = [(socket.AF_UNIX, socket_kind, 0, '', address)]
     else:
-        host, port = address
+        match = ADDRESS_REGEX.match(address)
+        if not match:
+            raise ValueError(f'invalid address: {address}')
+        host, port = (g for g in match.groups() if g)
         infos = await run_in_threadpool(
-            socket.getaddrinfo, args=(host, port, 0, socket.SOCK_STREAM),
+            socket.getaddrinfo,
+            args=(host, port, family, socket_kind),
+            kwargs={'flags': flags},
         )
+        infos = list(set(infos))
+    return infos
+
+
+async def sock_connect(
+    net: str,
+    address: str,
+    flags: int = 0,
+) -> socket.socket:
     loop = get_running_loop()
     err = None
-    for res in infos:
-        af, socktype, proto, canonname, sa = res
-        sock = None
+    if net not in STREAM_OPTS:
+        raise ValueError(f'only support {STREAM_OPTS.keys()} now, got {net}')
+    family, socket_kind = STREAM_OPTS[net]
+    addr_infos = await getaddrinfo(address, family, socket_kind, flags)
+    for addr_info in addr_infos:
         retried = False
+        af, kind, proto, canonname, sa = addr_info
+        sock = None
         while 1:
             try:
-                sock = socket.socket(af, socktype, proto)
+                sock = socket.socket(af, kind, proto)
                 sock.setblocking(False)
                 await loop.sock_connect(sock, sa)
-                if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
+                if (sock.type == socket.SOCK_STREAM
+                        and sock.family != socket.AF_UNIX):
                     sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
                     sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                 # NOTE:
@@ -66,8 +126,8 @@ async def sock_connect(address: Union[Tuple[str, int], str]) -> socket.socket:
 
 
 async def sock_listen(
-    address: Union[Tuple[str, int], str],
-    family: socket.AddressFamily = socket.AF_UNSPEC,
+    net: str,
+    address: str,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
     backlog: int = 128,
     reuse_address: bool = True,
@@ -88,30 +148,22 @@ async def sock_listen(
 
     :returns: `socket.socket` objects that listening on `address`.
     '''
-    sockets = []
+    if net not in STREAM_OPTS:
+        raise ValueError(f'only support {STREAM_OPTS.keys()} now, got {net}')
 
-    if isinstance(address, str):
-        if os.path.exists(address):
-            os.unlink(address)
-        infos = [(socket.AF_UNIX, socket.SOCK_STREAM, 0, '', address)]
-    else:
-        host, port = address
-        infos = await run_in_threadpool(
-            socket.getaddrinfo,
-            args=(host, port, family, socket.SOCK_STREAM),
-            kwargs={'flags': flags},
-        )
-        infos = set(infos)
+    sockets = []
+    family, socket_kind = STREAM_OPTS[net]
+    addr_infos = await getaddrinfo(address, family, socket_kind, flags)
     try:
-        for res in infos:
-            af, socktype, proto, canonname, sa = res
+        for addr_info in addr_infos:
+            af, kind, proto, canonname, sa = addr_info
             try:
-                sock = socket.socket(af, socktype, proto)
+                sock = socket.socket(af, kind, proto)
             except socket.error:
                 # Assume it's a bad family/type/protocol combination.
                 continue
             sock.setblocking(False)
-            if socktype == socket.SOCK_STREAM and af != socket.AF_UNIX:
+            if kind == socket.SOCK_STREAM and af != socket.AF_UNIX:
                 sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
                 sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             if reuse_address:
@@ -128,8 +180,8 @@ async def sock_listen(
             except OSError as err:
                 raise OSError(
                     err.errno,
-                    f'error while binding on address {res}: {err.strerror}, '
-                    f'infos={infos}'
+                    f'error occured while binding on address {addr_info}: '
+                    f'{err.strerror}, addr_infos={addr_infos}'
                 ) from None
             sock.listen(backlog)
             sockets.append(sock)

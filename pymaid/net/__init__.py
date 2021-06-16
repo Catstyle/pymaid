@@ -8,12 +8,12 @@
 - protocol layer
     protocol layer concern about how app data format
     it does not care where the data comes from
-    stream, packet, file, or pipeline are not different
+    stream, packet, unix, or pipeline are not different
 
     you feed it data, and it gives you protocol messages, that's all
 
-    for example: http, protocol buffer, websocket
-    and also has the ability to wrap builtin Protocols
+    for example: http, protocol buffer, websocket and so on,
+    has the ability to wrap builtin Protocols
     like AppProtocol(PBProtocol) or even AppProtocol(PBProtocol(WSProtocol))
 '''
 
@@ -22,7 +22,7 @@ __all__ = ['Protocol', 'Transport', 'Stream', 'Datagram']
 import socket
 import ssl
 
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, List, Optional, Union
 
 
 from .channel import ChannelType, StreamChannel
@@ -31,7 +31,8 @@ from .stream import Stream
 
 
 async def dial_stream(
-    address: Union[Tuple[str, int], str],
+    net: str,
+    address: str,
     *,
     transport_class: Stream = Stream,
     ssl_context: Union[None, bool, 'ssl.SSLContext'] = None,
@@ -55,7 +56,7 @@ async def dial_stream(
 
     :returns: a `Stream` object.
     '''
-    sock = await sock_connect(address)
+    sock = await sock_connect(net, address)
     stream = transport_class(
         sock,
         initiative=True,
@@ -90,12 +91,12 @@ def create_channel(
 
 
 async def serve_stream(
-    address: Union[Tuple[str, int], str],
+    net: str,
+    address: str,
     *,
     name: str = 'StreamChannel',
     channel_class: ChannelType = StreamChannel,
     transport_class: Stream = Stream,
-    family: socket.AddressFamily = socket.AF_UNSPEC,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
     backlog: int = 128,
     reuse_address: bool = True,
@@ -127,8 +128,8 @@ async def serve_stream(
         **kwargs,
     )
     await channel.listen(
+        net,
         address,
-        family=family,
         flags=flags,
         backlog=backlog,
         reuse_address=reuse_address,

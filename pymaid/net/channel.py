@@ -4,7 +4,7 @@ import socket
 import ssl as _ssl
 import sys
 
-from typing import Optional, Tuple, TypeVar, Union
+from typing import Optional, TypeVar, Union
 
 from pymaid.conf import settings
 from pymaid.core import get_running_loop, Event, CancelledError
@@ -54,7 +54,8 @@ class Channel(abc.ABC):
 
     async def listen(
         self,
-        address: Union[Tuple[str, int], str],
+        net: str,
+        address: str,
         *,
         family: socket.AddressFamily = socket.AF_UNSPEC,
         flags: socket.AddressInfo = socket.AI_PASSIVE,
@@ -63,8 +64,8 @@ class Channel(abc.ABC):
         reuse_port: bool = False,
     ):
         listeners = await sock_listen(
+            net,
             address,
-            family=family,
             flags=flags,
             backlog=backlog,
             reuse_address=reuse_address,

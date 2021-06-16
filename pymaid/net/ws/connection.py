@@ -4,6 +4,7 @@ from os import urandom
 
 from pymaid.core import Event
 from pymaid.net.stream import Stream
+from pymaid.net.utils.uri import URI
 from pymaid.types import DataType
 from pymaid.utils.logger import logger_wrapper
 
@@ -26,13 +27,13 @@ class WebSocket(Stream):
     def __init__(
         self,
         sock,
-        resource='/',
         *,
         on_open=None,
         on_close=None,
         initiative=False,
         ssl_context=None,
         ssl_handshake_timeout=None,
+        uri: URI = None,
         **kwargs,
     ):
         super().__init__(
@@ -44,7 +45,12 @@ class WebSocket(Stream):
             ssl_handshake_timeout=ssl_handshake_timeout,
         )
         self.conn_made_event = Event()
-        self.resource = resource.encode('utf-8')
+        self.uri = uri
+        self.resource = ''
+        if initiative:
+            self.resource = uri.path
+            if uri.query:
+                self.resource = f'{uri.path}?{uri.query}'
         self.ws_kwargs = kwargs
         self.__read_buffer = BytesIO()
         if self.initiative:
@@ -247,12 +253,8 @@ class WebSocket(Stream):
     def _start_handshake(self):
         self.logger.debug(f'{self.id} start handshake')
         key = self.secret_key = b64encode(urandom(16)).strip()
-        if isinstance(self.peername, str):
-            host = self.peername.encode('utf-8')
-        else:
-            host = ('%s:%d' % self.peername).encode('utf-8')
         self._write_sync(
             self.PROTOCOL.build_request(
-                host, self.resource, key, **self.ws_kwargs
+                self.uri.host, self.resource, key, **self.ws_kwargs
             )
         )

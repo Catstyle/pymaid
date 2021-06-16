@@ -1,18 +1,22 @@
 from argparse import ArgumentParser
-import re
 
 
 def get_base_parser():
     parser = ArgumentParser()
     parser.add_argument(
-        '--address', type=str, default='/tmp/pymaid.sock',
+        '--address',
+        type=str,
+        default='unix:///tmp/pymaid.sock',
         help='transport address',
     )
     parser.add_argument(
         '--uvloop', action='store_true', default=False, help='use uvloop'
     )
     parser.add_argument(
-        '-v', '--verbose', action='store_true', default=False,
+        '-v',
+        '--verbose',
+        action='store_true',
+        default=False,
         help='print debug info'
     )
     return parser
@@ -43,9 +47,6 @@ def get_client_parser():
 
 def parse_args(parser):
     args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
     print(args)
     if args.uvloop:
         import uvloop

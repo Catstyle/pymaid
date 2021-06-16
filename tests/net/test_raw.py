@@ -5,12 +5,12 @@ import pytest
 
 from pymaid.core import sleep
 from pymaid.net.raw import sock_connect, sock_listen
-from pymaid.net.raw import HAS_IPv6_FAMILY
+from pymaid.net.raw import HAS_IPv6_FAMILY, HAS_UNIX_FAMILY
 
 
 @pytest.mark.asyncio
-async def test_sock_listen_ipv4():
-    sockets = await sock_listen(('localhost', 8990))
+async def test_sock_listen_tcp():
+    sockets = await sock_listen('tcp', 'localhost:8990')
     assert sockets
     for sock in sockets:
         assert sock.family in (socket.AF_INET, socket.AF_INET6)
@@ -18,10 +18,20 @@ async def test_sock_listen_ipv4():
         sock.close()
 
 
+@pytest.mark.asyncio
+async def test_sock_listen_tcp4():
+    sockets = await sock_listen('tcp4', 'localhost:8990')
+    assert sockets
+    for sock in sockets:
+        assert sock.family == socket.AF_INET
+        assert sock.type == socket.SOCK_STREAM
+        sock.close()
+
+
 @pytest.mark.skipif(not HAS_IPv6_FAMILY, reason='does not support ipv6')
 @pytest.mark.asyncio
-async def test_sock_listen_ipv6():
-    sockets = await sock_listen(('::1', 8991))
+async def test_sock_listen_tcp6():
+    sockets = await sock_listen('tcp6', '[::1]:8991')
     assert sockets
     for sock in sockets:
         assert sock.family == socket.AF_INET6
@@ -30,12 +40,11 @@ async def test_sock_listen_ipv6():
 
 
 @pytest.mark.skipif(
-    not getattr(socket, 'AF_UNIX', None),
-    reason='does not support unix domain sock'
+    not HAS_UNIX_FAMILY, reason='does not support unix domain sock'
 )
 @pytest.mark.asyncio
 async def test_sock_listen_unix():
-    sockets = await sock_listen('/tmp/pymaid_test.sock')
+    sockets = await sock_listen('unix', '/tmp/pymaid_test.sock')
     assert sockets
     for sock in sockets:
         assert sock.family == socket.AF_UNIX
@@ -45,15 +54,35 @@ async def test_sock_listen_unix():
 
 
 @pytest.mark.asyncio
-async def test_sock_connect_ipv4():
-    sockets = await sock_listen(('localhost', 8992), socket.AF_INET)
+async def test_sock_connect_tcp():
+    sockets = await sock_listen('tcp', 'localhost:8992')
+    assert sockets
+
+    sock = await sock_connect('tcp', 'localhost:8992')
+    assert sock.family in {socket.AF_INET, socket.AF_INET6}
+    assert sock.getpeername()[:2] in {('127.0.0.1', 8992), ('::1', 8992)}
+
+    for listen_sock in sockets:
+        peer, addr = listen_sock.accept()
+        break
+    sock.send(b'from pymaid')
+    await sleep(0.001)
+    assert peer.recv(1024) == b'from pymaid'
+
+    peer.close()
+    for sock in sockets:
+        sock.close()
+
+
+@pytest.mark.asyncio
+async def test_sock_connect_tcp4():
+    sockets = await sock_listen('tcp4', 'localhost:8994')
     assert sockets
     assert len(sockets) == 1
 
-    sock = await sock_connect(('localhost', 8992))
+    sock = await sock_connect('tcp4', 'localhost:8994')
     assert sock.family == socket.AF_INET
-    # localhost resolved to 127.0.0.1
-    assert sock.getpeername()[:2] == ('127.0.0.1', 8992)
+    assert sock.getpeername()[:2] == ('127.0.0.1', 8994)
 
     for listen_sock in sockets:
         peer, addr = listen_sock.accept()
@@ -69,12 +98,12 @@ async def test_sock_connect_ipv4():
 
 @pytest.mark.skipif(not HAS_IPv6_FAMILY, reason='does not support ipv6')
 @pytest.mark.asyncio
-async def test_sock_connect_ipv6():
-    sockets = await sock_listen(('::1', 8993))
+async def test_sock_connect_tcp6():
+    sockets = await sock_listen('tcp6', '[::1]:8993')
     assert sockets
     assert len(sockets) == 1
 
-    sock = await sock_connect(('::1', 8993))
+    sock = await sock_connect('tcp6', '[::1]:8993')
     assert sock.family == socket.AF_INET6
     assert sock.getpeername()[:2] == ('::1', 8993)
 
@@ -91,18 +120,17 @@ async def test_sock_connect_ipv6():
 
 
 @pytest.mark.skipif(
-    not getattr(socket, 'AF_UNIX', None),
-    reason='does not support unix domain sock'
+    not HAS_UNIX_FAMILY, reason='does not support unix domain sock'
 )
 @pytest.mark.asyncio
-async def test_sock_connect_unix():
-    sockets = await sock_listen('/tmp/pymaid_test_ipv6.sock')
+async def test_sock_connect_unix_stream():
+    sockets = await sock_listen('unix', '/tmp/pymaid_test_connect.sock')
     assert sockets
     assert len(sockets) == 1
 
-    sock = await sock_connect('/tmp/pymaid_test_ipv6.sock')
+    sock = await sock_connect('unix', '/tmp/pymaid_test_connect.sock')
     assert sock.family == socket.AF_UNIX
-    assert sock.getpeername() == '/tmp/pymaid_test_ipv6.sock'
+    assert sock.getpeername() == '/tmp/pymaid_test_connect.sock'
 
     for listen_sock in sockets:
         peer, addr = listen_sock.accept()
@@ -114,4 +142,4 @@ async def test_sock_connect_unix():
     for sock in sockets:
         sock.close()
 
-    os.unlink('/tmp/pymaid_test_ipv6.sock')
+    os.unlink('/tmp/pymaid_test_connect.sock')

@@ -5,16 +5,16 @@ import pytest
 
 from pymaid.core import sleep
 from pymaid.net import dial_stream, serve_stream, create_channel
-from pymaid.net.raw import HAS_IPv6_FAMILY
+from pymaid.net.raw import HAS_IPv6_FAMILY, HAS_UNIX_FAMILY
 
 from tests.common.models import _TestStreamChannel, _TestStream
 
 
 @pytest.mark.asyncio
-async def test_stream_channel_ipv4():
+async def test_stream_channel_tcp4():
     server = await serve_stream(
-        ('localhost', 8890),
-        family=socket.AF_INET,
+        'tcp4',
+        'localhost:8890',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
         start_serving=True,
@@ -22,8 +22,7 @@ async def test_stream_channel_ipv4():
     assert server
 
     stream = await dial_stream(
-        ('localhost', 8890),
-        transport_class=_TestStream,
+        'tcp4', 'localhost:8890', transport_class=_TestStream,
     )
     assert stream.family == socket.AF_INET
     # localhost resolved to 127.0.0.1
@@ -44,9 +43,10 @@ async def test_stream_channel_ipv4():
 
 @pytest.mark.skipif(not HAS_IPv6_FAMILY, reason='does not support ipv6')
 @pytest.mark.asyncio
-async def test_stream_channel_ipv6():
+async def test_stream_channel_tcp6():
     server = await serve_stream(
-        ('::1', 8891),
+        'tcp6',
+        '[::1]:8891',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
         start_serving=True,
@@ -54,7 +54,8 @@ async def test_stream_channel_ipv6():
     assert server
 
     stream = await dial_stream(
-        ('::1', 8891),
+        'tcp6',
+        '[::1]:8891',
         transport_class=_TestStream,
     )
     assert stream.family == socket.AF_INET6
@@ -74,12 +75,13 @@ async def test_stream_channel_ipv6():
 
 
 @pytest.mark.skipif(
-    not getattr(socket, 'AF_UNIX', None),
+    not HAS_UNIX_FAMILY,
     reason='does not support unix domain sock'
 )
 @pytest.mark.asyncio
 async def test_stream_channel_unix():
     server = await serve_stream(
+        'unix',
         '/tmp/pymaid_test_ipv6.sock',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
@@ -88,6 +90,7 @@ async def test_stream_channel_unix():
     assert server
 
     stream = await dial_stream(
+        'unix',
         '/tmp/pymaid_test_ipv6.sock',
         transport_class=_TestStream,
     )
