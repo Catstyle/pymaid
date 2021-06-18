@@ -88,14 +88,10 @@ class SocketTransport(Transport):
         self._sock_fd = sock.fileno()
         self._wrap_sock(self.WRAPPED_ATTRS)
         self._wrap_sock(self.WRAPPED_METHODS)
-        self.set_socket_default_options()
 
         self.peername = sock.getpeername()
         self.sockname = sock.getsockname()
         self._loop.add_reader(self._sock_fd, self._reader)
-
-    def set_socket_default_options(self):
-        pass
 
     def shutdown(self, reason=None):
         self._loop.remove_writer(self._sock_fd)

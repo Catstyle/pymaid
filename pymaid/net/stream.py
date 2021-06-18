@@ -4,7 +4,6 @@ import ssl as _ssl
 
 from typing import Callable, List, Optional, TypeVar
 
-from pymaid.conf import settings
 from pymaid.types import DataType
 
 from .transport import SocketTransport
@@ -48,30 +47,6 @@ class Stream(SocketTransport):
         for target, source in self.WRAP_METHODS.items():
             if not hasattr(self, target):
                 setattr(self, target, getattr(self, source))
-
-    def set_socket_default_options(self):
-        super().set_socket_default_options()
-        sock = self._sock
-        assert sock.type == socket.SOCK_STREAM
-
-        setsockopt = sock.setsockopt
-        getsockopt = sock.getsockopt
-        SOL_SOCKET, SOL_TCP = socket.SOL_SOCKET, socket.SOL_TCP
-
-        if sock.family != socket.AF_UNIX:
-            setsockopt(SOL_TCP, socket.TCP_NODELAY, 1)
-            setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-        ns = settings.namespaces['pymaid']  # should always exists
-        if getsockopt(SOL_SOCKET, socket.SO_SNDBUF) < ns['SO_SNDBUF']:
-            setsockopt(SOL_SOCKET, socket.SO_SNDBUF, ns['SO_SNDBUF'])
-        if getsockopt(SOL_SOCKET, socket.SO_RCVBUF) < ns['SO_RCVBUF']:
-            setsockopt(SOL_SOCKET, socket.SO_RCVBUF, ns['SO_RCVBUF'])
-
-        if sock.family != socket.AF_UNIX and ns['PM_KEEPALIVE']:
-            setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-            # setsockopt(SOL_TCP, socket.TCP_KEEPIDLE, ns['PM_KEEPIDLE'])
-            setsockopt(SOL_TCP, socket.TCP_KEEPINTVL, ns['PM_KEEPINTVL'])
-            setsockopt(SOL_TCP, socket.TCP_KEEPCNT, ns['PM_KEEPCNT'])
 
     async def wait_ready(self):
         '''Wait for connection made event if needed.'''

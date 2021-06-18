@@ -3,6 +3,7 @@
 Mostly inspired from standard lib `asyncio`.
 '''
 
+import os
 import re
 import socket
 
@@ -73,6 +74,15 @@ async def getaddrinfo(
     return infos
 
 
+def set_sock_options(sock: socket.socket):
+    setsockopt = sock.setsockopt
+
+    # stream opts
+    if sock.type == socket.SOCK_STREAM and sock.family != socket.AF_UNIX:
+        setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
+        setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+
+
 async def sock_connect(
     net: str,
     address: str,
@@ -93,10 +103,7 @@ async def sock_connect(
                 sock = socket.socket(af, kind, proto)
                 sock.setblocking(False)
                 await loop.sock_connect(sock, sa)
-                if (sock.type == socket.SOCK_STREAM
-                        and sock.family != socket.AF_UNIX):
-                    sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-                    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                set_sock_options(sock)
                 # NOTE:
                 # when doing a lots connect to remote side under heavy pressure
                 # it would sometimes getting ENOTCONN when call getpeername
@@ -163,9 +170,7 @@ async def sock_listen(
                 # Assume it's a bad family/type/protocol combination.
                 continue
             sock.setblocking(False)
-            if kind == socket.SOCK_STREAM and af != socket.AF_UNIX:
-                sock.setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            set_sock_options(sock)
             if reuse_address:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
             if reuse_port:
@@ -175,6 +180,9 @@ async def sock_listen(
             # listen on both address families.
             if HAS_IPv6_FAMILY and HAS_IPv6_PROTOCOL and af == socket.AF_INET6:
                 sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, True)
+
+            if af == socket.AF_UNIX and os.path.exists(sa):
+                os.unlink(sa)
             try:
                 sock.bind(sa)
             except OSError as err:
