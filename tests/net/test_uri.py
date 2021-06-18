@@ -99,7 +99,7 @@ def test_unix_uri():
 
     assert uri.scheme == 'unix'
     assert uri.host == '/path/to/file'
-    assert uri.port == 0
+    assert uri.port is None
     assert uri.path == '/', 'default path should be `/`'
     assert uri.query == ''
     assert uri.secure is False
@@ -109,7 +109,7 @@ def test_unix_uri():
 
     assert uri.scheme == 'unix'
     assert uri.host == '/path/to/file'
-    assert uri.port == 0
+    assert uri.port is None
     assert uri.path == '/', 'default path should be `/`'
     assert uri.query == 'q=pymaid'
     assert uri.fragment == 'what'

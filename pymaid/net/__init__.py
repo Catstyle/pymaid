@@ -28,10 +28,10 @@ from typing import Callable, List, Optional, Union
 from .channel import ChannelType, StreamChannel
 from .raw import sock_connect
 from .stream import Stream
+from .utils.uri import parse_uri
 
 
 async def dial_stream(
-    net: str,
     address: str,
     *,
     transport_class: Stream = Stream,
@@ -56,7 +56,8 @@ async def dial_stream(
 
     :returns: a `Stream` object.
     '''
-    sock = await sock_connect(net, address)
+    uri = parse_uri(address)
+    sock = await sock_connect(uri.scheme, uri.address)
     stream = transport_class(
         sock,
         initiative=True,
@@ -64,6 +65,7 @@ async def dial_stream(
         ssl_handshake_timeout=ssl_handshake_timeout,
         on_open=on_open,
         on_close=on_close,
+        uri=uri,
         **kwargs,
     )
     await stream.wait_ready()
@@ -91,7 +93,6 @@ def create_channel(
 
 
 async def serve_stream(
-    net: str,
     address: str,
     *,
     name: str = 'StreamChannel',
@@ -128,7 +129,6 @@ async def serve_stream(
         **kwargs,
     )
     await channel.listen(
-        net,
         address,
         flags=flags,
         backlog=backlog,

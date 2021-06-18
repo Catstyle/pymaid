@@ -43,14 +43,15 @@ class WebSocket(Stream):
             initiative=initiative,
             ssl_context=ssl_context,
             ssl_handshake_timeout=ssl_handshake_timeout,
+            uri=uri,
         )
         self.conn_made_event = Event()
-        self.uri = uri
         self.resource = ''
         if initiative:
-            self.resource = uri.path
+            assert uri is not None
+            self.resource = uri.path.encode('utf-8')
             if uri.query:
-                self.resource = f'{uri.path}?{uri.query}'
+                self.resource = f'{uri.path}?{uri.query}'.encode('utf-8')
         self.ws_kwargs = kwargs
         self.__read_buffer = BytesIO()
         if self.initiative:
@@ -255,6 +256,9 @@ class WebSocket(Stream):
         key = self.secret_key = b64encode(urandom(16)).strip()
         self._write_sync(
             self.PROTOCOL.build_request(
-                self.uri.host, self.resource, key, **self.ws_kwargs
+                self.uri.host.encode('utf-8'),
+                self.resource,
+                key,
+                **self.ws_kwargs
             )
         )

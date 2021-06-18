@@ -9,6 +9,11 @@ from urllib.parse import quote, urlsplit
 
 # All characters from the gen-delims and sub-delims sets in RFC 3987.
 DELIMS = ":/?#[]@!$&'()*+,;="
+SCHEMES = {
+    'unix', 'tcp', 'tcp4', 'tcp6', 'udp', 'udp4', 'udp6',
+    'http', 'https', 'ws', 'wss',
+    '',  # for url from content like `GET /whatever HTTP/1.1`
+}
 
 
 @dataclass
@@ -17,7 +22,7 @@ class URI:
 
     :param str scheme: scheme
     :param str host: lower-case host
-    :param int port: 0 for `unix` scheme,
+    :param int port: None for `unix` scheme,
         otherwise always set even if it's the default
     :param str path: path, `/` for default
     :param str query: optional query
@@ -32,7 +37,7 @@ class URI:
 
     scheme: str
     host: str
-    port: int
+    port: Optional[int]
     path: str
     query: str
     fragment: str
@@ -52,20 +57,21 @@ def parse_uri(uri: str) -> URI:
     # NOTE:
     #  unix/tcp/udp are layer 4 protocols
     # http/https/ws/wss are layer 7 protocols
-    if scheme not in {'unix', 'tcp', 'udp', 'http', 'https', 'ws', 'wss', ''}:
+    if scheme not in SCHEMES:
         raise ValueError(
-            'only {http, https, ws, wss, unix} scheme support now, '
+            f'only {SCHEMES} scheme support now, '
             f'got uri={uri!r}, scheme={scheme!r}'
         )
 
     secure = scheme in {'https', 'wss'}
-    host = parsed.hostname
+    # pymaid forced ipv6 address format like `[::1]`, sourrounded by `[]`
+    host = f'[{parsed.hostname}]' if scheme.endswith('6') else parsed.hostname
     path = parsed.path or '/'
     query = parsed.query
     fragment = parsed.fragment
 
     if 'unix' == scheme:
-        port = 0
+        port = None
         # when using unix domain socket, assume path is the address
         if host:
             raise ValueError(
@@ -118,5 +124,5 @@ def parse_uri(uri: str) -> URI:
         fragment,
         secure,
         user_info,
-        f'{host}:{port}',
+        f'{host}:{port}' if port else host,
     )

@@ -1,5 +1,5 @@
 import ssl as _ssl
-from typing import Callable, List, Optional, Tuple, Type, Union
+from typing import Callable, List, Optional, Type, Union
 
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net import dial_stream as raw_dial_stream
@@ -16,7 +16,7 @@ __all__ = ('connection', 'context', 'handler', 'protocol')
 
 
 async def dial_stream(
-    address: Union[Tuple[str, int], str],
+    address: str,
     *,
     transport_class: ConnectionType = Stream | Connection,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,
@@ -42,7 +42,7 @@ async def dial_stream(
 
 
 async def serve_stream(
-    address: Union[Tuple[str, int], str],
+    address: str,
     *,
     transport_class: ConnectionType = Stream | Connection,
     protocol: ProtocolType = protocol.Protocol,

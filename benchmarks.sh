@@ -31,13 +31,13 @@ echo 'done '${name}', clients: 100, request/client: 1000'
 echo
 name='heartbeat'
 echo 'checking '${name}', clients: 1000'
-python -O examples/$name/server.py --uvloop 2 2 > /dev/null 2>&1 &
+python -O examples/$name/server.py --uvloop 1 1 > /dev/null 2>&1 &
 sid=$!
 sleep 0.2
-time python -O examples/$name/client.py --uvloop -c 1000 -s 5 > /dev/null 2>&1
+time python -O examples/$name/client.py --uvloop -c 1000 > /dev/null 2>&1
 disown -r
 kill $sid
-echo 'done '${name}', clients: 1000, sleep_time: 5'
+echo 'done '${name}', clients: 1000'
 
 echo
 name='echo_ws'

@@ -14,6 +14,7 @@ from .base import logger, ChannelState
 from .raw import sock_listen
 from .stream import Stream, StreamType
 from .transport import Transport, TransportType
+from .utils.uri import parse_uri
 
 
 class Channel(abc.ABC):
@@ -37,6 +38,7 @@ class Channel(abc.ABC):
         self.ssl_context = ssl_context
         self.ssl_handshake_timeout = ssl_handshake_timeout
 
+        self.uri = None
         self.transports = {}
         self.listeners = []
         self.middleware_manager = middleware_manager or MiddlewareManager()
@@ -54,7 +56,6 @@ class Channel(abc.ABC):
 
     async def listen(
         self,
-        net: str,
         address: str,
         *,
         family: socket.AddressFamily = socket.AF_UNSPEC,
@@ -63,9 +64,10 @@ class Channel(abc.ABC):
         reuse_address: bool = os.name == 'posix' and sys.platform != 'cygwin',
         reuse_port: bool = False,
     ):
+        uri = self.uri = parse_uri(address)
         listeners = await sock_listen(
-            net,
-            address,
+            uri.scheme,
+            uri.address,
             flags=flags,
             backlog=backlog,
             reuse_address=reuse_address,

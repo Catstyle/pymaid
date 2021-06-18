@@ -1,4 +1,8 @@
+import atexit
 from argparse import ArgumentParser
+
+from pymaid.net.utils.uri import parse_uri
+from pymaid.utils.functional import enable_echo
 
 
 def get_base_parser():
@@ -47,6 +51,7 @@ def get_client_parser():
 
 def parse_args(parser):
     args = parser.parse_args()
+    args.uri = parse_uri(args.address)
     print(args)
     if args.uvloop:
         import uvloop
@@ -58,3 +63,7 @@ def parse_args(parser):
             pass
         args.debug = debug
     return args
+
+
+atexit.register(enable_echo, True)
+enable_echo(False)

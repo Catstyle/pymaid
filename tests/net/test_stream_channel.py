@@ -13,8 +13,7 @@ from tests.common.models import _TestStreamChannel, _TestStream
 @pytest.mark.asyncio
 async def test_stream_channel_tcp4():
     server = await serve_stream(
-        'tcp4',
-        'localhost:8890',
+        'tcp4://localhost:8890',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
         start_serving=True,
@@ -22,7 +21,7 @@ async def test_stream_channel_tcp4():
     assert server
 
     stream = await dial_stream(
-        'tcp4', 'localhost:8890', transport_class=_TestStream,
+        'tcp4://localhost:8890', transport_class=_TestStream,
     )
     assert stream.family == socket.AF_INET
     # localhost resolved to 127.0.0.1
@@ -45,8 +44,7 @@ async def test_stream_channel_tcp4():
 @pytest.mark.asyncio
 async def test_stream_channel_tcp6():
     server = await serve_stream(
-        'tcp6',
-        '[::1]:8891',
+        'tcp6://[::1]:8891',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
         start_serving=True,
@@ -54,9 +52,7 @@ async def test_stream_channel_tcp6():
     assert server
 
     stream = await dial_stream(
-        'tcp6',
-        '[::1]:8891',
-        transport_class=_TestStream,
+        'tcp6://[::1]:8891', transport_class=_TestStream,
     )
     assert stream.family == socket.AF_INET6
     assert stream.peername[:2] == ('::1', 8891)
@@ -81,8 +77,7 @@ async def test_stream_channel_tcp6():
 @pytest.mark.asyncio
 async def test_stream_channel_unix():
     server = await serve_stream(
-        'unix',
-        '/tmp/pymaid_test_ipv6.sock',
+        'unix:///tmp/pymaid_test_ipv6.sock',
         channel_class=_TestStreamChannel,
         transport_class=_TestStream,
         start_serving=True,
@@ -90,8 +85,7 @@ async def test_stream_channel_unix():
     assert server
 
     stream = await dial_stream(
-        'unix',
-        '/tmp/pymaid_test_ipv6.sock',
+        'unix:///tmp/pymaid_test_ipv6.sock',
         transport_class=_TestStream,
     )
     assert stream.family == socket.AF_UNIX

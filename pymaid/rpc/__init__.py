@@ -1,6 +1,6 @@
 import socket
 import ssl as _ssl
-from typing import Optional, Sequence, Tuple, Type, Union
+from typing import Optional, Sequence, Type, Union
 
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net.protocol import Protocol, ProtocolType
@@ -17,7 +17,7 @@ __all__ = ('channel', 'connection', 'handler', 'pb', 'router')
 
 
 async def serve_stream(
-    address: Union[Tuple[str, int], str],
+    address: str,
     *,
     name: str = 'StreamChannel',
     channel_class: channel.ChannelType = channel.Channel,

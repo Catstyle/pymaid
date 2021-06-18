@@ -1,6 +1,8 @@
+import termios
+
 from contextlib import AsyncExitStack, ExitStack
 from functools import wraps
-from sys import _getframe as getframe
+from sys import _getframe as getframe, stdin
 
 from pymaid.core import iscoroutinefunction
 
@@ -137,6 +139,19 @@ def defer(func, *args, **kwargs):
         st.callback(func, *args, **kwargs)
     else:
         raise TypeError(f'a callable is required, got {func}')
+
+
+def enable_echo(enable):
+    if not stdin.isatty():
+        return
+    fd = stdin.fileno()
+    new = termios.tcgetattr(fd)
+    if enable:
+        new[3] |= termios.ECHO
+    else:
+        new[3] &= ~termios.ECHO
+
+    termios.tcsetattr(fd, termios.TCSANOW, new)
 
 
 del logger_wrapper

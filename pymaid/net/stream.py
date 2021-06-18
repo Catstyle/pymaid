@@ -7,6 +7,7 @@ from typing import Callable, List, Optional, TypeVar
 from pymaid.types import DataType
 
 from .transport import SocketTransport
+from .utils.uri import URI
 
 
 class Stream(SocketTransport):
@@ -30,11 +31,14 @@ class Stream(SocketTransport):
         initiative: bool = False,
         ssl_context: Optional[_ssl.SSLContext] = None,
         ssl_handshake_timeout: Optional[float] = None,
+        uri: Optional[URI] = None,
     ):
         super().__init__(sock, on_open=on_open, on_close=on_close)
         self.initiative = initiative
         self.ssl_context = ssl_context
         self.ssl_handshake_timeout = ssl_handshake_timeout
+        self.uri = uri
+
         self._write_empty_waiter = None
 
         self.wrap_methods()
