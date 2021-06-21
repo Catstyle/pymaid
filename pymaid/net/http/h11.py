@@ -210,6 +210,13 @@ class Parser:
             raise exc
         return used
 
+    def has(self) -> bool:
+        return bool(self.queue)
+
+    def get(self) -> Http:
+        assert self.queue
+        return self.queue.popleft()
+
     def handle_parser_exception(self, exc):
         '''Default exception handler.
 

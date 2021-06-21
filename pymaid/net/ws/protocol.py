@@ -1,11 +1,32 @@
+'''
+0                   1                   2                   3
+0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-------+-+-------------+-------------------------------+
+|F|R|R|R| opcode|M| Payload len |    Extended payload length    |
+|I|S|S|S|  (4)  |A|     (7)     |             (16/64)           |
+|N|V|V|V|       |S|             |   (if payload len==126/127)   |
+| |1|2|3|       |K|             |                               |
++-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
+|     Extended payload length continued, if payload len == 127  |
++ - - - - - - - - - - - - - - - +-------------------------------+
+|                               |Masking-key, if MASK set to 1  |
++-------------------------------+-------------------------------+
+| Masking-key (continued)       |          Payload Data         |
++-------------------------------- - - - - - - - - - - - - - - - +
+:                     Payload Data continued ...                :
++ - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
+|                     Payload Data continued ...                |
++---------------------------------------------------------------+
+'''
+
 import struct
 
 from base64 import b64encode
 from enum import IntEnum
 from hashlib import sha1
-from typing import List, IO, Tuple
+from typing import List, Tuple
 
-from pymaid.net.http import parse_headers
+from multidict import CIMultiDict
 from pymaid.net.protocol import Protocol
 from pymaid.types import DataType
 
@@ -161,7 +182,7 @@ class WSProtocol(Protocol):
     )
 
     VERSION = b'13'
-    SUPPORTED_VERSIONS = (b'13', b'8', b'7')
+    SUPPORTED_VERSIONS = ('13', '8', '7')
     GUID = b'258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
     MAX_HEADER_SIZE = 4096
@@ -231,81 +252,35 @@ class WSProtocol(Protocol):
         return b'%s%s\r\n' % (basic, extra)
 
     @classmethod
-    def parse_request(cls, buf: IO) -> bytes:
-        '''Parse a upgrade request from the buffer.
-
-        :params readline: `Callable` that returns a `CRLF` terminated line
-        :returns: A upgrade response bytes body
-        '''
-        line = buf.readline()
-        if len(line) >= cls.MAX_HEADER_SIZE:
-            raise ProtocolError(
-                f'header size too large, max={cls.MAX_HEADER_SIZE}'
-            )
-        assert line, 'should not reach here when read_buffer is empty'
-
-        datas = line.split()
-        if len(datas) != 3:
-            raise ProtocolError(f'invalid request status line: {line}')
-        method, path, version = datas
-        if method != b'GET' or version != b'HTTP/1.1':
-            raise ProtocolError(
-                f'websocket requried GET HTTP/1.1, got `{line}`'
-            )
-
-        headers = parse_headers(buf)
-        if not headers:
-            return
-        return cls.build_response(headers)
-
-    @classmethod
-    def build_response(cls, headers: dict) -> bytes:
-        if (b'WebSocket' != headers.get(b'Upgrade')
-                or b'Upgrade' != headers.get(b'Connection')):
+    def build_response(cls, headers: CIMultiDict) -> bytes:
+        if ('websocket' != headers.get('Upgrade', '').lower()
+                or 'upgrade' != headers.get('Connection', '').lower()):
             raise ProtocolError(
                 f'invalid websocket handshake header: {headers}'
             )
 
-        version = headers.get(b'Sec-WebSocket-Version')
+        version = headers.get('Sec-WebSocket-Version')
         if version not in cls.SUPPORTED_VERSIONS:
             raise ProtocolError(f'unsupported version={version}')
 
-        sec_key = headers.get(b'Sec-WebSocket-Key', b'')
+        sec_key = headers.get('Sec-WebSocket-Key', '')
         if not sec_key:
             raise ProtocolError('missing Sec-WebSocket-Key')
 
-        resp_key = b64encode(sha1(sec_key + cls.GUID).digest())
+        # TODO: check origin; check host; check headers; check ext
+
+        resp_key = b64encode(sha1(sec_key.encode('utf-8') + cls.GUID).digest())
         return cls.HANDSHAKE_RESP % resp_key
 
     @classmethod
-    def parse_response(cls, buf: IO, secret_key: bytes):
-        line = buf.readline(1024)
-        assert line, 'should not reach here when read_buffer is empty'
-
-        status = line.split(b' ', 2)
-        if len(status) != 3:
-            raise ProtocolError(f'invalid response status line: {line}')
-        status = int(status[1])
-        if status != 101:
-            raise ProtocolError(
-                f'handshake failed with status: {status}, {line}'
-            )
-
-        headers = parse_headers(buf)
-        if not headers:
-            return False
-        cls.validate_upgrade(headers, secret_key)
-        return True
-
-    @classmethod
-    def validate_upgrade(cls, headers: dict, upgrade_key: bytes):
-        if (b'WebSocket' != headers.get(b'Upgrade')
-                or b'Upgrade' != headers.get(b'Connection')):
+    def validate_upgrade(cls, headers: CIMultiDict, upgrade_key: bytes):
+        if ('websocket' != headers.get('Upgrade', '').lower()
+                or 'upgrade' != headers.get('Connection', '').lower()):
             raise ProtocolError(
                 f'invalid websocket handshake header: {headers}'
             )
 
-        accept = headers.get(b'Sec-WebSocket-Accept', '').lower()
+        accept = headers.get('Sec-WebSocket-Accept', '').lower()
         if isinstance(accept, str):
             accept = accept.encode('utf-8')
         value = upgrade_key + cls.GUID

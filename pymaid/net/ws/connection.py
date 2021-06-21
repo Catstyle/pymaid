@@ -3,6 +3,7 @@ from io import BytesIO
 from os import urandom
 
 from pymaid.core import Event
+from pymaid.net.http.h11 import RequestParser, ResponseParser
 from pymaid.net.stream import Stream
 from pymaid.net.utils.uri import URI
 from pymaid.types import DataType
@@ -56,9 +57,11 @@ class WebSocket(Stream):
         self.__read_buffer = BytesIO()
         if self.initiative:
             self._start_handshake()
-            self._parse = self._parse_upgrade_response
+            self._data_received = self._parse_upgrade_response
+            self._handshake_parser = ResponseParser()
         else:
-            self._parse = self._parse_upgrade_request
+            self._data_received = self._parse_upgrade_request
+            self._handshake_parser = RequestParser()
         self.on_close.append(self.cleanup)
 
         self.current_opcode = None
@@ -84,7 +87,7 @@ class WebSocket(Stream):
         # we are finished upgrade handshake
         self.state = self.STATE.CONNECTED
         self.conn_made_event.set()
-        self._parse = self._parse_frames
+        self._data_received = self._parse_frames
 
     def handle_close(self, frame: Frame):
         '''Called when a close frame has been decoded from the stream.
@@ -122,17 +125,14 @@ class WebSocket(Stream):
         '''
         return self.initiative and self.REQUIRE_MASK_CLIENT_FRAMES
 
-    def _data_received(self, data: DataType):
-        self.__read_buffer.seek(0, 2)
-        self.__read_buffer.write(data)
-        self._parse()
-
-    def _parse_frames(self):
+    def _parse_frames(self, data: DataType):
         '''Parse frames from incoming buffer.
 
         NOTE: correct frames will be lost if some frames are incorrect.
         '''
         buf = self.__read_buffer
+        buf.seek(0, 2)
+        buf.write(data)
         buf.seek(0, 0)
 
         mbuf = buf.getbuffer()
@@ -227,28 +227,39 @@ class WebSocket(Stream):
 
         self.current_opcode = opcode
 
-    def _parse_upgrade_request(self) -> bool:
-        buf = self.__read_buffer
-        buf.seek(0, 0)
+    def _parse_upgrade_request(self, data: DataType) -> bool:
+        consumed = self._handshake_parser.feed_data(data)
+        if not self._handshake_parser.has():
+            # if not has a http instance, parser will consume all data
+            return False
 
-        resp = self.PROTOCOL.parse_request(buf)
+        ins = self._handshake_parser.get()
+        assert ins.should_upgrade, ins
+
+        resp = self.PROTOCOL.build_response(ins.headers)
         self._write_sync(resp)
 
         self.mark_ready()
         self.__read_buffer = BytesIO()
-        self.__read_buffer.write(buf.read())
+        if consumed < len(data):
+            self.__read_buffer.write(data[consumed:])
         return True
 
-    def _parse_upgrade_response(self) -> bool:
-        buf = self.__read_buffer
-        buf.seek(0, 0)
-
-        if not self.PROTOCOL.parse_response(buf, self.secret_key):
+    def _parse_upgrade_response(self, data: DataType) -> bool:
+        consumed = self._handshake_parser.feed_data(data)
+        if not self._handshake_parser.has():
+            # if not has a http instance, parser will consume all data
             return False
+
+        ins = self._handshake_parser.get()
+        assert ins.should_upgrade, ins
+
+        self.PROTOCOL.validate_upgrade(ins.headers, self.secret_key)
 
         self.mark_ready()
         self.__read_buffer = BytesIO()
-        self.__read_buffer.write(buf.read())
+        if consumed < len(data):
+            self.__read_buffer.write(data[consumed:])
         return True
 
     def _start_handshake(self):

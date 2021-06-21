@@ -3,6 +3,7 @@ import os
 from base64 import b64encode
 from hashlib import sha1
 
+from multidict import CIMultiDict
 from pymaid.net.ws.protocol import WSProtocol
 
 from tests.common import ws_data
@@ -62,12 +63,12 @@ def test_build_request_handshake_error():
 
 def test_build_response_handshake():
     key = b64encode(os.urandom(16)).strip()
-    resp = WSProtocol.build_response({
-        b'Upgrade': b'WebSocket',
-        b'Connection': b'Upgrade',
-        b'Sec-WebSocket-Key': key,
-        b'Sec-WebSocket-Version': b'13',
-    })
+    resp = WSProtocol.build_response(CIMultiDict({
+        'Upgrade': 'WebSocket',
+        'Connection': 'Upgrade',
+        'Sec-WebSocket-Key': key.decode('utf-8'),
+        'Sec-WebSocket-Version': '13',
+    }))
     resp_key = b64encode(sha1(key + WSProtocol.GUID).digest())
     assert resp == (
         b'HTTP/1.1 101 Switching Protocols\r\n'
