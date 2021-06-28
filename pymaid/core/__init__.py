@@ -8,6 +8,8 @@ import socket
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 
+from pymaid.utils.logger import get_logger
+
 __all__ = (
     'run',
     'sleep',
@@ -62,6 +64,12 @@ get_running_loop = asyncio.get_running_loop
 
 
 def run(*args, **kwargs):
+    from pymaid.conf import settings
+    get_logger('pymaid').warning(
+        '[pymaid|run] [loop|%s][DEBUG|%s]',
+        get_event_loop_policy().__class__.__name__,
+        settings.pymaid.DEBUG
+    )
     try:
         asyncio_run(*args, **kwargs)
     except (SystemExit, KeyboardInterrupt):
