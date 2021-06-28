@@ -10,7 +10,7 @@ import socket
 from errno import ENOTCONN, ECONNABORTED
 from typing import List
 
-from pymaid.core import get_running_loop, run_in_threadpool
+from pymaid.core import get_running_loop, run_in_threadpool, sleep
 
 HAS_IPv6_FAMILY = hasattr(socket, 'AF_INET6')
 HAS_IPv6_PROTOCOL = hasattr(socket, 'IPPROTO_IPV6')
@@ -95,7 +95,7 @@ async def sock_connect(
     family, socket_kind = STREAM_OPTS[net]
     addr_infos = await getaddrinfo(address, family, socket_kind, flags)
     for addr_info in addr_infos:
-        retried = False
+        retry = 3
         af, kind, proto, canonname, sa = addr_info
         sock = None
         while 1:
@@ -105,17 +105,26 @@ async def sock_connect(
                 await loop.sock_connect(sock, sa)
                 set_sock_options(sock)
                 # NOTE:
-                # when doing a lots connect to remote side under heavy pressure
-                # it would sometimes getting ENOTCONN when call getpeername
-                # check it here, if occured, raise it to retry
-                # *why* sock_connect above does not handle this case?
+                # When doing a lots connect to remote side under heavy pressure
+                # it would sometimes getting ENOTCONN when call getpeername.
+                # Check it here, if occured, raise it to retry.
+                # *WHY* sock_connect above does not handle this case?
+                # NOTE 2:
+                # This case appears to inconsistently occur with
+                # bound to a unix domain socket.
                 sock.getpeername()
                 # Break explicitly a reference cycle
                 err = None
                 return sock
             except socket.error as _:
-                if _.errno in {ECONNABORTED, ENOTCONN} and not retried:
-                    retried = True
+                if _.errno == 107:
+                    # OSError: [Errno 107] Transport endpoint is not connected
+                    # special case when dealing with 107, it seems retry later
+                    # is ok.
+                    await sleep(0.001)
+                    continue
+                if _.errno in {ECONNABORTED, ENOTCONN} and retry:
+                    retry -= 1
                     continue
                 err = _
                 if sock is not None:
