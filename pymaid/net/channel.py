@@ -202,7 +202,7 @@ class StreamChannel(Channel):
         connection_made = self.connection_made
         for _ in range(backlog):
             if self.is_full:
-                self.pause('{self!r} stop accept since is full')
+                self.pause('stop accept since is full')
                 break
             try:
                 conn, addr = sock.accept()
@@ -227,12 +227,12 @@ class StreamChannel(Channel):
         del self.transports[conn.id]
         if self.state == self.STATE.PAUSED and not self.is_full:
             self.start()
-        if not self.transports and self.state >= self.STATE.CLOSING:
-            self._finnal_close(exc)
         self.logger.info(
             f'{self!r} connection_lost: '
             f'<{self.transport_class.__name__} {conn.id}> exc={exc}'
         )
+        if not self.transports and self.state >= self.STATE.CLOSING:
+            self._finnal_close(exc)
 
     def shutdown(self, reason: str = 'shutdown'):
         super().shutdown(reason)

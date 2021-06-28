@@ -177,7 +177,7 @@ class Stream(SocketTransport):
 
         if not data:
             try:
-                if self.eof_received():
+                if self.eof_received() and not self.state < self.STATE.CLOSING:
                     # We're keeping the connection open so can write more,
                     # but we still can't receive more, so remove the reader.
                     self._loop.remove_reader(self._sock_fd)
