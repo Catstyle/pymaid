@@ -29,7 +29,7 @@ def get_base_parser():
 def get_server_parser():
     parser = get_base_parser()
     parser.add_argument(
-        '--backlog', type=int, default=1024, help='listen backlog',
+        '--backlog', type=int, default=4096, help='listen backlog',
     )
     return parser
 

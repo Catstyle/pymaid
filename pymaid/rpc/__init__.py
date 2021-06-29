@@ -24,7 +24,7 @@ async def serve_stream(
     transport_class: connection.ConnectionType = connection.Connection,
     family: socket.AddressFamily = socket.AF_UNSPEC,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
-    backlog: int = 128,
+    backlog: int = 4096,
     reuse_address: bool = True,
     reuse_port: bool = False,
     ssl_context: Union[None, bool, '_ssl.SSLContext'] = None,

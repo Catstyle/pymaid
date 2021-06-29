@@ -99,7 +99,7 @@ async def serve_stream(
     channel_class: ChannelType = StreamChannel,
     transport_class: Stream = Stream,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
-    backlog: int = 128,
+    backlog: int = 4096,
     reuse_address: bool = True,
     reuse_port: bool = False,
     ssl_context: Union[None, 'ssl.SSLContext'] = None,

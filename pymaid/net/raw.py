@@ -145,7 +145,7 @@ async def sock_listen(
     net: str,
     address: str,
     flags: socket.AddressInfo = socket.AI_PASSIVE,
-    backlog: int = 128,
+    backlog: int = 4096,
     reuse_address: bool = True,
     reuse_port: bool = False,
 ) -> List[socket.socket]:
@@ -200,7 +200,8 @@ async def sock_listen(
                     f'error occured while binding on address {addr_info}: '
                     f'{err.strerror}, addr_infos={addr_infos}'
                 ) from None
-            sock.listen(backlog)
+            # see https://github.com/golang/go/issues/5030
+            sock.listen(min(backlog, 65535))
             sockets.append(sock)
     except Exception:
         for sock in sockets:

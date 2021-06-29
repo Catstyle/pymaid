@@ -60,7 +60,7 @@ class Channel(abc.ABC):
         *,
         family: socket.AddressFamily = socket.AF_UNSPEC,
         flags: socket.AddressInfo = socket.AI_PASSIVE,
-        backlog: int = 128,
+        backlog: int = 4096,
         reuse_address: bool = os.name == 'posix' and sys.platform != 'cygwin',
         reuse_port: bool = False,
     ):
@@ -76,7 +76,7 @@ class Channel(abc.ABC):
         for sock in listeners:
             self.listeners.append(sock)
 
-    def read_from_listener(self, sock: socket.socket, backlog: int = 128):
+    def read_from_listener(self, sock: socket.socket):
         raise NotImplementedError
 
     async def wait_closed(self):
@@ -198,9 +198,9 @@ class StreamChannel(Channel):
             **kwargs,
         )
 
-    def read_from_listener(self, sock: socket.socket, backlog: int = 128):
+    def read_from_listener(self, sock: socket.socket):
         connection_made = self.connection_made
-        for _ in range(backlog):
+        while 1:
             if self.is_full:
                 self.pause('stop accept since is full')
                 break
