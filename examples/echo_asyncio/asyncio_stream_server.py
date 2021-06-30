@@ -24,7 +24,9 @@ async def handler(reader, writer):
     args.debug(f'[conn][reader|{reader}][writer|{writer}] closed')
 
 
-async def main(args):
+async def main():
+    global args
+    args = parse_args(get_server_parser())
     if isinstance(args.address, str):
         channel = await asyncio.start_unix_server(handler, args.address)
     else:
@@ -35,5 +37,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_server_parser())
-    asyncio.run(main(args))
+    asyncio.run(main())

@@ -1,11 +1,11 @@
-from __future__ import absolute_import
+import os
+import re
+import sys
 
 from collections import defaultdict
 from functools import partial
 from importlib import import_module
-import os
-import re
-import sys
+from typing import List
 
 from orjson import loads
 
@@ -83,6 +83,9 @@ class Settings(object):
         if not namespace.get('__MUTABLE__', False):
             raise RuntimeError(f'[pymaid][settings][ns|{ns}] is immutable')
         setattr(namespace, key, value)
+
+        for watcher in self.watchers[ns]:
+            watcher(self, ns)
 
     def add_watcher(self, watcher, ns='common'):
         if watcher in self.watchers[ns]:
@@ -198,43 +201,9 @@ class Settings(object):
             if len(env_) != 3:
                 sys.stderr.write(f'wrong special formatted env `{env}`\n')
                 continue
+
             _, ns, key = env_
-
-            value_ = value.split('::')
-            if len(value_) != 2:
-                err = (
-                    f'get special formatted env `{env}`, '
-                    f'but with wrong format value `{value}`, '
-                    f'should be in format of `type::value`\n'
-                )
-                if raise_invalid_value:
-                    raise ValueError(err)
-                sys.stderr.write(err)
-                continue
-
-            t, val = value_
-            if t not in self.transformer:
-                err = (
-                    f'unknown value type `{t}` for env `{env}={value}`, '
-                    f'available `{self.transformer.keys()}`\n'
-                )
-                if raise_invalid_value:
-                    raise ValueError(err)
-                sys.stderr.write(err)
-                continue
-
-            try:
-                val = self.transformer[t](val)
-            except (TypeError, ValueError):
-                err = (
-                    f'cannot transform value of `{env}={value}`, '
-                    f'check type and value\n'
-                )
-                if raise_invalid_value:
-                    raise ValueError(err)
-                sys.stderr.write(err)
-                continue
-
+            val = self._parse_conf(value, raise_invalid_value)
             # now we successfully get special env=value
             ns_data = data.setdefault(ns.lower(), {})
             ns_data[key] = val
@@ -246,6 +215,85 @@ class Settings(object):
     load_from_environment.__doc__ = (
         load_from_environment.__doc__ % list(transformer.keys())
     )
+
+    def load_from_cli(
+        self, configs: List[str], raise_invalid_value: bool = True,
+    ):
+        '''load *special formatted* cli conf into settings
+
+        format: pymaid --conf {NAMESPACE}__{KEY}=VALUE
+        NAMESPACE: namespace
+        KEY: settings key name
+        VALUE: type::value, type need to be builtin type,
+            current are %s
+            dict/list will be loaded using json.loads
+
+        NOTE: when loaded, {NAMESPACE} will transform to lower case
+
+        e.g.:
+            pymaid --conf USER__NAME=str::cat --conf USER__AGE=int::18 conf
+            will show new added settings
+            {
+                ...
+                'user': {
+                    'NAME': 'cat',
+                    'AGE': 18,
+                },
+                ...
+            }
+        '''
+        data = {}
+        for config in configs:
+            conf = config.split('=')
+            if len(conf) != 2:
+                sys.stderr.write(f'wrong special formatted conf `{config}`\n')
+                continue
+            name, value = conf
+
+            name = name.split('__')
+            if len(name) != 2:
+                sys.stderr.write(f'wrong special formatted conf `{config}`\n')
+                continue
+
+            ns, key = name
+            val = self._parse_conf(value, raise_invalid_value)
+            # now we successfully get special conf=value
+            ns_data = data.setdefault(ns.lower(), {})
+            ns_data[key] = val
+        sys.stderr.flush()
+
+        for ns, obj in data.items():
+            self.load_from_object(obj, ns=ns)
+
+    def _parse_conf(self, value: str, raise_invalid_value: bool = True):
+        value_ = value.split('::')
+        if len(value_) != 2:
+            err = (
+                f'wrong format conf value `{value}`, '
+                f'should be in format of `type::value`\n'
+            )
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
+
+        t, val = value_
+        if t not in self.transformer:
+            err = (
+                f'unknown value type `{t}` for `{value}`, '
+                f'available `{self.transformer.keys()}`\n'
+            )
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
+
+        try:
+            val = self.transformer[t](val)
+        except (TypeError, ValueError):
+            err = f'cannot parse value of `{value}`, check type and value\n'
+            if raise_invalid_value:
+                raise ValueError(err)
+            sys.stderr.write(err)
+        return val
 
     def __str__(self):
         return f'[{self.name}][namespaces|{len(self.namespaces)}]'

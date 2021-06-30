@@ -8,7 +8,7 @@ from setuptools import setup, find_packages, Extension
 
 root_dir = Path(__file__).parent
 __version__ = re.search(
-    "__version__ = '(.*)'",
+    '__version__ = \'(.*)\'',
     (root_dir / 'pymaid/__init__.py').read_text(encoding='utf-8'),
     re.M
 ).group(1)
@@ -29,18 +29,18 @@ dev_requirements = [
 
 if __name__ == '__main__':
     setup(
-        name="pymaid",
+        name='pymaid',
         description='A rpc framework based on gevent/protobuf',
         long_description=long_description,
-        author="Catstyle",
-        author_email="Catstyle.Lee@gmail.com",
-        url="https://github.com/catstyle/pymaid",
+        author='Catstyle',
+        author_email='Catstyle.Lee@gmail.com',
+        url='https://github.com/catstyle/pymaid',
         project_urls={
             'Source': 'https://github.com/catstyle/pymaid/',
-            'Tracker': "https://github.com/catstyle/pymaid/issues",
+            'Tracker': 'https://github.com/catstyle/pymaid/issues',
         },
         version=__version__,
-        license="GPLv3",
+        license='GPLv3',
 
         keywords='asyncio network rpc framework',
         classifiers=[
@@ -54,7 +54,7 @@ if __name__ == '__main__':
             'Intended Audience :: Developers',
             'Topic :: Software Development :: Build Tools',
 
-            # Pick your license as you wish (should match "license" above)
+            # Pick your license as you wish (should match 'license' above)
             'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
 
             # Specify the Python versions you support here.
@@ -87,4 +87,7 @@ if __name__ == '__main__':
                 optional=not (root_dir / '.cibuildwheel').exists(),
             )
         ],
+        entry_points={
+            'console_scripts': 'pymaid=pymaid.__main__:main'
+        }
     )

@@ -1,4 +1,5 @@
 DEBUG = False
+EVENT_LOOP = 'uvloop'
 
 LOGGING = {
     'version': 1,

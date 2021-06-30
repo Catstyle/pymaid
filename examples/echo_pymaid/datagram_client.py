@@ -38,7 +38,9 @@ async def wrapper(loop, address, count):
         (protocol.nbytes, count * args.msize)
 
 
-async def main(args):
+async def main():
+    global args
+    args = parse_args(get_client_parser())
     loop = pymaid.get_event_loop()
     tasks = []
     for x in range(args.concurrency):
@@ -50,5 +52,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_client_parser())
-    pymaid.run(main(args))
+    pymaid.run(main())

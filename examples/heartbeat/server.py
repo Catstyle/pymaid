@@ -7,7 +7,16 @@ from pymaid.ext.monitor import HeartbeatMiddleware
 from examples.template import get_server_parser, parse_args
 
 
-async def main(args):
+async def main():
+    parser = get_server_parser()
+    parser.add_argument(
+        'interval', type=int, default=10, help='heartbeat timeout in seconds'
+    )
+    parser.add_argument(
+        'retry', type=int, default=3, help='retry before heartbeat timeout'
+    )
+    args = parse_args(parser)
+
     mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.retry)])
     ch = await pymaid.rpc.pb.serve_stream(
         args.address, backlog=args.backlog, services=[], middleware_manager=mm
@@ -17,12 +26,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    parser = get_server_parser()
-    parser.add_argument(
-        'interval', type=int, default=10, help='heartbeat timeout in seconds'
-    )
-    parser.add_argument(
-        'retry', type=int, default=3, help='retry before heartbeat timeout'
-    )
-    args = parse_args(parser)
-    pymaid.run(main(args))
+    pymaid.run(main())

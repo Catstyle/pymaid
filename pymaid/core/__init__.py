@@ -63,15 +63,24 @@ get_event_loop_policy = asyncio.get_event_loop_policy
 get_running_loop = asyncio.get_running_loop
 
 
-def run(*args, **kwargs):
+def setup_context(debug=None):
     from pymaid.conf import settings
+    if settings.get('EVENT_LOOP', ns='pymaid') == 'uvloop':
+        import uvloop
+        uvloop.install()
+
+    debug = debug if debug is not None else settings.pymaid.DEBUG
     get_logger('pymaid').warning(
         '[pymaid|run] [loop|%s][DEBUG|%s]',
         get_event_loop_policy().__class__.__name__,
-        settings.pymaid.DEBUG
+        debug,
     )
+
+
+def run(main, *, debug=None):
+    setup_context(debug)
     try:
-        asyncio_run(*args, **kwargs)
+        asyncio_run(main, debug=debug)
     except (SystemExit, KeyboardInterrupt):
         pass
 

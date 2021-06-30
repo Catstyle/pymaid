@@ -9,7 +9,8 @@ async def wrapper(address):
     await conn.wait_closed()
 
 
-async def main(args):
+async def main():
+    args = parse_args(get_client_parser())
     tasks = []
     for x in range(args.concurrency):
         tasks.append(pymaid.create_task(wrapper(args.address)))
@@ -19,5 +20,4 @@ async def main(args):
 
 
 if __name__ == '__main__':
-    args = parse_args(get_client_parser())
-    pymaid.run(main(args))
+    pymaid.run(main())

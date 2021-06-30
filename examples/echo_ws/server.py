@@ -12,7 +12,8 @@ class EchoStream(pymaid.net.ws.WebSocket):
         self.write_sync(data)
 
 
-async def main(args):
+async def main():
+    args = parse_args(get_server_parser())
     ch = await pymaid.net.serve_stream(
         args.address, transport_class=EchoStream
     )
@@ -21,5 +22,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_server_parser())
-    pymaid.run(main(args))
+    pymaid.run(main())

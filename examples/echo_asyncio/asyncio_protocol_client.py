@@ -48,7 +48,9 @@ async def wrapper(loop, address, count):
         (protocol.nbytes, count * args.msize)
 
 
-async def main(args):
+async def main():
+    global args
+    args = parse_args(get_client_parser())
     loop = asyncio.get_running_loop()
     tasks = []
     for x in range(args.concurrency):
@@ -60,5 +62,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_client_parser())
-    asyncio.run(main(args))
+    asyncio.run(main())

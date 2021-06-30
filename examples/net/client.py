@@ -23,7 +23,8 @@ async def wrapper(address, count):
     assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)
 
 
-async def main(args):
+async def main():
+    args = parse_args(get_client_parser())
     tasks = []
     for x in range(args.concurrency):
         tasks.append(pymaid.create_task(wrapper(args.address, args.request)))
@@ -33,5 +34,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_client_parser())
-    pymaid.run(main(args))
+    pymaid.run(main())

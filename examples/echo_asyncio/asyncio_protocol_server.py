@@ -20,7 +20,9 @@ class EchoProtocol(asyncio.Protocol):
         args.debug('Close the socket', self.transport, exc)
 
 
-async def main(args):
+async def main():
+    global args
+    args = parse_args(get_server_parser())
     loop = asyncio.get_running_loop()
     if isinstance(args.address, str):
         channel = await loop.create_unix_server(
@@ -36,5 +38,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_server_parser())
-    asyncio.run(main(args))
+    asyncio.run(main())

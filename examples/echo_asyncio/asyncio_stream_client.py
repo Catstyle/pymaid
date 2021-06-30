@@ -32,7 +32,9 @@ async def wrapper(address, count):
     args.debug(f'[conn][reader|{reader}][writer|{writer}] closed')
 
 
-async def main(args):
+async def main():
+    global args
+    args = parse_args(get_client_parser())
     tasks = []
     for x in range(args.concurrency):
         tasks.append(asyncio.create_task(wrapper(args.address, args.request)))
@@ -41,5 +43,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_client_parser())
-    asyncio.run(main(args))
+    asyncio.run(main())

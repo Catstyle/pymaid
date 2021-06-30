@@ -12,7 +12,8 @@ class Echo(pymaid.net.datagram.Datagram):
         self.transport.close()
 
 
-async def main(args):
+async def main():
+    args = parse_args(get_server_parser())
     if isinstance(args.address, str) and args.uvloop:
         raise ValueError('does not support unix domain socket with datagram')
         # transport, protocol = await pymaid.create_unix_datagram_server(
@@ -27,5 +28,4 @@ async def main(args):
 
 
 if __name__ == "__main__":
-    args = parse_args(get_server_parser())
-    pymaid.run(main(args))
+    pymaid.run(main())
