@@ -1,0 +1,48 @@
+syntax = "proto3";
+
+package pymaid.rpc.pb;
+
+message Context {
+    uint32 transmission_id = 1;
+
+    enum PacketType {
+        UNKNOWN = 0;
+        REQUEST = 1;
+        RESPONSE = 2;
+    }
+    PacketType packet_type = 2;
+
+    enum PacketFlag {
+        NULL = 0;
+        NEW = 1;
+        CANCEL = 2;
+        END = 4;
+    }
+    PacketFlag packet_flags = 3;
+
+    enum Priority {
+        LOW = 0;
+        MID = 1;
+        HIGH = 2;
+    }
+    Priority priority = 4;
+
+    // for request
+    string service_method = 5;
+
+    // for response
+    bool is_cancelled = 6;
+    bool is_failed = 7;
+}
+
+message RpcAck {
+}
+
+message Void {
+}
+
+message ErrorMessage {
+    string code = 1;
+    string message = 2;
+    string data = 3;
+}

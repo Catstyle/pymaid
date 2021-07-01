@@ -1,53 +1,25 @@
-from __future__ import print_function
-import re
-from argparse import ArgumentParser
-
 import pymaid
-from pymaid.channel import ServerChannel
-from pymaid.core import greenlet_pool
-from pymaid.pb import PBHandler, Listener
-from pymaid.websocket.websocket import WebSocket
+import pymaid.net.ws
 
-from echo_pb2 import Message, EchoService
+from examples.template import get_server_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        '--address', type=str, default='127.0.0.1:8888', help='listen address'
+class EchoStream(pymaid.net.ws.WebSocket):
+
+    KEEP_OPEN_ON_EOF = False
+
+    def data_received(self, data: bytes):
+        self.write_sync(data)
+
+
+async def main():
+    args = parse_args(get_server_parser())
+    ch = await pymaid.net.serve_stream(
+        args.address, transport_class=EchoStream
     )
-
-    args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
-    print(args)
-    return args
-
-
-class EchoServiceImpl(EchoService):
-
-    def Echo(self, controller, request, callback):
-        response = Message()
-        response.CopyFrom(request)
-        callback(response)
-
-
-def main(args):
-    listener = Listener()
-    listener.append_service(EchoServiceImpl())
-    channel = ServerChannel(PBHandler(listener), WebSocket)
-    channel.listen(args.address)
-    channel.start()
-    try:
-        pymaid.serve_forever()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        print(len(channel.connections))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+    async with ch:
+        await ch.serve_forever()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    pymaid.run(main())

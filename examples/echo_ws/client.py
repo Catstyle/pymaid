@@ -1,65 +1,43 @@
-from __future__ import print_function
-from argparse import ArgumentParser
+import pymaid
+import pymaid.net.ws
 
-from pymaid.channel import ClientChannel
-from pymaid.core import greenlet_pool, Pool
-from pymaid.pb import PBHandler, ServiceStub
-from pymaid.websocket.websocket import WebSocket
-
-from echo_pb2 import EchoService_Stub
-
-message = 'a' * 8000
+from examples.template import get_client_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
-    parser.add_argument(
-        '-c', dest='concurrency', type=int, default=100, help='concurrency'
-    )
-    parser.add_argument(
-        '-r', dest='request', type=int, default=100, help='request per client'
-    )
-    parser.add_argument(
-        '--address', type=str, default='ws://127.0.0.1:8888/',
-        help='connect address'
-    )
+class EchoStream(pymaid.net.ws.WebSocket):
 
-    args = parser.parse_args()
-    print(args)
-    return args
+    KEEP_OPEN_ON_EOF = False
+
+    # the same as the init function below
+    def init(self):
+        self.data_size = 0
+
+    def data_received(self, data):
+        self.data_size += len(data)
 
 
-def wrapper(pid, address, count, message=message):
-    conn = channel.connect(address)
-    for x in range(count):
-        response = service.Echo(request, conn=conn).get(30)
-        assert response.message == message, len(response.message)
-    conn.close()
+async def wrapper(address, count, msize):
+    stream = await pymaid.net.dial_stream(address, transport_class=EchoStream)
+
+    msg = b'a' * msize
+    for _ in range(count):
+        await stream.write(msg)
+    stream.shutdown()
+    await stream.wait_closed()
+    assert stream.data_size == msize * count, (stream.data_size, msize * count)
 
 
-channel = ClientChannel(PBHandler(), WebSocket)
-service = ServiceStub(EchoService_Stub(None))
-method = service.stub.DESCRIPTOR.FindMethodByName('Echo')
-request_class = service.stub.GetRequestClass(method)
-request = request_class(message=message)
-
-
-def main(args):
-    pool = Pool()
-    # pool.spawn(wrapper, 111111, 10000)
+async def main():
+    args = parse_args(get_client_parser())
+    tasks = []
     for x in range(args.concurrency):
-        pool.spawn(wrapper, x, args.address, args.request)
+        tasks.append(
+            pymaid.create_task(wrapper(args.address, args.request, args.msize))
+        )
 
-    try:
-        pool.join()
-    except Exception:
-        import traceback
-        traceback.print_exc()
-        print(len(channel.connections))
-        print(pool.size, len(pool.greenlets))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+    # await pymaid.wait(tasks, timeout=args.timeout)
+    await pymaid.gather(*tasks)
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    pymaid.run(main())

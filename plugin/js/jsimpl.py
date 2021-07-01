@@ -45,7 +45,7 @@ ${methods}
 
 METHOD_TEMPLATE = Template("""/**${req}${resp}
 **/
-${method_name}: function(controller, req, cb) {
+${method_name}: function(context, req, cb) {
     this.listeners.forEach(function(listener) {
         listener.dispatch(['${method_name}', req]);
     });
@@ -105,15 +105,15 @@ def import_module(module_file):
 
 def parse_module(module):
     for attr in module.__dict__.values():
-        if (isinstance(attr, GeneratedServiceType) and
-                attr.DESCRIPTOR.name.endswith('Broadcast')):
+        if (isinstance(attr, GeneratedServiceType)
+                and attr.DESCRIPTOR.name.endswith('Broadcast')):
             yield attr
 
 
 def extra_message(message, indent='    '):
     fields = []
     for field in message.fields:
-        text = '%s%s: %s ' % (indent, field.name, LABELS[field.label])
+        text = f'{indent}{field.name}: {LABELS[field.label]} '
         if field.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             fields.append(text + field.message_type.name)
             fields.extend(extra_message(field.message_type, indent + '    '))
@@ -128,7 +128,7 @@ def generate_jsimpl(service_descriptor, package, prefix):
     requires = set()
     in_out_types = []
     service_name = service_descriptor.name
-    print('generating %s' % service_descriptor.full_name)
+    print(f'generating {service_descriptor.full_name}')
     for method in service_descriptor.methods:
         req = star_indent + 'req: ' + method.input_type.name + star_indent
         req += star_indent.join(extra_message(method.input_type))
@@ -146,7 +146,7 @@ def generate_jsimpl(service_descriptor, package, prefix):
                 method_name=method.name, output_type=output_type
             ),
         ])
-        cb = '\n    cb(controller, req);'
+        cb = '\n    cb(context, req);'
         if method.output_type.name == 'Void':
             cb = ''
         mstr = METHOD_TEMPLATE.safe_substitute(

@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package pymaid.ext.monitor;
+option py_generic_services = true;
+
+import "pymaid/rpc/pb/pymaid.proto";
+
+message Pong {
+}
+
+service MonitorService {
+    rpc Ping(pymaid.rpc.pb.Void) returns (Pong);
+}

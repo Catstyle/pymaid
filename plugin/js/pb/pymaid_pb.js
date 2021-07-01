@@ -1,25 +1,960 @@
-goog.provide("proto.pymaid.pb.Controller");goog.provide("proto.pymaid.pb.Controller.PacketType");goog.provide("proto.pymaid.pb.ErrorMessage");goog.provide("proto.pymaid.pb.RpcAck");goog.provide("proto.pymaid.pb.Void");goog.require("jspb.BinaryReader");goog.require("jspb.BinaryWriter");goog.require("jspb.Message");proto.pymaid.pb.Controller=function(opt_data){jspb.Message.initialize(this,opt_data,0,-1,null,null)};goog.inherits(proto.pymaid.pb.Controller,jspb.Message);
-if(goog.DEBUG&&!COMPILED)proto.pymaid.pb.Controller.displayName="proto.pymaid.pb.Controller";
-if(jspb.Message.GENERATE_TO_OBJECT){proto.pymaid.pb.Controller.prototype.toObject=function(opt_includeInstance){return proto.pymaid.pb.Controller.toObject(opt_includeInstance,this)};proto.pymaid.pb.Controller.toObject=function(includeInstance,msg){var f,obj={serviceMethod:jspb.Message.getFieldWithDefault(msg,1,""),packetType:jspb.Message.getFieldWithDefault(msg,2,0),transmissionId:jspb.Message.getFieldWithDefault(msg,3,0),isCanceled:jspb.Message.getFieldWithDefault(msg,4,false),isFailed:jspb.Message.getFieldWithDefault(msg,
-5,false)};if(includeInstance)obj.$jspbMessageInstance=msg;return obj}}
-if(jspb.Message.GENERATE_FROM_OBJECT)proto.pymaid.pb.Controller.fromObject=function(obj){var f,msg=new proto.pymaid.pb.Controller;goog.isDef(obj.serviceMethod)&&jspb.Message.setField(msg,1,obj.serviceMethod);goog.isDef(obj.packetType)&&jspb.Message.setField(msg,2,obj.packetType);goog.isDef(obj.transmissionId)&&jspb.Message.setField(msg,3,obj.transmissionId);goog.isDef(obj.isCanceled)&&jspb.Message.setField(msg,4,obj.isCanceled);goog.isDef(obj.isFailed)&&jspb.Message.setField(msg,5,obj.isFailed);return msg};
-proto.pymaid.pb.Controller.deserializeBinary=function(bytes){var reader=new jspb.BinaryReader(bytes);var msg=new proto.pymaid.pb.Controller;return proto.pymaid.pb.Controller.deserializeBinaryFromReader(msg,reader)};
-proto.pymaid.pb.Controller.deserializeBinaryFromReader=function(msg,reader){while(reader.nextField()){if(reader.isEndGroup())break;var field=reader.getFieldNumber();switch(field){case 1:var value=reader.readString();msg.setServiceMethod(value);break;case 2:var value=reader.readEnum();msg.setPacketType(value);break;case 3:var value=reader.readUint32();msg.setTransmissionId(value);break;case 4:var value=reader.readBool();msg.setIsCanceled(value);break;case 5:var value=reader.readBool();msg.setIsFailed(value);
-break;default:reader.skipField();break}}return msg};proto.pymaid.pb.Controller.prototype.serializeBinary=function(){var writer=new jspb.BinaryWriter;proto.pymaid.pb.Controller.serializeBinaryToWriter(this,writer);return writer.getResultBuffer()};
-proto.pymaid.pb.Controller.serializeBinaryToWriter=function(message,writer){var f=undefined;f=message.getServiceMethod();if(f.length>0)writer.writeString(1,f);f=message.getPacketType();if(f!==0)writer.writeEnum(2,f);f=message.getTransmissionId();if(f!==0)writer.writeUint32(3,f);f=message.getIsCanceled();if(f)writer.writeBool(4,f);f=message.getIsFailed();if(f)writer.writeBool(5,f)};proto.pymaid.pb.Controller.PacketType={UNKNOWN:0,REQUEST:1,RESPONSE:2,NOTIFICATION:3};
-proto.pymaid.pb.Controller.prototype.getServiceMethod=function(){return jspb.Message.getFieldWithDefault(this,1,"")};proto.pymaid.pb.Controller.prototype.setServiceMethod=function(value){jspb.Message.setProto3StringField(this,1,value)};proto.pymaid.pb.Controller.prototype.getPacketType=function(){return jspb.Message.getFieldWithDefault(this,2,0)};proto.pymaid.pb.Controller.prototype.setPacketType=function(value){jspb.Message.setProto3EnumField(this,2,value)};
-proto.pymaid.pb.Controller.prototype.getTransmissionId=function(){return jspb.Message.getFieldWithDefault(this,3,0)};proto.pymaid.pb.Controller.prototype.setTransmissionId=function(value){jspb.Message.setProto3IntField(this,3,value)};proto.pymaid.pb.Controller.prototype.getIsCanceled=function(){return jspb.Message.getFieldWithDefault(this,4,false)};proto.pymaid.pb.Controller.prototype.setIsCanceled=function(value){jspb.Message.setProto3BooleanField(this,4,value)};
-proto.pymaid.pb.Controller.prototype.getIsFailed=function(){return jspb.Message.getFieldWithDefault(this,5,false)};proto.pymaid.pb.Controller.prototype.setIsFailed=function(value){jspb.Message.setProto3BooleanField(this,5,value)};proto.pymaid.pb.RpcAck=function(opt_data){jspb.Message.initialize(this,opt_data,0,-1,null,null)};goog.inherits(proto.pymaid.pb.RpcAck,jspb.Message);if(goog.DEBUG&&!COMPILED)proto.pymaid.pb.RpcAck.displayName="proto.pymaid.pb.RpcAck";
-if(jspb.Message.GENERATE_TO_OBJECT){proto.pymaid.pb.RpcAck.prototype.toObject=function(opt_includeInstance){return proto.pymaid.pb.RpcAck.toObject(opt_includeInstance,this)};proto.pymaid.pb.RpcAck.toObject=function(includeInstance,msg){var f,obj={};if(includeInstance)obj.$jspbMessageInstance=msg;return obj}}if(jspb.Message.GENERATE_FROM_OBJECT)proto.pymaid.pb.RpcAck.fromObject=function(obj){var f,msg=new proto.pymaid.pb.RpcAck;return msg};
-proto.pymaid.pb.RpcAck.deserializeBinary=function(bytes){var reader=new jspb.BinaryReader(bytes);var msg=new proto.pymaid.pb.RpcAck;return proto.pymaid.pb.RpcAck.deserializeBinaryFromReader(msg,reader)};proto.pymaid.pb.RpcAck.deserializeBinaryFromReader=function(msg,reader){while(reader.nextField()){if(reader.isEndGroup())break;var field=reader.getFieldNumber();switch(field){default:reader.skipField();break}}return msg};
-proto.pymaid.pb.RpcAck.prototype.serializeBinary=function(){var writer=new jspb.BinaryWriter;proto.pymaid.pb.RpcAck.serializeBinaryToWriter(this,writer);return writer.getResultBuffer()};proto.pymaid.pb.RpcAck.serializeBinaryToWriter=function(message,writer){var f=undefined};proto.pymaid.pb.Void=function(opt_data){jspb.Message.initialize(this,opt_data,0,-1,null,null)};goog.inherits(proto.pymaid.pb.Void,jspb.Message);if(goog.DEBUG&&!COMPILED)proto.pymaid.pb.Void.displayName="proto.pymaid.pb.Void";
-if(jspb.Message.GENERATE_TO_OBJECT){proto.pymaid.pb.Void.prototype.toObject=function(opt_includeInstance){return proto.pymaid.pb.Void.toObject(opt_includeInstance,this)};proto.pymaid.pb.Void.toObject=function(includeInstance,msg){var f,obj={};if(includeInstance)obj.$jspbMessageInstance=msg;return obj}}if(jspb.Message.GENERATE_FROM_OBJECT)proto.pymaid.pb.Void.fromObject=function(obj){var f,msg=new proto.pymaid.pb.Void;return msg};
-proto.pymaid.pb.Void.deserializeBinary=function(bytes){var reader=new jspb.BinaryReader(bytes);var msg=new proto.pymaid.pb.Void;return proto.pymaid.pb.Void.deserializeBinaryFromReader(msg,reader)};proto.pymaid.pb.Void.deserializeBinaryFromReader=function(msg,reader){while(reader.nextField()){if(reader.isEndGroup())break;var field=reader.getFieldNumber();switch(field){default:reader.skipField();break}}return msg};
-proto.pymaid.pb.Void.prototype.serializeBinary=function(){var writer=new jspb.BinaryWriter;proto.pymaid.pb.Void.serializeBinaryToWriter(this,writer);return writer.getResultBuffer()};proto.pymaid.pb.Void.serializeBinaryToWriter=function(message,writer){var f=undefined};proto.pymaid.pb.ErrorMessage=function(opt_data){jspb.Message.initialize(this,opt_data,0,-1,null,null)};goog.inherits(proto.pymaid.pb.ErrorMessage,jspb.Message);if(goog.DEBUG&&!COMPILED)proto.pymaid.pb.ErrorMessage.displayName="proto.pymaid.pb.ErrorMessage";
-if(jspb.Message.GENERATE_TO_OBJECT){proto.pymaid.pb.ErrorMessage.prototype.toObject=function(opt_includeInstance){return proto.pymaid.pb.ErrorMessage.toObject(opt_includeInstance,this)};proto.pymaid.pb.ErrorMessage.toObject=function(includeInstance,msg){var f,obj={code:jspb.Message.getFieldWithDefault(msg,1,0),message:jspb.Message.getFieldWithDefault(msg,2,""),data:jspb.Message.getFieldWithDefault(msg,3,"")};if(includeInstance)obj.$jspbMessageInstance=msg;return obj}}
-if(jspb.Message.GENERATE_FROM_OBJECT)proto.pymaid.pb.ErrorMessage.fromObject=function(obj){var f,msg=new proto.pymaid.pb.ErrorMessage;goog.isDef(obj.code)&&jspb.Message.setField(msg,1,obj.code);goog.isDef(obj.message)&&jspb.Message.setField(msg,2,obj.message);goog.isDef(obj.data)&&jspb.Message.setField(msg,3,obj.data);return msg};
-proto.pymaid.pb.ErrorMessage.deserializeBinary=function(bytes){var reader=new jspb.BinaryReader(bytes);var msg=new proto.pymaid.pb.ErrorMessage;return proto.pymaid.pb.ErrorMessage.deserializeBinaryFromReader(msg,reader)};
-proto.pymaid.pb.ErrorMessage.deserializeBinaryFromReader=function(msg,reader){while(reader.nextField()){if(reader.isEndGroup())break;var field=reader.getFieldNumber();switch(field){case 1:var value=reader.readUint32();msg.setCode(value);break;case 2:var value=reader.readString();msg.setMessage(value);break;case 3:var value=reader.readString();msg.setData(value);break;default:reader.skipField();break}}return msg};
-proto.pymaid.pb.ErrorMessage.prototype.serializeBinary=function(){var writer=new jspb.BinaryWriter;proto.pymaid.pb.ErrorMessage.serializeBinaryToWriter(this,writer);return writer.getResultBuffer()};proto.pymaid.pb.ErrorMessage.serializeBinaryToWriter=function(message,writer){var f=undefined;f=message.getCode();if(f!==0)writer.writeUint32(1,f);f=message.getMessage();if(f.length>0)writer.writeString(2,f);f=message.getData();if(f.length>0)writer.writeString(3,f)};
-proto.pymaid.pb.ErrorMessage.prototype.getCode=function(){return jspb.Message.getFieldWithDefault(this,1,0)};proto.pymaid.pb.ErrorMessage.prototype.setCode=function(value){jspb.Message.setProto3IntField(this,1,value)};proto.pymaid.pb.ErrorMessage.prototype.getMessage=function(){return jspb.Message.getFieldWithDefault(this,2,"")};proto.pymaid.pb.ErrorMessage.prototype.setMessage=function(value){jspb.Message.setProto3StringField(this,2,value)};
-proto.pymaid.pb.ErrorMessage.prototype.getData=function(){return jspb.Message.getFieldWithDefault(this,3,"")};proto.pymaid.pb.ErrorMessage.prototype.setData=function(value){jspb.Message.setProto3StringField(this,3,value)};
+// source: pymaid/rpc/pb/pymaid.proto
+/**
+ * @fileoverview
+ * @enhanceable
+ * @suppress {missingRequire} reports error on implicit type usages.
+ * @suppress {messageConventions} JS Compiler reports an error if a variable or
+ *     field starts with 'MSG_' and isn't a translatable message.
+ * @public
+ */
+// GENERATED CODE -- DO NOT EDIT!
+/* eslint-disable */
+// @ts-nocheck
+
+goog.provide('proto.pymaid.rpc.pb.Context');
+goog.provide('proto.pymaid.rpc.pb.Context.PacketFlag');
+goog.provide('proto.pymaid.rpc.pb.Context.PacketType');
+goog.provide('proto.pymaid.rpc.pb.Context.Priority');
+goog.provide('proto.pymaid.rpc.pb.ErrorMessage');
+goog.provide('proto.pymaid.rpc.pb.RpcAck');
+goog.provide('proto.pymaid.rpc.pb.Void');
+goog.require('jspb.BinaryReader');
+goog.require('jspb.BinaryWriter');
+goog.require('jspb.Message');
+
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.pymaid.rpc.pb.Context = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.pymaid.rpc.pb.Context, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.pymaid.rpc.pb.Context.displayName = 'proto.pymaid.rpc.pb.Context';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.pymaid.rpc.pb.RpcAck = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.pymaid.rpc.pb.RpcAck, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.pymaid.rpc.pb.RpcAck.displayName = 'proto.pymaid.rpc.pb.RpcAck';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.pymaid.rpc.pb.Void = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.pymaid.rpc.pb.Void, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.pymaid.rpc.pb.Void.displayName = 'proto.pymaid.rpc.pb.Void';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.pymaid.rpc.pb.ErrorMessage = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.pymaid.rpc.pb.ErrorMessage, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.pymaid.rpc.pb.ErrorMessage.displayName = 'proto.pymaid.rpc.pb.ErrorMessage';
+}
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.pymaid.rpc.pb.Context.prototype.toObject = function(opt_includeInstance) {
+  return proto.pymaid.rpc.pb.Context.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.pymaid.rpc.pb.Context} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.Context.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    transmissionId: jspb.Message.getFieldWithDefault(msg, 1, 0),
+    packetType: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    packetFlags: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    priority: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    serviceMethod: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    isCancelled: jspb.Message.getBooleanFieldWithDefault(msg, 6, false),
+    isFailed: jspb.Message.getBooleanFieldWithDefault(msg, 7, false)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+if (jspb.Message.GENERATE_FROM_OBJECT) {
+
+/**
+ * The raw object form of Context as accepted by the `fromObject` method.
+ * @record
+ */
+proto.pymaid.rpc.pb.Context.ObjectFormat = function() {
+  /** @type {?|undefined} */
+  this.transmissionId;
+
+  /** @type {?|undefined} */
+  this.packetType;
+
+  /** @type {?|undefined} */
+  this.packetFlags;
+
+  /** @type {?|undefined} */
+  this.priority;
+
+  /** @type {?|undefined} */
+  this.serviceMethod;
+
+  /** @type {?|undefined} */
+  this.isCancelled;
+
+  /** @type {?|undefined} */
+  this.isFailed;
+};
+
+/**
+ * Loads data from an object into a new instance of this proto.
+ * @param {!proto.pymaid.rpc.pb.Context.ObjectFormat} obj
+ *     The object representation of this proto to load the data from.
+ * @return {!proto.pymaid.rpc.pb.Context}
+ */
+proto.pymaid.rpc.pb.Context.fromObject = function(obj) {
+  var msg = new proto.pymaid.rpc.pb.Context();
+  obj.transmissionId != null && jspb.Message.setField(msg, 1, obj.transmissionId);
+  obj.packetType != null && jspb.Message.setField(msg, 2, obj.packetType);
+  obj.packetFlags != null && jspb.Message.setField(msg, 3, obj.packetFlags);
+  obj.priority != null && jspb.Message.setField(msg, 4, obj.priority);
+  obj.serviceMethod != null && jspb.Message.setField(msg, 5, obj.serviceMethod);
+  obj.isCancelled != null && jspb.Message.setField(msg, 6, obj.isCancelled);
+  obj.isFailed != null && jspb.Message.setField(msg, 7, obj.isFailed);
+  return msg;
+};
+}
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.pymaid.rpc.pb.Context}
+ */
+proto.pymaid.rpc.pb.Context.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.pymaid.rpc.pb.Context;
+  return proto.pymaid.rpc.pb.Context.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.pymaid.rpc.pb.Context} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.pymaid.rpc.pb.Context}
+ */
+proto.pymaid.rpc.pb.Context.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {number} */ (reader.readUint32());
+      msg.setTransmissionId(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.pymaid.rpc.pb.Context.PacketType} */ (reader.readEnum());
+      msg.setPacketType(value);
+      break;
+    case 3:
+      var value = /** @type {!proto.pymaid.rpc.pb.Context.PacketFlag} */ (reader.readEnum());
+      msg.setPacketFlags(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.pymaid.rpc.pb.Context.Priority} */ (reader.readEnum());
+      msg.setPriority(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setServiceMethod(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsCancelled(value);
+      break;
+    case 7:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsFailed(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.pymaid.rpc.pb.Context.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.pymaid.rpc.pb.Context.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.pymaid.rpc.pb.Context} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.Context.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getTransmissionId();
+  if (f !== 0) {
+    writer.writeUint32(
+      1,
+      f
+    );
+  }
+  f = message.getPacketType();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+  f = message.getPacketFlags();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      3,
+      f
+    );
+  }
+  f = message.getPriority();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
+  f = message.getServiceMethod();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getIsCancelled();
+  if (f) {
+    writer.writeBool(
+      6,
+      f
+    );
+  }
+  f = message.getIsFailed();
+  if (f) {
+    writer.writeBool(
+      7,
+      f
+    );
+  }
+};
+
+
+/**
+ * @enum {number}
+ */
+proto.pymaid.rpc.pb.Context.PacketType = {
+  UNKNOWN: 0,
+  REQUEST: 1,
+  RESPONSE: 2
+};
+
+/**
+ * @enum {number}
+ */
+proto.pymaid.rpc.pb.Context.PacketFlag = {
+  NULL: 0,
+  NEW: 1,
+  CANCEL: 2,
+  END: 4
+};
+
+/**
+ * @enum {number}
+ */
+proto.pymaid.rpc.pb.Context.Priority = {
+  LOW: 0,
+  MID: 1,
+  HIGH: 2
+};
+
+/**
+ * optional uint32 transmission_id = 1;
+ * @return {number}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getTransmissionId = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 1, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setTransmissionId = function(value) {
+  return jspb.Message.setProto3IntField(this, 1, value);
+};
+
+
+/**
+ * optional PacketType packet_type = 2;
+ * @return {!proto.pymaid.rpc.pb.Context.PacketType}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getPacketType = function() {
+  return /** @type {!proto.pymaid.rpc.pb.Context.PacketType} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.pymaid.rpc.pb.Context.PacketType} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setPacketType = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+/**
+ * optional PacketFlag packet_flags = 3;
+ * @return {!proto.pymaid.rpc.pb.Context.PacketFlag}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getPacketFlags = function() {
+  return /** @type {!proto.pymaid.rpc.pb.Context.PacketFlag} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {!proto.pymaid.rpc.pb.Context.PacketFlag} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setPacketFlags = function(value) {
+  return jspb.Message.setProto3EnumField(this, 3, value);
+};
+
+
+/**
+ * optional Priority priority = 4;
+ * @return {!proto.pymaid.rpc.pb.Context.Priority}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getPriority = function() {
+  return /** @type {!proto.pymaid.rpc.pb.Context.Priority} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.pymaid.rpc.pb.Context.Priority} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setPriority = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
+};
+
+
+/**
+ * optional string service_method = 5;
+ * @return {string}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getServiceMethod = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setServiceMethod = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional bool is_cancelled = 6;
+ * @return {boolean}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getIsCancelled = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setIsCancelled = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
+/**
+ * optional bool is_failed = 7;
+ * @return {boolean}
+ */
+proto.pymaid.rpc.pb.Context.prototype.getIsFailed = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 7, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.pymaid.rpc.pb.Context} returns this
+ */
+proto.pymaid.rpc.pb.Context.prototype.setIsFailed = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 7, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.pymaid.rpc.pb.RpcAck.prototype.toObject = function(opt_includeInstance) {
+  return proto.pymaid.rpc.pb.RpcAck.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.pymaid.rpc.pb.RpcAck} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.RpcAck.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+if (jspb.Message.GENERATE_FROM_OBJECT) {
+
+/**
+ * The raw object form of RpcAck as accepted by the `fromObject` method.
+ * @record
+ */
+proto.pymaid.rpc.pb.RpcAck.ObjectFormat = function() {
+};
+
+/**
+ * Loads data from an object into a new instance of this proto.
+ * @param {!proto.pymaid.rpc.pb.RpcAck.ObjectFormat} obj
+ *     The object representation of this proto to load the data from.
+ * @return {!proto.pymaid.rpc.pb.RpcAck}
+ */
+proto.pymaid.rpc.pb.RpcAck.fromObject = function(obj) {
+  var msg = new proto.pymaid.rpc.pb.RpcAck();
+  return msg;
+};
+}
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.pymaid.rpc.pb.RpcAck}
+ */
+proto.pymaid.rpc.pb.RpcAck.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.pymaid.rpc.pb.RpcAck;
+  return proto.pymaid.rpc.pb.RpcAck.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.pymaid.rpc.pb.RpcAck} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.pymaid.rpc.pb.RpcAck}
+ */
+proto.pymaid.rpc.pb.RpcAck.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.pymaid.rpc.pb.RpcAck.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.pymaid.rpc.pb.RpcAck.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.pymaid.rpc.pb.RpcAck} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.RpcAck.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.pymaid.rpc.pb.Void.prototype.toObject = function(opt_includeInstance) {
+  return proto.pymaid.rpc.pb.Void.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.pymaid.rpc.pb.Void} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.Void.toObject = function(includeInstance, msg) {
+  var f, obj = {
+
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+if (jspb.Message.GENERATE_FROM_OBJECT) {
+
+/**
+ * The raw object form of Void as accepted by the `fromObject` method.
+ * @record
+ */
+proto.pymaid.rpc.pb.Void.ObjectFormat = function() {
+};
+
+/**
+ * Loads data from an object into a new instance of this proto.
+ * @param {!proto.pymaid.rpc.pb.Void.ObjectFormat} obj
+ *     The object representation of this proto to load the data from.
+ * @return {!proto.pymaid.rpc.pb.Void}
+ */
+proto.pymaid.rpc.pb.Void.fromObject = function(obj) {
+  var msg = new proto.pymaid.rpc.pb.Void();
+  return msg;
+};
+}
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.pymaid.rpc.pb.Void}
+ */
+proto.pymaid.rpc.pb.Void.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.pymaid.rpc.pb.Void;
+  return proto.pymaid.rpc.pb.Void.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.pymaid.rpc.pb.Void} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.pymaid.rpc.pb.Void}
+ */
+proto.pymaid.rpc.pb.Void.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.pymaid.rpc.pb.Void.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.pymaid.rpc.pb.Void.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.pymaid.rpc.pb.Void} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.Void.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.toObject = function(opt_includeInstance) {
+  return proto.pymaid.rpc.pb.ErrorMessage.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.pymaid.rpc.pb.ErrorMessage} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.ErrorMessage.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    code: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    message: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    data: jspb.Message.getFieldWithDefault(msg, 3, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+if (jspb.Message.GENERATE_FROM_OBJECT) {
+
+/**
+ * The raw object form of ErrorMessage as accepted by the `fromObject` method.
+ * @record
+ */
+proto.pymaid.rpc.pb.ErrorMessage.ObjectFormat = function() {
+  /** @type {?|undefined} */
+  this.code;
+
+  /** @type {?|undefined} */
+  this.message;
+
+  /** @type {?|undefined} */
+  this.data;
+};
+
+/**
+ * Loads data from an object into a new instance of this proto.
+ * @param {!proto.pymaid.rpc.pb.ErrorMessage.ObjectFormat} obj
+ *     The object representation of this proto to load the data from.
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.fromObject = function(obj) {
+  var msg = new proto.pymaid.rpc.pb.ErrorMessage();
+  obj.code != null && jspb.Message.setField(msg, 1, obj.code);
+  obj.message != null && jspb.Message.setField(msg, 2, obj.message);
+  obj.data != null && jspb.Message.setField(msg, 3, obj.data);
+  return msg;
+};
+}
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.pymaid.rpc.pb.ErrorMessage;
+  return proto.pymaid.rpc.pb.ErrorMessage.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.pymaid.rpc.pb.ErrorMessage} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setCode(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setMessage(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setData(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.pymaid.rpc.pb.ErrorMessage.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.pymaid.rpc.pb.ErrorMessage} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.pymaid.rpc.pb.ErrorMessage.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getCode();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getMessage();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getData();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string code = 1;
+ * @return {string}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.getCode = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage} returns this
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.setCode = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string message = 2;
+ * @return {string}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.getMessage = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage} returns this
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.setMessage = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string data = 3;
+ * @return {string}
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.getData = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.pymaid.rpc.pb.ErrorMessage} returns this
+ */
+proto.pymaid.rpc.pb.ErrorMessage.prototype.setData = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+

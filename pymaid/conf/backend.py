@@ -1,8 +1,7 @@
-from six import add_metaclass
-from ujson import loads, dumps
+from orjson import loads, dumps
 
-from pymaid.core import greenlet_pool
-from pymaid.utils.logger import pymaid_logger_wrapper
+from pymaid.core import create_task
+from pymaid.utils.logger import logger_wrapper
 
 
 def formatter(*formats):
@@ -24,8 +23,7 @@ class BackendMeta(type):
         return cls
 
 
-@add_metaclass(BackendMeta)
-class SettingsBackend(object):
+class SettingsBackend(metaclass=BackendMeta):
 
     def __init__(self):
         self.listening = False
@@ -52,9 +50,9 @@ class SettingsBackend(object):
 
     def start(self):
         self.listening = True
-        self.worker = greenlet_pool.apply_async(self.run)
+        self.worker = create_task(self.run())
 
-    def run(self):
+    async def run(self):
         raise NotImplementedError('run')
 
     def stop(self):
@@ -63,7 +61,7 @@ class SettingsBackend(object):
             self.worker.kill()
 
 
-@pymaid_logger_wrapper
+@logger_wrapper
 class ApolloBackend(SettingsBackend):
 
     def __init__(self,
@@ -90,19 +88,19 @@ class ApolloBackend(SettingsBackend):
                 self.start()  # start listerner again
         return result
 
-    def run(self):
+    async def run(self):
         import requests
         while self.listening:
             notifications = [
                 {
-                    'namespaceName': '%s.%s' % (ns, sub['format']),
+                    'namespaceName': f'{ns}.{sub["format"]}',
                     'notificationId': sub['notificationId'],
                 }
                 for ns, sub in self.subscriptions.items()
             ]
             try:
                 resp = self.session.get(
-                    '{}/notifications/v2'.format(self.config_server),
+                    f'{self.config_server}/notifications/v2',
                     params={
                         'appId': self.app_id,
                         'cluster': self.cluster,
@@ -157,9 +155,8 @@ class ApolloBackend(SettingsBackend):
         import requests
         try:
             resp = self.session.get(
-                '{}/configfiles/json/{}/{}/{}.{}'.format(
-                    self.config_server, self.app_id, self.cluster, ns, format,
-                ),
+                f'{self.config_server}/configfiles/json/'
+                f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as ex:
@@ -175,9 +172,8 @@ class ApolloBackend(SettingsBackend):
         import requests
         try:
             resp = self.session.get(
-                '{}/configs/{}/{}/{}.{}'.format(
-                    self.config_server, self.app_id, self.cluster, ns, format,
-                ),
+                f'{self.config_server}/configs/'
+                f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
         except requests.exceptions.RequestException as ex:

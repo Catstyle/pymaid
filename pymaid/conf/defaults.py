@@ -1,4 +1,5 @@
 DEBUG = False
+EVENT_LOOP = 'uvloop'
 
 LOGGING = {
     'version': 1,
@@ -6,18 +7,13 @@ LOGGING = {
     'formatters': {
         'standard': {
             'format': (
-                u'[%(asctime)s.%(msecs).03d] [%(levelname)s] '
-                '[pid|%(process)d] [%(name)s:%(lineno)d] %(message)s'
+                '%(asctime)s.%(msecs).03d %(levelname).1s|%(process)-6s '
+                '%(message)s'
             ),
             'datefmt': '%m-%d %H:%M:%S'
         }
     },
     'handlers': {
-        'root': {
-            'level': 'DEBUG',
-            'class': 'logging.StreamHandler',
-            'formatter': 'standard',
-        },
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
@@ -25,14 +21,14 @@ LOGGING = {
         },
     },
     'loggers': {
-        'root': {
-            'handlers': ['root'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
         'pymaid': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'asyncio': {
+            'handlers': ['console'],
+            'level': 'INFO',
             'propagate': True,
         },
     },
@@ -45,22 +41,23 @@ LOGGING = {
 # Default is 64. Note, that in case of multiple working processes on the
 # same listening value, it should be set to a lower value.
 MAX_ACCEPT = 64
-MAX_PACKET_LENGTH = 8 * 1024
 MAX_TASKS = 32
-MAX_RECV_SIZE = 8 * 1024
+
+'''
+MAX_CONNECTIONS limits the connections
+MAX_CONCURRENCY limits the concurrency of *requests*
+MAX_METHOD_CONCURRENCY limits the concurrency of *requests* for specified rpc
+e.g.:
+1. 10000 connections, next new connection will fail
+2. 100 connections, one parallelly call 100 different(not the same) async rpcs
+   next rpc call will fail (nomatter from new connection or old connections)
+3. 1 connection, parallelly call one async rpc for 10000 times
+   next the same rpc call from the connection will fail
+'''
+MAX_CONNECTIONS = 10000
 MAX_CONCURRENCY = 10000
+MAX_METHOD_CONCURRENCY = 10000
 
 # connection/socket related settings
-PM_PB_HEADER = '!HH'
-
-PM_KEEPALIVE = True
-PM_KEEPIDLE = 60
-PM_KEEPINTVL = 5
-PM_KEEPCNT = 3
-
 PM_WEBSOCKET_TIMEOUT = 15
-
-SO_SNDBUF = 512 * 1024
-SO_RCVBUF = 512 * 1024
-SO_SNDTIMEO = 30
-SO_RCVTIMEO = 30
+MAX_BODY_SIZE = 10 * 1024 * 1024

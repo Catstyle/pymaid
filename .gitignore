@@ -6,6 +6,7 @@
 # Packages
 *.egg
 *.egg-info
+.eggs/
 dist
 build
 eggs
@@ -23,7 +24,7 @@ __pycache__
 pip-log.txt
 
 # Unit test / coverage reports
-.coverage
+.coverage*
 .tox
 nosetests.xml
 
@@ -40,8 +41,8 @@ nosetests.xml
 
 # pb
 *.lua
-*_pb2.py
 protos/
 coverage_html
 
 .python-version
+tags

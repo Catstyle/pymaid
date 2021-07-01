@@ -1,51 +1,29 @@
-from __future__ import print_function
-import re
-from argparse import ArgumentParser
+import pymaid
+import pymaid.rpc.pb
 
-from pymaid import serve_forever
-from pymaid.channel import ServerChannel
-from pymaid.core import greenlet_pool
-from pymaid.pb import Listener, PBHandler
+from pymaid.ext.middleware import MiddlewareManager
+from pymaid.ext.monitor import HeartbeatMiddleware
 
-from pymaid.apps.monitor.service import MonitorServiceImpl
-from pymaid.apps.monitor.middleware import MonitorMiddleware
+from examples.template import get_server_parser, parse_args
 
 
-def parse_args():
-    parser = ArgumentParser()
+async def main():
+    parser = get_server_parser()
     parser.add_argument(
-        '--address', type=str, default='/tmp/pymaid_heartbeat.sock',
-        help='listen address'
+        'interval', type=int, default=10, help='heartbeat timeout in seconds'
     )
     parser.add_argument(
-        '-n', dest='count', default=3, type=int, help='heartbeat max count'
+        'retry', type=int, default=3, help='retry before heartbeat timeout'
     )
-    parser.add_argument(
-        '-i', dest='interval', default=1, type=int, help='heartbeat interval'
+    args = parse_args(parser)
+
+    mm = MiddlewareManager([HeartbeatMiddleware(args.interval, args.retry)])
+    ch = await pymaid.rpc.pb.serve_stream(
+        args.address, backlog=args.backlog, services=[], middleware_manager=mm
     )
-
-    args = parser.parse_args()
-    if re.search(r':\d+$', args.address):
-        address, port = args.address.split(':')
-        args.address = (address, int(port))
-    print(args)
-    return args
-
-
-def main(args):
-    listener = Listener()
-    listener.append_service(MonitorServiceImpl())
-    channel = ServerChannel(PBHandler(listener))
-    channel.listen(args.address)
-    channel.append_middleware(MonitorMiddleware(args.interval, args.count))
-    channel.start()
-    try:
-        serve_forever()
-    except Exception:
-        print(len(channel.connections))
-        print(greenlet_pool.size, len(greenlet_pool.greenlets))
+    async with ch:
+        await ch.serve_forever()
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    pymaid.run(main())

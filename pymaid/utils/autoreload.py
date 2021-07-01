@@ -45,8 +45,6 @@ except ImportError:
         # Should we look for .pyw files?
         return basename + '.py'
 
-from pymaid.core import signal
-
 if sys.version_info[0] >= 3:
     PY3 = True
 else:
@@ -181,7 +179,7 @@ class ModuleReloader(object):
                         del self.failed[py_filename]
                 except Exception:
                     print(
-                        "[autoreload of %s failed: %s]" % (modname, format_exc()),  # noqa
+                        f"[autoreload of {modname} failed: {format_exc()}]",  # noqa
                         file=sys.stderr
                     )
                     self.failed[py_filename] = pymtime
@@ -355,4 +353,6 @@ def enable_autoreload(signum):
 
     def autoreload(sig, frame):
         reloader.check()
-    signal(signum, autoreload)
+
+    from pymaid import backend
+    backend.get_running_loop().add_signal_handler(signum, autoreload)
