@@ -18,6 +18,7 @@ LOGGING = {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
+            'stream': 'ext://sys.stdout',
         },
     },
     'loggers': {

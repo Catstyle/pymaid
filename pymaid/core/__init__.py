@@ -3,12 +3,15 @@
 And for better performance, it use uvloop as the event loop
 '''
 import asyncio
+import signal
 import socket
 
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from functools import partial
 
 from pymaid.utils.logger import get_logger
+
+logger = get_logger('pymaid')
 
 __all__ = (
     'run',
@@ -63,24 +66,34 @@ get_event_loop_policy = asyncio.get_event_loop_policy
 get_running_loop = asyncio.get_running_loop
 
 
-def setup_context(debug=None):
+async def with_context(coro):
+    get_running_loop().add_signal_handler(signal.SIGINT, sig_interrupt)
+    get_running_loop().add_signal_handler(signal.SIGTERM, sig_interrupt)
+    await coro
+
+
+def sig_interrupt():
+    logger.info('[pymaid] receive interrupt/terminate signal')
+    for task in all_tasks():
+        task.cancel()
+
+
+def run(main, *, args=None, kwargs=None, debug=None):
     from pymaid.conf import settings
     if settings.get('EVENT_LOOP', ns='pymaid') == 'uvloop':
         import uvloop
         uvloop.install()
-
     debug = debug if debug is not None else settings.pymaid.DEBUG
-    get_logger('pymaid').warning(
+    logger.warning(
         '[pymaid|run] [loop|%s][DEBUG|%s]',
         get_event_loop_policy().__class__.__name__,
         debug,
     )
 
-
-def run(main, *, debug=None):
-    setup_context(debug)
+    if iscoroutinefunction(main):
+        main = main(*(args or ()), **(kwargs or {}))
     try:
-        asyncio_run(main, debug=debug)
+        asyncio_run(with_context(main), debug=debug)
     except (SystemExit, KeyboardInterrupt):
         pass
 

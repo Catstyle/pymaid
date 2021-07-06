@@ -10,6 +10,7 @@ import socket
 from errno import ENOTCONN, ECONNABORTED
 from typing import List
 
+from pymaid.conf import settings
 from pymaid.core import get_running_loop, run_in_threadpool, sleep
 
 HAS_IPv6_FAMILY = hasattr(socket, 'AF_INET6')
@@ -182,7 +183,7 @@ async def sock_listen(
             set_sock_options(sock)
             if reuse_address:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
-            if reuse_port:
+            if settings.get('REUSE_PORT', ns='pymaid') or reuse_port:
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
             # Disable IPv4/IPv6 dual stack support (enabled by
             # default on Linux) which makes a single socket
@@ -195,6 +196,15 @@ async def sock_listen(
             try:
                 sock.bind(sa)
             except OSError as err:
+                if err.errno == 98:
+                    assert af == socket.AF_UNIX, af
+                    raise OSError(
+                        98,
+                        (
+                            'Address already in use; '
+                            'pymaid cannot bind AF_UNIX parallelly'
+                        )
+                    ) from None
                 raise OSError(
                     err.errno,
                     f'error occured while binding on address {addr_info}: '

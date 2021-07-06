@@ -88,6 +88,6 @@ if __name__ == '__main__':
             )
         ],
         entry_points={
-            'console_scripts': 'pymaid=pymaid.__main__:main'
+            'console_scripts': 'pymaid=pymaid.cli:main'
         }
     )

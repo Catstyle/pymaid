@@ -1,8 +1,9 @@
 import termios
+import sys
 
 from contextlib import AsyncExitStack, ExitStack
 from functools import wraps
-from sys import _getframe as getframe, stdin
+from sys import _getframe as getframe
 
 from pymaid.core import iscoroutinefunction
 
@@ -37,6 +38,9 @@ class ObjectManager(object):
         obj = self.objects.pop(pk)
         obj._manager = None
         return obj
+
+
+del logger_wrapper
 
 
 def get_ipaddress(ifname):
@@ -142,9 +146,9 @@ def defer(func, *args, **kwargs):
 
 
 def enable_echo(enable):
-    if not stdin.isatty():
+    if sys.stdin.closed or not sys.stdin.isatty():
         return
-    fd = stdin.fileno()
+    fd = sys.stdin.fileno()
     new = termios.tcgetattr(fd)
     if enable:
         new[3] |= termios.ECHO
@@ -152,6 +156,3 @@ def enable_echo(enable):
         new[3] &= ~termios.ECHO
 
     termios.tcsetattr(fd, termios.TCSANOW, new)
-
-
-del logger_wrapper
