@@ -1,4 +1,4 @@
-.PHONY: _default clean compile test release
+.PHONY: _default clean compile test release docs
 
 PYTHON ?= python
 
@@ -39,3 +39,6 @@ release_wheel:
 
 upload:
 	twine upload dist/*
+
+docs:
+	sphinx-build -b html -n -d build/doctrees -j auto -W docs docs/html
