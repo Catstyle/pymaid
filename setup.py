@@ -15,7 +15,7 @@ __version__ = re.search(
 assert __version__
 
 # Get the long description from the README file
-long_description = (root_dir / 'README.md').read_text(encoding='utf-8')
+long_description = (root_dir / 'README.rst').read_text(encoding='utf-8')
 
 requirements = (root_dir / 'requirements.txt').read_text(encoding='utf-8')
 requirements = [line.strip() for line in requirements.split('\n')]

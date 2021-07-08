@@ -71,10 +71,9 @@ def on_parse(args):
 
 parser = ArgumentParser(
     prog='pymaid',
-    description='pymaid, a useful toolset',
+    description='pymaid, a handy toolset',
     usage='%(prog)s [options]',
     formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-    # name='pymaid',
     on_parse=on_parse,
 )
 parser.add_argument(
