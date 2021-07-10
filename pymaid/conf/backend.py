@@ -61,7 +61,7 @@ class SettingsBackend(metaclass=BackendMeta):
             self.worker.kill()
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.ApolloBackend')
 class ApolloBackend(SettingsBackend):
 
     def __init__(self,

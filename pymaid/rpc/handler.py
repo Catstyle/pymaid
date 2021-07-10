@@ -13,7 +13,6 @@ from .method import Method, MethodStub
 from .router import Router
 
 
-@logger_wrapper
 class Handler(abc.ABC):
     '''Handle the *received* request/response.'''
 
@@ -186,7 +185,7 @@ class Handler(abc.ABC):
         )
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.SerialHandler')
 class SerialHandler(Handler):
     '''Handle the *received* requests *one by one*.
 
@@ -217,7 +216,7 @@ class SerialHandler(Handler):
             new_task_received.clear()
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.ParallelHandler')
 class ParallelHandler(Handler):
     '''Handle the *received* requests parallelly.
 

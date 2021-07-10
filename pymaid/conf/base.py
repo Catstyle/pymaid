@@ -33,7 +33,7 @@ class Namespace(dict):
             raise AttributeError(name)
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.Settings')
 class Settings(object):
 
     transformer = {

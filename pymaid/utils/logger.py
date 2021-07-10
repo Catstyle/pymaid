@@ -9,8 +9,6 @@ from collections.abc import Mapping
 
 __all__ = ['logger_wrapper', 'get_logger']
 
-pymaid_logger = logging.getLogger('pymaid')
-
 
 def configure_logging(settings, ns):
     '''Setup logging from pymaid.LOGGING and logging.LOGGING settings.
@@ -51,8 +49,8 @@ def logger_wrapper(name=''):
         return _
 
 
-def get_logger(name):
-    return pymaid_logger.getChild(name)
+def get_logger(name: str):
+    return logging.getLogger(name)
 
 
 def enable_debug_output(signum):

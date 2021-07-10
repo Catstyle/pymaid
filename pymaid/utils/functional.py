@@ -12,7 +12,7 @@ from .logger import logger_wrapper
 __all__ = ['ObjectManager', 'get_ipaddress']
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.ObjectManager')
 class ObjectManager(object):
 
     def __init__(self, name):

@@ -7,8 +7,8 @@ LOGGING = {
     'formatters': {
         'standard': {
             'format': (
-                '%(asctime)s.%(msecs).03d %(levelname).1s|%(process)-6s '
-                '%(message)s'
+                '%(asctime)s.%(msecs).03d %(levelname).1s|%(process)s|%(name)s'
+                ': %(message)s'
             ),
             'datefmt': '%m-%d %H:%M:%S'
         }

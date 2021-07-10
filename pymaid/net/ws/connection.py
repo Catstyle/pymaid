@@ -14,7 +14,7 @@ from .protocol import WSProtocol, Frame, CloseReason
 from .utf8validator import Utf8Validator
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.WebSocket')
 class WebSocket(Stream):
     '''A naive implementation of `websocket`_.
 

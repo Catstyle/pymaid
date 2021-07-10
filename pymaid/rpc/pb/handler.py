@@ -8,7 +8,7 @@ from .error import PBError
 from .pymaid_pb2 import Context as Meta, ErrorMessage
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.PBHandler')
 class PBHandler(Handler):
 
     INBOUND_CONTEXT_CLASS = PBInboundContext
@@ -67,11 +67,11 @@ class PBHandler(Handler):
         await self.conn.send_message(meta, packet)
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.PBSerialHandler')
 class PBSerialHandler(PBHandler, SerialHandler):
     pass
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.PBParallelHandler')
 class PBParallelHandler(PBHandler, ParallelHandler):
     pass

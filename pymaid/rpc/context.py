@@ -14,7 +14,7 @@ from .types import ConnectionType
 __all__ = ('C', 'Context', 'InboundContext', 'OutboundContext')
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.Context')
 class Context:
 
     def __init__(

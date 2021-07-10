@@ -2,7 +2,7 @@ import enum
 
 from pymaid.utils.logger import get_logger
 
-logger = get_logger('net')
+logger = get_logger('pymaid.net')
 
 
 class TransportState(enum.IntEnum):

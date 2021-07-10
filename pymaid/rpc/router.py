@@ -41,7 +41,7 @@ class Router:
         return self.routes.get(name)
 
 
-@logger_wrapper
+@logger_wrapper(name='pymaid.RouterStub')
 class RouterStub:
 
     def __init__(self, stub):
