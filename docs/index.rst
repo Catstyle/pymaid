@@ -10,7 +10,8 @@ Welcome to pymaid's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   ../README.rst
+   README.rst
+   apidoc/modules.rst
 
 
 Indices and tables

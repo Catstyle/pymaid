@@ -131,7 +131,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
     @classmethod
     def create_manager(cls, name):
         frame = getframe(1)  # get caller frame
-        kwargs = dict(ErrorManager.__dict__)
+        kwargs = dict(cls.__dict__)
         kwargs['__module__'] = frame.f_locals.get('__name__', '')
         if cls.__fullname__:
             kwargs['__fullname__'] = f'{cls.__fullname__}.{name}'

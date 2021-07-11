@@ -159,19 +159,20 @@ class Settings(object):
     def load_from_environment(
         self, prefix='SETTING__', raise_invalid_value=True
     ):
-        '''load *special formatted* env into settings
+        '''Load *special formatted* env into settings
 
         format: {PREFIX}__{NAMESPACE}__{KEY}=VALUE
         PREFIX: pymaid settings
         NAMESPACE: namespace
         KEY: settings key name
-        VALUE: type::value, type need to be builtin type,
-            current are %s
-            dict/list will be loaded using json.loads
+        VALUE: ``type::value``, type need to be builtin type,
+        current are %s
+        dict/list will be loaded using json.loads
 
         NOTE: when loaded, {NAMESPACE} will transform to lower case
 
-        e.g.:
+        .. note::
+
             export SETTING__PYMAID__DEBUG='bool::True'
             will result in below
             settings.set('DEBUG', True, ns='pymaid')
@@ -224,15 +225,17 @@ class Settings(object):
         format: pymaid --conf {NAMESPACE}__{KEY}=VALUE
         NAMESPACE: namespace
         KEY: settings key name
-        VALUE: type::value, type need to be builtin type,
-            current are %s
-            dict/list will be loaded using json.loads
+        VALUE: ``type::value``, type need to be builtin type,
+        current are %s
+        dict/list will be loaded using json.loads
 
         NOTE: when loaded, {NAMESPACE} will transform to lower case
 
-        e.g.:
-            pymaid --conf USER__NAME=str::cat --conf USER__AGE=int::18 conf
-            will show new added settings
+        pymaid --conf USER__NAME=str::cat --conf USER__AGE=int::18 conf
+        will show new added settings
+
+        .. code-block:: python
+
             {
                 ...
                 'user': {

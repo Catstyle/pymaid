@@ -44,17 +44,17 @@ LOGGING = {
 MAX_ACCEPT = 64
 MAX_TASKS = 32
 
-'''
-MAX_CONNECTIONS limits the connections
-MAX_CONCURRENCY limits the concurrency of *requests*
-MAX_METHOD_CONCURRENCY limits the concurrency of *requests* for specified rpc
-e.g.:
-1. 10000 connections, next new connection will fail
-2. 100 connections, one parallelly call 100 different(not the same) async rpcs
-   next rpc call will fail (nomatter from new connection or old connections)
-3. 1 connection, parallelly call one async rpc for 10000 times
-   next the same rpc call from the connection will fail
-'''
+#
+# MAX_CONNECTIONS limits the connections
+# MAX_CONCURRENCY limits the concurrency of *requests*
+# MAX_METHOD_CONCURRENCY limits the concurrency of *requests* for specified rpc
+# e.g.:
+# 1. 10000 connections, next new connection will fail
+# 2. 100 connections, one parallelly call 100 different(not the same) async
+# rpcs next rpc call will fail (nomatter from new or old connections)
+# 3. 1 connection, parallelly call one async rpc for 10000 times
+# next the same rpc call from the connection will fail
+#
 MAX_CONNECTIONS = 10000
 MAX_CONCURRENCY = 10000
 MAX_METHOD_CONCURRENCY = 10000

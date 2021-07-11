@@ -41,4 +41,4 @@ upload:
 	twine upload dist/*
 
 docs:
-	sphinx-build -b html -n -d build/doctrees -j auto -W docs docs/_build/html
+	sphinx-build -b html -n -d build/doctrees -j auto docs docs/_build/html

@@ -10,15 +10,18 @@ class Protocol(abc.ABC):
 
     You can build your protocol upon Protocol
     and you can easily change the underlying Protocol
-    e.g.:
-        build your AppProtocol inherit from Http and change to Http2 if wanted,
-        and in best case, do not need to do anything else
+
+    Build your AppProtocol inherit from Http and change to Http2 if wanted,
+    and in best case, do not need to do anything else
+
+    .. code-block:: python
 
         class AppProtocol(Http):
             ...
 
         class AppProtocol(Http2):
             ...
+
     '''
 
     @abc.abstractclassmethod
