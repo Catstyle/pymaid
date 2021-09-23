@@ -1,5 +1,8 @@
 from unittest import TestCase
 
+import httptools
+import pytest
+
 from pymaid import error
 
 
@@ -225,7 +228,7 @@ class ErrorTest(TestCase):
         self.assertEqual(ex.message, 'Error1: assembled')
 
     def test_magic_args_code(self):
-        HttpError = error.ErrorManager()
+        HttpError = error.ErrorManager.create_manager('HttpError')
         HttpError.add_error('BadRequest', None, code=400)
 
         ex = HttpError.BadRequest()
@@ -236,3 +239,23 @@ class ErrorTest(TestCase):
         ex = HttpError.BadRequest(_message_='missing User-Agent header')
         self.assertEqual(ex.code, 400)
         self.assertEqual(ex.message, 'missing User-Agent header')
+
+    def test_cannot_new_ErrorManager(self):
+        with pytest.raises(TypeError):
+            error.ErrorManager()
+
+        M = error.ErrorManager.create_manager('M')
+        with pytest.raises(TypeError):
+            M()
+
+    def test_wraps_other_exception(self):
+        M = error.ErrorManager.create_manager('M')
+        M.add_error('Error1', None, code=400)
+
+        M.Error1.wraps(httptools.parser.errors.HttpParserInvalidURLError)
+
+        with pytest.raises(M.Error1):
+            raise httptools.parser.errors.HttpParserInvalidURLError()
+
+        with pytest.raises(M):
+            raise httptools.parser.errors.HttpParserInvalidURLError()

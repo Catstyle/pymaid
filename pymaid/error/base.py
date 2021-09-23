@@ -4,7 +4,7 @@ from sys import _getframe as getframe
 from orjson import loads
 
 
-class BaseEx(Exception):
+class BaseEx(Exception, metaclass=abc.ABCMeta):
 
     code = None
     message = 'BaseEx'
@@ -18,6 +18,11 @@ class BaseEx(Exception):
             message = message.format(*args, **kwargs)
         self.message = message
         self.data = kwargs.get('data', {})
+
+    @classmethod
+    def wraps(cls, target: Exception):
+        cls.register(target)
+        return target
 
 
 class Error(BaseEx):
@@ -53,6 +58,11 @@ class ErrorManager(metaclass=abc.ABCMeta):
     codes = {}
     managers = {}
     __fullname__ = ''
+
+    def __new__(cls, *args, **kwargs):
+        if cls is ErrorManager or ErrorManager in cls.__bases__:
+            raise TypeError('should not initiate ErrorManager')
+        return super().__new__(cls, *args, **kwargs)
 
     @classmethod
     def add(cls, name, ex):
