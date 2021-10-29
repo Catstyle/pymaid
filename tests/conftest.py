@@ -4,6 +4,9 @@ import pymaid
 import pytest
 
 from pymaid.conf import defaults, settings
+from pymaid.utils.logger import get_logger
+
+logger = get_logger('pymaid')
 
 
 @pytest.fixture
@@ -15,6 +18,11 @@ def event_loop():
         import uvloop
         uvloop.install()
     loop = pymaid.get_event_loop_policy().new_event_loop()
+    logger.warning(
+        '[pymaid|run] [loop|%s][DEBUG|%s]',
+        pymaid.conf.settings.pymaid.get('EVENT_LOOP'),
+        pymaid.conf.settings.pymaid.DEBUG,
+    )
     yield loop
     loop.close()
 

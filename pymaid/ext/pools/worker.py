@@ -20,6 +20,7 @@ class AioPool:
         self.size = size
         self.semaphore = Semaphore(size)
         self.tasks = set()
+        self.waiter_count = 0
         self.empty_event = Event()
 
         self.has_shutdown = False
@@ -27,7 +28,7 @@ class AioPool:
 
     @property
     def is_empty(self):
-        return len(self.tasks) == 0
+        return len(self.tasks) == 0 and not self.waiter_count
 
     async def __aenter__(self):
         return self
@@ -35,26 +36,18 @@ class AioPool:
     async def __aexit__(self, exc_tpye, exc_value, exc_tb):
         await self.join()
 
-    async def _run(self, coro, callback=None):
-        try:
-            result = await coro
-            if callback is not None:
-                callback(result)
-            return result
-        finally:
-            self.executed_count += 1
-            self.task_done(current_task())
-
-    async def _spawn(self, coro, callback=None):
+    async def _spawn(self, coro):
         await self.semaphore.acquire()
         try:
-            return await self._run(coro, callback)
+            return await coro
         finally:
-            self.semaphore.release()
+            self.task_done(current_task())
 
     def task_done(self, task):
         assert task in self.tasks, 'task not belong to this pool'
+        self.semaphore.release()
         self.tasks.remove(task)
+        self.executed_count += 1
         if self.is_empty:
             self.notify_empty()
 
@@ -76,9 +69,13 @@ class AioPool:
                 f'callback expected to be callable, got: {callback}'
             )
 
+        self.waiter_count += 1
         await self.semaphore.acquire()
-        task = self.task_class(self._run(coro, callback=callback))
-        task.add_done_callback(lambda t: self.semaphore.release())
+        self.waiter_count -= 1
+        task = self.task_class(coro)
+        task.add_done_callback(self.task_done)
+        if callback:
+            task.add_done_callback(callback)
         self.tasks.add(task)
         return task
 
@@ -101,13 +98,13 @@ class AioPool:
             )
 
         task = self.task_class(self._spawn(coro, callback=callback))
+        if callback:
+            task.add_done_callback(callback)
         self.tasks.add(task)
         return task
 
-    async def shutdown(self, wait=True):
+    def shutdown(self):
         self.has_shutdown = True
-        if wait:
-            await self.join()
 
     async def join(self):
         if current_task() in self.tasks:

@@ -21,6 +21,7 @@ __all__ = (
     'get_running_loop',
 
     'create_task',
+    'shield',
     'current_task',
     'all_tasks',
     'wait_for',
@@ -109,6 +110,7 @@ all_tasks = asyncio.all_tasks
 wait_for = asyncio.wait_for
 wait = asyncio.wait
 gather = asyncio.gather
+shield = asyncio.shield
 
 Task = asyncio.Task
 
