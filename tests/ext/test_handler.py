@@ -131,7 +131,7 @@ async def test_on_close():
 async def test_error_handler():
     d = {'error': 0}
 
-    def record(exc):
+    async def record(exc):
         d['error'] += 1
 
     async with ParallelHandler(error_handler=record) as handler:

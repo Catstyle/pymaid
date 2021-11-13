@@ -1,7 +1,7 @@
 import abc
 
 from queue import deque
-from typing import Callable, List, Optional, Union
+from typing import Callable, Coroutine, List, Optional, Union
 
 from pymaid.core import create_task, current_task, Event, Task
 from pymaid.core import get_running_loop, iscoroutine, iscoroutinefunction
@@ -17,7 +17,7 @@ class Handler(abc.ABC):
         self,
         *,
         on_close: Optional[List[Callable[['Handler'], None]]] = None,
-        error_handler: Optional[Callable[[Task], None]] = None,
+        error_handler: Optional[Callable[[Task], Coroutine]] = None,
         close_on_exception: bool = False,
     ):
         self.task = None
@@ -25,11 +25,8 @@ class Handler(abc.ABC):
         self.close_on_exception = close_on_exception
 
         if error_handler:
-            if iscoroutinefunction(error_handler):
-                raise ValueError(
-                    'required error_handler as normal function, '
-                    'got coroutinefunction'
-                )
+            if not iscoroutinefunction(error_handler):
+                raise ValueError('required error_handler as coroutinefunction')
             self.error_handler = error_handler
         else:
             self.error_handler = self.handle_error
@@ -40,8 +37,6 @@ class Handler(abc.ABC):
         self.is_closing = False
         self.is_closed = False
 
-    def start(self):
-        # cyclic
         self.task = create_task(self.run())
 
     @abc.abstractmethod
@@ -68,9 +63,9 @@ class Handler(abc.ABC):
             return
         self.logger.info(f'{self!r} close with reason={reason!r}')
         self.is_closed = True
-        for coro in self.pending_tasks:
-            if coro:
-                coro.close()
+        for task in self.pending_tasks:
+            if iscoroutine(task):
+                task.close()
         self.pending_tasks.clear()
 
         for cb in self.on_close:
@@ -82,31 +77,21 @@ class Handler(abc.ABC):
 
     def submit(self, task: Callable, *args, **kwargs):
         # self.logger.debug(f'{self!r} get task={task}')
-        if not iscoroutinefunction(task):
-            task = self._run_callback(task, *args, **kwargs)
-        else:
-            task = task(*args, **kwargs)
-        assert iscoroutine(task)
-        self.pending_tasks.append(task)
+        self.pending_tasks.append((task, args, kwargs))
         self.new_task_received.set()
 
-    def handle_error(self, error: Exception):
+    async def handle_error(self, error: Exception):
         '''Default error handler.
 
         Just write error logs.
         '''
         self.logger.error(f'{self!r} caught an unhandled error, {error!r}')
 
-    async def _run_callback(self, callback: Callable, *args, **kwargs):
-        assert not iscoroutinefunction(callback), 'should not get here'
-        callback(*args, **kwargs)
-
     async def __aenter__(self):
-        self.start()
         return self
 
     async def __aexit__(self, exc_tpye, exc_value, exc_tb):
-        self.shutdown()
+        self.shutdown('__aexit__')
         await self.join()
 
     def __repr__(self):
@@ -142,12 +127,18 @@ class SerialHandler(Handler):
                     running = False
                     break
 
+                task, args, kwargs = task
                 try:
-                    await task
+                    if iscoroutine(task):
+                        await task
+                    elif iscoroutinefunction(task):
+                        await task(*args, **kwargs)
+                    else:
+                        task(*args, **kwargs)
                 except BaseEx as exc:
                     assert False, f'{exc} should be handled within logic'
                 except Exception as exc:
-                    error_handler(exc)
+                    await error_handler(exc)
                     if self.close_on_exception:
                         self.close(exc)
                         return
@@ -165,7 +156,7 @@ class ParallelHandler(Handler):
         self,
         *,
         on_close: Optional[List[Callable[['Handler'], None]]] = None,
-        error_handler: Optional[Callable[[Task], None]] = None,
+        error_handler: Optional[Callable[[Task], Coroutine]] = None,
         close_on_exception: bool = False,
         concurrency: int = 5,
     ):
@@ -177,6 +168,9 @@ class ParallelHandler(Handler):
         self.worker = AioPool(concurrency)
         self.got_exception = False
 
+    async def _run_callback(self, callback: Callable, *args, **kwargs):
+        return callback(*args, **kwargs)
+
     def _discard_result(self, task: Task):
         if task.cancelled():
             return
@@ -186,7 +180,7 @@ class ParallelHandler(Handler):
             assert False, f'{exc} should be handled within logic'
             del exc
         except Exception as exc:
-            self.error_handler(exc)
+            get_running_loop().create_task(self.error_handler(exc))
             if self.close_on_exception:
                 self.got_exception = True
                 get_running_loop().create_task(self.on_exception(exc))
@@ -204,6 +198,7 @@ class ParallelHandler(Handler):
         pending_tasks = self.pending_tasks
         error_handler = self.error_handler
         schedule_task = self.worker.spawn
+        run_callback = self._run_callback
 
         running = True
         while running:
@@ -216,7 +211,15 @@ class ParallelHandler(Handler):
                     running = False
                     break
 
+                task, args, kwargs = task
                 try:
+                    if iscoroutine(task):
+                        pass
+                    elif iscoroutinefunction(task):
+                        task = task(*args, **kwargs)
+                    else:
+                        task = run_callback(task, *args, **kwargs)
+                    assert iscoroutine(task), task
                     t = await schedule_task(task, self._discard_result)
                     if self.close_on_exception and self.got_exception:
                         self.logger.warning(
@@ -224,7 +227,7 @@ class ParallelHandler(Handler):
                         )
                         t.cancel()
                 except Exception as exc:
-                    error_handler(exc)
+                    await error_handler(exc)
                     if self.close_on_exception:
                         await self.worker.join()
                         self.close(exc)
