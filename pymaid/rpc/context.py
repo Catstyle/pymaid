@@ -204,4 +204,110 @@ class OutboundContext(Context):
         return resp
 
 
+class ContextManager:
+
+    MAX_TRANSMISSION_ID = 2 ** 32 - 1
+    INBOUND_CONTEXT_CLASS = InboundContext
+    OUTBOUND_CONTEXT_CLASS = OutboundContext
+
+    def __init__(self, initiative: bool):
+        # for initiative side, the id will be EVEN
+        # for passive side, the id will be ODD
+        self.initiative = initiative
+        if initiative:
+            self.outbound_transmission_id = 1
+        else:
+            self.outbound_transmission_id = 2
+        self.contexts = {}
+
+    def next_transmission_id(self) -> int:
+        '''Return the next available transmission id for the context created
+        by this endpoint.
+
+        :raises: :class:`NoAvailableTransmissionID
+            <pymaid.rpc.error.RPCError.NoAvailableTransmissionID>`
+        :returns: the next id can be initiate a Context
+        :rtype: ``int``
+        '''
+        transmission_id = self.outbound_transmission_id
+        if transmission_id > self.MAX_TRANSMISSION_ID:
+            raise RPCError.NoAvailableTransmissionID(
+                data={'id': transmission_id, 'max': self.MAX_TRANSMISSION_ID}
+            )
+        self.outbound_transmission_id += 2
+        return transmission_id
+
+    def new_inbound_context(
+        self,
+        transmission_id: int,
+        *,
+        method: Method,
+        conn: ConnectionType,
+        timeout: Optional[float] = None,
+    ) -> 'C':
+        # it is hard to insist the inbound_transmission_id order
+        # e.g.
+        # client make 3 async calls: 1, 3, 5
+        # all 3 run parallelly, then the order is unspecified
+
+        # if transmission_id < self.inbound_transmission_id:
+        #     raise RPCError.InvalidTransmissionID(
+        #         data={
+        #             'tid': transmission_id,
+        #             'reason': 'reused transmission id',
+        #         }
+        #     )
+
+        transmission_id = transmission_id
+        assert transmission_id not in self.contexts, 'reused transmission id'
+        if not self.initiative and transmission_id % 2 != 1:
+            raise RPCError.InvalidTransmissionID(
+                data={
+                    'tid': transmission_id,
+                    'reason': 'invalid inbound transmission id value',
+                }
+            )
+        # self.inbound_transmission_id = transmission_id
+
+        # warning: cyclic referrence
+        context = self.INBOUND_CONTEXT_CLASS(
+            conn=conn,
+            transmission_id=transmission_id,
+            method=method,
+            timeout=timeout,
+        )
+        context._manager = self
+        self.contexts[transmission_id] = context
+        return context
+
+    def new_outbound_context(
+        self,
+        *,
+        method: MethodStub,
+        conn: ConnectionType,
+        timeout: Optional[float] = None,
+    ) -> 'C':
+        transmission_id = self.next_transmission_id()
+        # warning: cyclic referrence
+        context = self.OUTBOUND_CONTEXT_CLASS(
+            conn=conn,
+            transmission_id=transmission_id,
+            method=method,
+            timeout=timeout,
+        )
+        context._manager = self
+        self.contexts[transmission_id] = context
+        return context
+
+    def get_context(self, transmission_id: int) -> 'C':
+        return self.contexts.get(transmission_id)
+
+    def release_context(self, transmission_id: int):
+        if transmission_id not in self.contexts:
+            # already released ?
+            return
+        context = self.contexts.pop(transmission_id)
+        del context._manager
+
+
 C = TypeVar('Context', bound=Context)

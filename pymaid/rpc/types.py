@@ -13,4 +13,3 @@ MethodStub = TypeVar('MethodStub')
 
 RouterType = TypeVar('Router')
 ServiceType = TypeVar('Service')
-HandlerType = TypeVar('Handler')

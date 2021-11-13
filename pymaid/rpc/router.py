@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Coroutine, List, Sequence
 
 from pymaid.utils.logger import logger_wrapper
 
@@ -39,6 +39,9 @@ class Router:
 
     def get_route(self, name):
         return self.routes.get(name)
+
+    def feed_messages(self, messages) -> List[Coroutine]:
+        raise NotImplementedError('feed_messages')
 
 
 @logger_wrapper(name='pymaid.RouterStub')

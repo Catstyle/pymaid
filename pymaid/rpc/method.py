@@ -75,7 +75,9 @@ class MethodStub(metaclass=abc.ABCMeta):
         conn: ConnectionType,
         timeout: Optional[float] = None,
     ):
-        return conn.handler.new_outbound_context(method=self, timeout=timeout)
+        return conn.context_manager.new_outbound_context(
+            method=self, conn=conn, timeout=timeout,
+        )
 
     @abc.abstractmethod
     def __call__(

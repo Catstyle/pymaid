@@ -25,15 +25,17 @@ class Connection:
         *,
         protocol,
         handler,
+        router,
+        context_manager,
+        timeout: int = 30,
         **kwargs
     ):
         super().__init__(sock, **kwargs)
         self.protocol = protocol
         self.handler = handler
+        self.router = router
+        self.context_manager = context_manager
         self.__read_buffer = bytearray()
-
-        # NOTE: cyclic
-        handler.start(self)
 
     def data_received(self, data: bytes):
         '''Received data from low level transport'''
@@ -41,7 +43,8 @@ class Connection:
         used_size, messages = self.protocol.feed_data(self.__read_buffer)
         if used_size:
             self.__read_buffer = self.__read_buffer[used_size:]
-            self.handler.feed_messages(messages)
+            for task in self.router.feed_messages(self, messages):
+                self.handler.submit(task)
 
     def eof_received(self):
         self.handler.shutdown('eof_received')

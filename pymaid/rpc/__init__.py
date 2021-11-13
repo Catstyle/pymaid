@@ -2,18 +2,20 @@ import socket
 import ssl as _ssl
 from typing import Optional, Sequence, Type, Union
 
+from pymaid.ext.handler import SerialHandler
 from pymaid.ext.middleware import MiddlewareManager
 from pymaid.net.protocol import Protocol, ProtocolType
+from pymaid.types import HandlerType
 
 from . import channel
 from . import connection
-from . import handler
+from . import context
 from . import pb
 from . import router
 
 from .types import ServiceType
 
-__all__ = ('channel', 'connection', 'handler', 'pb', 'router')
+__all__ = ('channel', 'connection', 'context', 'pb', 'router')
 
 
 async def serve_stream(
@@ -31,9 +33,10 @@ async def serve_stream(
     ssl_handshake_timeout: Optional[float] = None,
     start_serving: bool = True,
     middleware_manager: Optional[MiddlewareManager] = None,
-    protocol: Type[ProtocolType] = Protocol,
-    handler_class: Optional[Type[handler.Handler]] = handler.SerialHandler,
+    protocol_class: Type[ProtocolType] = Protocol,
+    handler_class: Optional[HandlerType] = SerialHandler,
     router_class: Type[router.Router] = router.Router,
+    context_manager_class: context.ContextManager = context.ContextManager,
     services: Optional[Sequence[ServiceType]] = None,
     router: Optional[router.Router] = None,
 ):
@@ -44,9 +47,10 @@ async def serve_stream(
         ssl_context=ssl_context,
         ssl_handshake_timeout=ssl_handshake_timeout,
         middleware_manager=middleware_manager,
-        protocol=protocol,
+        protocol_class=protocol_class,
         handler_class=handler_class,
         router_class=router_class,
+        context_manager_class=context_manager_class,
     )
     if services:
         ch.router.include_services(services)

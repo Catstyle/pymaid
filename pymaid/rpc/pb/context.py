@@ -1,7 +1,7 @@
 from orjson import loads, dumps
 from pymaid.error import ErrorManager
 from pymaid.rpc.error import RPCError
-from pymaid.rpc.context import InboundContext, OutboundContext
+from pymaid.rpc.context import InboundContext, OutboundContext, ContextManager
 
 from .pymaid_pb2 import Context as Meta, ErrorMessage, Void
 
@@ -141,3 +141,9 @@ class PBOutboundContext(PBContext, OutboundContext):
             ),
             request or self.method.request_class(**kwargs),
         )
+
+
+class ContextManager(ContextManager):
+
+    INBOUND_CONTEXT_CLASS = PBInboundContext
+    OUTBOUND_CONTEXT_CLASS = PBOutboundContext
