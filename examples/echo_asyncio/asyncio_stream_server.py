@@ -11,7 +11,6 @@ async def handler(reader, writer):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     except (OSError, NameError) as ex:
         args.debug(f'set nodelay failed {ex}')
-        pass
     read, write = reader.read, writer.write
     while 1:
         data = await read(256 * 1024)

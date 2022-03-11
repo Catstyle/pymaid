@@ -41,8 +41,7 @@ class ArgumentParser(argparse.ArgumentParser):
         if self.on_parse:
             self.on_parse(args)
         if self.subparsers:
-            subcmd = self.get_subcmd(args)
-            if subcmd:
+            if subcmd := self.get_subcmd(args):
                 sub_parser = self.subparsers._name_parser_map[subcmd]
                 sub_parser.on_parse_callback(args)
 

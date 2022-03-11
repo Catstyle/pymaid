@@ -13,7 +13,7 @@ async def get_requests():
 async def worker(address, service, count, **kwargs):
     conn = await pymaid.rpc.pb.dial_stream(address, **kwargs)
 
-    for x in range(count):
+    for _ in range(count):
         # UnaryUnaryEcho
         resp = await service.UnaryUnaryEcho(request, conn=conn)
         assert len(resp.message) == 8000
@@ -55,24 +55,6 @@ async def worker(address, service, count, **kwargs):
         async for resp in service.StreamStreamEcho(get_requests(), conn=conn):
             assert len(resp.message) == 8000
 
-        # # This block performs the same STREAM_STREAM interaction as above
-        # # while showing more advanced stream control features.
-        # async with service.StreamStreamEcho.open(conn=conn) as context:
-        #     async for req in get_requests():
-        #         await context.send_message(request)
-        #         # you can still do something here
-        #         resp = await context.recv_message()
-        #         assert len(resp.message) == 8000
-        #     # or you can send requests first, then wait for responses
-        #     async for req in get_requests():
-        #         await context.send_message(request)
-        #         # you can still do something here
-        #     async for resp in context:
-        #         # you can still do something here
-        #         assert len(resp.message) == 8000
-        #     # you can send end message yourself
-        #     # or let context handle this at cleanup for you
-        #     await context.send_message(end=True)
     conn.shutdown()
     conn.close()
     await conn.wait_closed()

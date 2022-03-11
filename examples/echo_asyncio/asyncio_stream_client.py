@@ -14,7 +14,6 @@ async def wrapper(address, count):
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
     except (OSError, NameError):
         args.debug('set nodelay failed')
-        pass
     args.debug(f'[conn][reader|{reader}][writer|{writer}] connected')
 
     req = b'a' * args.msize
@@ -35,9 +34,10 @@ async def wrapper(address, count):
 async def main():
     global args
     args = parse_args(get_client_parser())
-    tasks = []
-    for x in range(args.concurrency):
-        tasks.append(asyncio.create_task(wrapper(args.address, args.request)))
+    tasks = [
+        asyncio.create_task(wrapper(args.address, args.request))
+        for _ in range(args.concurrency)
+    ]
 
     await asyncio.gather(*tasks)
 

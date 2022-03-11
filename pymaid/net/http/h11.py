@@ -102,15 +102,6 @@ class Http:
         # TODO: what to do with `Transfer-Encoding: chunked`
         if name in self.HEADER_SINGLETON and name in self.headers:
             return
-            raise HttpError.BadRequest(
-                _message_='multiple value for singleton header',
-                data={
-                    'name': name,
-                    'value': value,
-                    'in_header': self.headers.getall(name),
-                },
-            )
-
         if name in self.HEADER_MUST_HAVE_VALUE and not value:
             raise HttpError.BadRequest(
                 _message_='header that must have value get empty value',

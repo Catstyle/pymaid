@@ -137,8 +137,7 @@ class ApolloBackend(SettingsBackend):
                 for item in update:
                     ns = item['namespaceName'].rsplit('.', 1)[0]
                     nid = item['notificationId']
-                    data = get_data(ns, self.subscriptions[ns]['format'])
-                    if data:
+                    if data := get_data(ns, self.subscriptions[ns]['format']):
                         self.subscriptions[ns]['notificationId'] = nid
                         delta[ns] = data
 

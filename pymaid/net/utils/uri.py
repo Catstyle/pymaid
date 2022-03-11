@@ -70,7 +70,7 @@ def parse_uri(uri: str) -> URI:
     query = parsed.query
     fragment = parsed.fragment
 
-    if 'unix' == scheme:
+    if scheme == 'unix':
         port = None
         # when using unix domain socket, assume path is the address
         if host:

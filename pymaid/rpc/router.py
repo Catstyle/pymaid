@@ -28,7 +28,7 @@ class Router:
             assert method.full_name not in routes
             routes[method.full_name] = method
             # js/lua pb lib will format as '.service.method'
-            routes['.' + method.full_name] = method
+            routes[f'.{method.full_name}'] = method
 
     def include_services(self, services: Sequence[ServiceType]):
         for service in services:
