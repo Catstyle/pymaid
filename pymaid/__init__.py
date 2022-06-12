@@ -7,4 +7,4 @@ from .core import *  # noqa
 
 __all__ = ('conf', 'error', 'net', 'utils')
 
-__version__ = '1.0.0a1'
+__version__ = '1.0.0a2'
