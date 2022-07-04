@@ -77,7 +77,7 @@ if __name__ == '__main__':
         tests_require=dev_requirements,
         extras_require={
             'backend': [
-                'requests==2.25.1', 'PyYAML==5.4.1', 'xmltodict==0.12.0'
+                'httpx==0.23.0', 'PyYAML==6.0.0', 'xmltodict==0.13.0'
             ],
         },
         ext_modules=[

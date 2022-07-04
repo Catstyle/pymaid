@@ -29,7 +29,7 @@ def configure_logging(settings, ns):
         if not isinstance(value, Mapping):
             config[key] = value
         else:
-            config[key].update(value)
+            config.setdefault(key, {}).update(value)
     if config:
         if ns == 'pymaid' and settings.pymaid.DEBUG:
             config['loggers']['pymaid']['level'] = 'DEBUG'

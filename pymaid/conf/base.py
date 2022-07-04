@@ -16,8 +16,18 @@ from . import defaults
 
 class Namespace(dict):
 
+    def secret_output(self):
+        return {
+            key: "***" if "SECRET" in key else value
+            for key, value in self.items()
+        }
+
     def __dir__(self):
         return super(Namespace, self).__dir__() + list(self.keys())
+
+    def __str__(self):
+        return str(self.secret_output())
+    __repr__ = __str__
 
     def __getattr__(self, name):
         if name in self:
@@ -44,6 +54,7 @@ class Settings(object):
         'bool': lambda x: False if x in ('False', 'false') else True,
         'dict': loads,
         'list': loads,
+        'yaml': loads,
     }
 
     def __init__(self, name):

@@ -1,3 +1,4 @@
+import httpx
 from orjson import loads, dumps
 
 from pymaid.core import create_task
@@ -76,8 +77,7 @@ class ApolloBackend(SettingsBackend):
         self.cluster = cluster
         self.timeout = timeout
         self.api_type = api_type
-        import requests
-        self.session = requests.Session()
+        self.session = httpx.Client()
 
     def subscribe(self, ns, settings, format='json'):
         result = super(ApolloBackend, self).subscribe(ns, settings, format)
@@ -89,7 +89,6 @@ class ApolloBackend(SettingsBackend):
         return result
 
     async def run(self):
-        import requests
         while self.listening:
             notifications = [
                 {
@@ -108,7 +107,7 @@ class ApolloBackend(SettingsBackend):
                     },
                     timeout=self.timeout,
                 )
-            except requests.exceptions.RequestException as ex:
+            except httpx.HTTPError as ex:
                 self.logger.warn(
                     '[pymaid][settings][backend|%s] raise request error: %r',
                     self.__class__.__name__, ex
@@ -152,14 +151,13 @@ class ApolloBackend(SettingsBackend):
                 self.fetching = False
 
     def get_cached_data(self, ns, format):
-        import requests
         try:
             resp = self.session.get(
                 f'{self.config_server}/configfiles/json/'
                 f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
-        except requests.exceptions.RequestException as ex:
+        except httpx.HTTPError as ex:
             self.logger.warn(
                 '[pymaid][settings][backend|%s] raise request error: %r',
                 self.__class__.__name__, ex
@@ -169,14 +167,13 @@ class ApolloBackend(SettingsBackend):
                 return ApolloBackend.formatters[format](self, resp.json())
 
     def get_uncached_data(self, ns, format):
-        import requests
         try:
             resp = self.session.get(
                 f'{self.config_server}/configs/'
                 f'{self.app_id}/{self.cluster}/{ns}.{format}',
                 timeout=self.timeout,
             )
-        except requests.exceptions.RequestException as ex:
+        except httpx.HTTPError as ex:
             self.logger.warn(
                 '[pymaid][settings][backend|%s] raise request error: %r',
                 self.__class__.__name__, ex
