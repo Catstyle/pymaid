@@ -29,7 +29,7 @@ async def wrapper(loop, address, count):
     write = transport.sendto
     req = b'a' * args.msize
     receive_event = protocol.receive_event = pymaid.Event()
-    for x in range(count):
+    for _ in range(count):
         write(req)
         await receive_event.wait()
         receive_event.clear()
@@ -42,12 +42,9 @@ async def main():
     global args
     args = parse_args(get_client_parser())
     loop = pymaid.get_event_loop()
-    tasks = []
-    for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(
+    tasks = [pymaid.create_task(
             wrapper(loop, args.address, args.request)
-        ))
-
+        ) for _ in range(args.concurrency)]
     await pymaid.gather(*tasks)
 
 

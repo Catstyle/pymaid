@@ -56,9 +56,12 @@ def parse_args():
 def get_modules(root_path):
     modules = []
     for root, dirnames, filenames in os.walk(root_path):
-        for filename in filenames:
-            if filename.endswith('_pb2.py'):
-                modules.append(os.path.join(root, filename))
+        modules.extend(
+            os.path.join(root, filename)
+            for filename in filenames
+            if filename.endswith('_pb2.py')
+        )
+
     print('modules', modules)
     return modules
 
@@ -83,8 +86,8 @@ def generate_js_rpc(service_descriptor, package, prefix):
     service_name = service_descriptor.name
     print('generating %s' % service_descriptor.full_name)
     for method in service_descriptor.methods:
-        input_type = prefix + '.' + method.input_type.full_name
-        output_type = prefix + '.' + method.output_type.full_name
+        input_type = f'{prefix}.{method.input_type.full_name}'
+        output_type = f'{prefix}.{method.output_type.full_name}'
         requires.update([REQUIRE_TEMPLATE.safe_substitute(name=input_type),
                          REQUIRE_TEMPLATE.safe_substitute(name=output_type)])
         mstr = METHOD_TEMPLATE.safe_substitute(
@@ -112,7 +115,7 @@ def generate(path, output, package, prefix, root):
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
             file_path = os.path.join(output_path, splits[-1][:-7])
-            with open(file_path + '_rpc.js', 'w') as fp:
+            with open(f'{file_path}_rpc.js', 'w') as fp:
                 fp.write(content)
 
 

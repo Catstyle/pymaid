@@ -253,8 +253,10 @@ class WSProtocol(Protocol):
 
     @classmethod
     def build_response(cls, headers: CIMultiDict) -> bytes:
-        if ('websocket' != headers.get('Upgrade', '').lower()
-                or 'upgrade' != headers.get('Connection', '').lower()):
+        if (
+            headers.get('Upgrade', '').lower() != 'websocket'
+            or headers.get('Connection', '').lower() != 'upgrade'
+        ):
             raise ProtocolError(
                 f'invalid websocket handshake header: {headers}'
             )
@@ -274,8 +276,10 @@ class WSProtocol(Protocol):
 
     @classmethod
     def validate_upgrade(cls, headers: CIMultiDict, upgrade_key: bytes):
-        if ('websocket' != headers.get('Upgrade', '').lower()
-                or 'upgrade' != headers.get('Connection', '').lower()):
+        if (
+            headers.get('Upgrade', '').lower() != 'websocket'
+            or headers.get('Connection', '').lower() != 'upgrade'
+        ):
             raise ProtocolError(
                 f'invalid websocket handshake header: {headers}'
             )
@@ -335,38 +339,39 @@ class Frame:
         self.prepare()
 
     def prepare(self):
-        if self.opcode == self.OPCODE_CLOSE:
-            payload = self.payload
-            length = self.length
-            if not length:
-                self.close_reason = CloseReason.NO_STATUS_RCVD
-            elif length == 1:
-                raise ProtocolError(f'Invalid close frame: {self} {payload}')
+        if self.opcode != self.OPCODE_CLOSE:
+            return
+        payload = self.payload
+        length = self.length
+        if not length:
+            self.close_reason = CloseReason.NO_STATUS_RCVD
+        elif length == 1:
+            raise ProtocolError(f'Invalid close frame: {self} {payload}')
+        else:
+            code = unpack_H(payload[:2])[0]
+            if code < MIN_CLOSE_REASON or code > MAX_CLOSE_REASON:
+                raise ProtocolError('invalid close code range')
+            try:
+                code = CloseReason(code)
+            except ValueError:
+                pass
+            if code in LOCAL_ONLY_CLOSE_REASONS:
+                raise ProtocolError('remote CLOSE with local-only reason')
+            if (not isinstance(code, CloseReason)
+                    and code <= MAX_PROTOCOL_CLOSE_REASON):
+                raise ProtocolError('CLOSE with unknown reserved code')
+            try:
+                reason = payload[2:].decode('utf-8')
+            except UnicodeDecodeError:
+                raise ProtocolError(
+                    'close reason is not valid UTF-8',
+                    CloseReason.INVALID_FRAME_PAYLOAD_DATA,
+                )
+            if isinstance(code, CloseReason):
+                code.reason = reason
             else:
-                code = unpack_H(payload[:2])[0]
-                if code < MIN_CLOSE_REASON or code > MAX_CLOSE_REASON:
-                    raise ProtocolError('invalid close code range')
-                try:
-                    code = CloseReason(code)
-                except ValueError:
-                    pass
-                if code in LOCAL_ONLY_CLOSE_REASONS:
-                    raise ProtocolError('remote CLOSE with local-only reason')
-                if (not isinstance(code, CloseReason)
-                        and code <= MAX_PROTOCOL_CLOSE_REASON):
-                    raise ProtocolError('CLOSE with unknown reserved code')
-                try:
-                    reason = payload[2:].decode('utf-8')
-                except UnicodeDecodeError:
-                    raise ProtocolError(
-                        'close reason is not valid UTF-8',
-                        CloseReason.INVALID_FRAME_PAYLOAD_DATA,
-                    )
-                if isinstance(code, CloseReason):
-                    code.reason = reason
-                else:
-                    code = (code, reason)
-                self.close_reason = code
+                code = (code, reason)
+            self.close_reason = code
 
     def __repr__(self):
         return (

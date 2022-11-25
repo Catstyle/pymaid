@@ -89,9 +89,12 @@ def parse_args():
 def get_modules(root_path):
     modules = []
     for root, dirnames, filenames in os.walk(root_path):
-        for filename in filenames:
-            if filename.endswith('_pb2.py'):
-                modules.append(os.path.join(root, filename))
+        modules.extend(
+            os.path.join(root, filename)
+            for filename in filenames
+            if filename.endswith('_pb2.py')
+        )
+
     print('modules', modules)
     return modules
 
@@ -116,7 +119,7 @@ def extra_message(message, indent='    '):
         text = f'{indent}{field.name}: {LABELS[field.label]} '
         if field.type == descriptor.FieldDescriptor.TYPE_MESSAGE:
             fields.append(text + field.message_type.name)
-            fields.extend(extra_message(field.message_type, indent + '    '))
+            fields.extend(extra_message(field.message_type, f'{indent}    '))
         else:
             fields.append(text + TYPES[field.type])
     # print (fields)
@@ -130,12 +133,12 @@ def generate_jsimpl(service_descriptor, package, prefix):
     service_name = service_descriptor.name
     print(f'generating {service_descriptor.full_name}')
     for method in service_descriptor.methods:
-        req = star_indent + 'req: ' + method.input_type.name + star_indent
+        req = f'{star_indent}req: {method.input_type.name}{star_indent}'
         req += star_indent.join(extra_message(method.input_type))
-        resp = star_indent + 'resp: ' + method.output_type.name + star_indent
+        resp = f'{star_indent}resp: {method.output_type.name}{star_indent}'
         resp += star_indent.join(extra_message(method.output_type))
-        input_type = prefix + '.' + method.input_type.full_name
-        output_type = prefix + '.' + method.output_type.full_name
+        input_type = f'{prefix}.{method.input_type.full_name}'
+        output_type = f'{prefix}.{method.output_type.full_name}'
         requires.update([REQUIRE_TEMPLATE.safe_substitute(name=input_type),
                          REQUIRE_TEMPLATE.safe_substitute(name=output_type)])
         in_out_types.extend([
@@ -175,7 +178,7 @@ def generate(path, output, package, prefix, root):
             if not os.path.exists(output_path):
                 os.makedirs(output_path)
             file_path = os.path.join(output_path, splits[-1][:-7])
-            with open(file_path + '_broadcast.js', 'w') as fp:
+            with open(f'{file_path}_broadcast.js', 'w') as fp:
                 fp.write(content)
 
 

@@ -10,10 +10,7 @@ class BaseEx(Exception, metaclass=abc.ABCMeta):
     message = 'BaseEx'
 
     def __init__(self, *args, **kwargs):
-        if '_message_' in kwargs:
-            message = kwargs.pop('_message_')
-        else:
-            message = self.message
+        message = kwargs.pop('_message_') if '_message_' in kwargs else self.message
         if args or kwargs:
             message = message.format(*args, **kwargs)
         self.message = message
@@ -28,29 +25,25 @@ class BaseEx(Exception, metaclass=abc.ABCMeta):
 class Error(BaseEx):
 
     def __str__(self):
-        return '[ERROR][code|{}][message|{}][data|{}]'.format(
-            self.code, self.message, self.data
-        )
+        return f'[ERROR][code|{self.code}][message|{self.message}][data|{self.data}]'
     __repr__ = __str__
 
     def __bytes__(self):
-        return '[ERROR][code|{}][message|{}][data|{}]'.format(
-            self.code, self.message, self.data
-        ).encode('utf-8')
+        return f'[ERROR][code|{self.code}][message|{self.message}][data|{self.data}]'.encode(
+            'utf-8'
+        )
 
 
 class Warning(BaseEx):
 
     def __str__(self):
-        return '[WARN][code|{}][message|{}][data|{}]'.format(
-            self.code, self.message, self.data
-        )
+        return f'[WARN][code|{self.code}][message|{self.message}][data|{self.data}]'
     __repr__ = __str__
 
     def __bytes__(self):
-        return '[WARN][code|{}][message|{}][data|{}]'.format(
-            self.code, self.message, self.data
-        ).encode('utf-8')
+        return f'[WARN][code|{self.code}][message|{self.message}][data|{self.data}]'.encode(
+            'utf-8'
+        )
 
 
 class ErrorManager(metaclass=abc.ABCMeta):
@@ -79,10 +72,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
     @classmethod
     def add_error(cls, name, message, *, code=None):
         frame = getframe(1)  # get caller frame
-        if cls.__fullname__:
-            fullname = f'{cls.__fullname__}.{name}'
-        else:
-            fullname = name
+        fullname = f'{cls.__fullname__}.{name}' if cls.__fullname__ else name
         error = type(
             name, (Error, cls),
             {
@@ -99,10 +89,7 @@ class ErrorManager(metaclass=abc.ABCMeta):
     @classmethod
     def add_warning(cls, name, message, *, code=None):
         frame = getframe(1)  # get caller frame
-        if cls.__fullname__:
-            fullname = f'{cls.__fullname__}.{name}'
-        else:
-            fullname = name
+        fullname = f'{cls.__fullname__}.{name}' if cls.__fullname__ else name
         warning = type(
             name,
             (Warning, cls),

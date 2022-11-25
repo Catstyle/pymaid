@@ -10,7 +10,7 @@ class EchoProtocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         sock = transport.get_extra_info('socket')
-        args.debug('Connection to {}'.format(sock))
+        args.debug(f'Connection to {sock}')
         self.transport = transport
 
     def data_received(self, data):
@@ -38,7 +38,7 @@ async def wrapper(loop, address, count):
     write = transport.write
     req = b'a' * args.msize
     receive_event = protocol.receive_event = asyncio.Event()
-    for x in range(count):
+    for _ in range(count):
         write(req)
         await receive_event.wait()
         receive_event.clear()
@@ -52,12 +52,9 @@ async def main():
     global args
     args = parse_args(get_client_parser())
     loop = asyncio.get_running_loop()
-    tasks = []
-    for x in range(args.concurrency):
-        tasks.append(asyncio.create_task(
+    tasks = [asyncio.create_task(
             wrapper(loop, args.address, args.request)
-        ))
-
+        ) for _ in range(args.concurrency)]
     await asyncio.gather(*tasks)
 
 

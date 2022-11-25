@@ -52,9 +52,12 @@ def parse_args():
 def get_protos(path):
     protos = []
     for root, dirnames, filenames in os.walk(path):
-        for filename in filenames:
-            if filename.endswith('.proto'):
-                protos.append(os.path.join(root, filename))
+        protos.extend(
+            os.path.join(root, filename)
+            for filename in filenames
+            if filename.endswith('.proto')
+        )
+
     return protos
 
 

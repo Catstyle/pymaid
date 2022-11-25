@@ -7,7 +7,7 @@ class EchoProtocol(asyncio.Protocol):
 
     def connection_made(self, transport):
         sock = transport.get_extra_info('socket')
-        args.debug('Connection from {}'.format(sock))
+        args.debug(f'Connection from {sock}')
         self.transport = transport
 
     def data_received(self, data):

@@ -30,9 +30,11 @@ class HashNode(object):
         self.enabled = enabled
 
     def __eq__(self, other):
-        if not isinstance(other, HashNode):
-            return NotImplemented
-        return self.hashed_key == other.hashed_key
+        return (
+            self.hashed_key == other.hashed_key
+            if isinstance(other, HashNode)
+            else NotImplemented
+        )
 
     def __ne__(self, other):
         return self != other
@@ -191,8 +193,8 @@ class MaglevHash(BaseHashManager):
         entry_count = primes[pos if pos < len(primes) else -1]
         for node in self.nodes:
             key = node.key
-            offset = hash_func('cat' + key) % entry_count
-            skip = (hash_func('lee' + key) % (entry_count - 1)) + 1
+            offset = hash_func(f'cat{key}') % entry_count
+            skip = hash_func(f'lee{key}') % (entry_count - 1) + 1
             permutation.append([
                 (offset + idx * skip) % entry_count
                 for idx in range(entry_count)
@@ -218,7 +220,7 @@ class MaglevHash(BaseHashManager):
     def get_node(self, key):
         if not self.nodes:
             return
-        key = self.hash_func('cat' + key)
+        key = self.hash_func(f'cat{key}')
         return self.nodes[self.lookup_table[key % len(self.lookup_table)]]
 
     def reset(self):

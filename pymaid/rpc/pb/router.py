@@ -25,18 +25,15 @@ class PBRouter(Router):
             method.CopyToProto(mdp)
             if not mdp.client_streaming and not mdp.server_streaming:
                 method_class = UnaryUnaryMethod
-            elif not mdp.client_streaming and mdp.server_streaming:
+            elif not mdp.client_streaming:
                 method_class = UnaryStreamMethod
-            elif mdp.client_streaming and not mdp.server_streaming:
+            elif not mdp.server_streaming:
                 method_class = StreamUnaryMethod
-            elif mdp.client_streaming and mdp.server_streaming:
-                method_class = StreamStreamMethod
             else:
-                assert False, 'should be one of above'
-
+                method_class = StreamStreamMethod
             request_class = service.GetRequestClass(method)
             response_class = service.GetResponseClass(method)
-            method_ins = method_class(
+            yield method_class(
                 method.name,
                 method.full_name,
                 method_impl,
@@ -48,7 +45,6 @@ class PBRouter(Router):
                     'void_response': issubclass(response_class, Void),
                 },
             )
-            yield method_ins
 
     def feed_messages(self, conn, messages):
         Request = Meta.PacketType.REQUEST
@@ -117,18 +113,15 @@ class PBRouterStub(RouterStub):
             method.CopyToProto(mdp)
             if not mdp.client_streaming and not mdp.server_streaming:
                 method_class = UnaryUnaryMethodStub
-            elif not mdp.client_streaming and mdp.server_streaming:
+            elif not mdp.client_streaming:
                 method_class = UnaryStreamMethodStub
-            elif mdp.client_streaming and not mdp.server_streaming:
+            elif not mdp.server_streaming:
                 method_class = StreamUnaryMethodStub
-            elif mdp.client_streaming and mdp.server_streaming:
-                method_class = StreamStreamMethodStub
             else:
-                assert False, 'should be one of above'
-
+                method_class = StreamStreamMethodStub
             request_class = stub.GetRequestClass(method)
             response_class = stub.GetResponseClass(method)
-            method_stub = method_class(
+            yield method_class(
                 method.name,
                 method.full_name,
                 request_class,
@@ -139,4 +132,3 @@ class PBRouterStub(RouterStub):
                     'void_response': issubclass(response_class, Void),
                 },
             )
-            yield method_stub

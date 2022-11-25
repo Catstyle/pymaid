@@ -43,12 +43,9 @@ except ImportError:
         if ext not in ('.pyc', '.pyo'):
             raise ValueError('Not a cached Python file extension', ext)
         # Should we look for .pyw files?
-        return basename + '.py'
+        return f'{basename}.py'
 
-if sys.version_info[0] >= 3:
-    PY3 = True
-else:
-    PY3 = False
+PY3 = sys.version_info[0] >= 3
 
 # ------------------------------------------------------------------------------
 # Autoreload functionality

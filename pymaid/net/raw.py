@@ -76,10 +76,10 @@ async def getaddrinfo(
 
 
 def set_sock_options(sock: socket.socket):
-    setsockopt = sock.setsockopt
-
     # stream opts
     if sock.type == socket.SOCK_STREAM and sock.family != socket.AF_UNIX:
+        setsockopt = sock.setsockopt
+
         setsockopt(socket.SOL_TCP, socket.TCP_NODELAY, 1)
         setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
@@ -132,14 +132,13 @@ async def sock_connect(
                     sock.close()
                 break
 
-    if err is not None:
-        try:
-            raise err
-        finally:
-            # Break explicitly a reference cycle
-            err = None
-    else:
+    if err is None:
         raise socket.error('getaddrinfo returns an empty list')
+    try:
+        raise err
+    finally:
+        # Break explicitly a reference cycle
+        err = None
 
 
 async def sock_listen(

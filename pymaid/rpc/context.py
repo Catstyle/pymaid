@@ -214,10 +214,7 @@ class ContextManager:
         # for initiative side, the id will be EVEN
         # for passive side, the id will be ODD
         self.initiative = initiative
-        if initiative:
-            self.outbound_transmission_id = 1
-        else:
-            self.outbound_transmission_id = 2
+        self.outbound_transmission_id = 1 if initiative else 2
         self.contexts = {}
 
     def next_transmission_id(self) -> int:

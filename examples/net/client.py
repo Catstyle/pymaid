@@ -25,9 +25,10 @@ async def wrapper(address, count):
 
 async def main():
     args = parse_args(get_client_parser())
-    tasks = []
-    for x in range(args.concurrency):
-        tasks.append(pymaid.create_task(wrapper(args.address, args.request)))
+    tasks = [
+        pymaid.create_task(wrapper(args.address, args.request))
+        for _ in range(args.concurrency)
+    ]
 
     # await pymaid.wait(tasks, timeout=args.timeout)
     await pymaid.gather(*tasks)

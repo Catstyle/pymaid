@@ -24,10 +24,7 @@ def timeout(delay: Optional[float]) -> 'Timeout':
 
     delay - value in seconds or None to disable timeout logic
     '''
-    if delay is not None:
-        deadline = get_running_loop().time() + delay  # type: Optional[float]
-    else:
-        deadline = None
+    deadline = get_running_loop().time() + delay if delay is not None else None
     return Timeout(deadline)
 
 
