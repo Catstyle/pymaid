@@ -23,7 +23,7 @@ async def wrapper(address, count, msize):
     for _ in range(count):
         await stream.write(msg)
     stream.shutdown()
-    await stream.wait_closed()
+    await stream.wait_for_closed()
     assert stream.data_size == msize * count, (stream.data_size, msize * count)
 
 

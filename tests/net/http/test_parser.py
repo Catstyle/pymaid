@@ -43,7 +43,7 @@ def test_parse_chunked_request():
     assert req.method == 'POST'
     assert req.uri.path == '/test.php'
     assert req.uri.query == 'a=b+c'
-    assert req.http_version == '1.2'
+    assert req.http_version == '1.1'
     assert req.headers['transfer-encoding'] == 'chunked'
     assert req.chunked
     assert req.body == b'hello world'

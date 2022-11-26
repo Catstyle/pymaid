@@ -110,7 +110,7 @@ class SocketTransport(Transport):
             # loop.call_soon(self._finnal_close, None)
             self._finnal_close(exc)
 
-    async def wait_closed(self):
+    async def wait_for_closed(self):
         await self.closed_event.wait()
 
     def _wrap_sock(self, keys: List[str]):

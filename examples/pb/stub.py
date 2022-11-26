@@ -75,4 +75,4 @@ async def worker(address, service, count, **kwargs):
         #     await context.send_message(end=True)
     conn.shutdown()
     conn.close()
-    await conn.wait_closed()
+    await conn.wait_for_closed()

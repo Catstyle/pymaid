@@ -43,16 +43,13 @@ class Stream(SocketTransport):
 
         self.wrap_methods()
 
-        for cb in self.on_open:
-            cb(self)
-
     def wrap_methods(self):
         # for internal usage, can be overrided if needed
         for target, source in self.WRAP_METHODS.items():
             if not hasattr(self, target):
                 setattr(self, target, getattr(self, source))
 
-    async def wait_ready(self):
+    async def wait_for_ready(self):
         '''Wait for connection made event if needed.'''
         if hasattr(self, 'conn_made_event'):
             await self.conn_made_event.wait()
@@ -98,15 +95,15 @@ class Stream(SocketTransport):
         Otherwise will add data to write_buffer, do it in write io Callable.
 
         In order to deal with the issue of `handle backpressure correctly`_
-        Will try to call await on the :meth:`wait_write_all` to wait for all
+        Will try to call await on the :meth:`wait_for_write_all` to wait for all
         buffered data to send.
 
         .. _handle backpressure correctly: https://vorpus.org/blog/some-thoughts-on-asynchronous-api-design-in-a-post-asyncawait-world/#bug-1-backpressure  # noqa
         '''
         if not self._write_sync(data):
-            await self.wait_write_all()
+            await self.wait_for_write_all()
 
-    async def wait_write_all(self, timeout=None):
+    async def wait_for_write_all(self, timeout=None):
         '''Wait for all buffered data to send.
 
         Note: data added to the buffer during this period will be waited too.
@@ -119,7 +116,7 @@ class Stream(SocketTransport):
             return
         if self._write_empty_waiter is not None:
             raise RuntimeError(
-                'cannot call wait_write_all multiple times at the same time'
+                'cannot call multiple wait_for_write_all at the same time'
             )
         self._write_empty_waiter = self._loop.create_future()
         if timeout is not None:
@@ -163,6 +160,9 @@ class Stream(SocketTransport):
         if hasattr(self, 'conn_made_event'):
             self.conn_made_event.set()
         self.logger.debug(f'{self!r} now ready to work')
+
+        for cb in self.on_open:
+            cb(self)
 
     def _reader(self):
         try:

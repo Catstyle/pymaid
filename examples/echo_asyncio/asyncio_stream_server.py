@@ -20,7 +20,7 @@ async def handler(reader, writer):
         write(data)
     await writer.drain()
     writer.close()
-    await writer.wait_closed()
+    await writer.wait_for_closed()
     args.debug(f'[conn][reader|{reader}][writer|{writer}] closed')
 
 

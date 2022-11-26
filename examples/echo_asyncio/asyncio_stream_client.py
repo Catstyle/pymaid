@@ -27,7 +27,7 @@ async def wrapper(address, count):
         total = len(resp)
     await writer.drain()
     writer.close()
-    await writer.wait_closed()
+    await writer.wait_for_closed()
     assert total == args.msize * count
     args.debug(f'[conn][reader|{reader}][writer|{writer}] closed')
 

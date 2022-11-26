@@ -19,7 +19,7 @@ async def wrapper(address, count):
     for _ in range(count):
         await stream.write(b'a' * 8000)
     stream.shutdown()
-    await stream.wait_closed()
+    await stream.wait_for_closed()
     assert stream.data_size == 8000 * count, (stream.data_size, 8000 * count)
 
 

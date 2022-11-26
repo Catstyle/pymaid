@@ -79,7 +79,7 @@ class Channel(abc.ABC):
     def read_from_listener(self, sock: socket.socket):
         raise NotImplementedError
 
-    async def wait_closed(self):
+    async def wait_for_closed(self):
         await self.closed_event.wait()
 
     async def serve_forever(self):
@@ -161,7 +161,7 @@ class Channel(abc.ABC):
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         self.shutdown(exc_val)
         self.close(exc_val)
-        await self.wait_closed()
+        await self.wait_for_closed()
         if exc_val:
             raise exc_val
 

@@ -8,86 +8,88 @@ from setuptools import setup, find_packages, Extension
 
 root_dir = Path(__file__).parent
 __version__ = re.search(
-    '__version__ = \'(.*)\'',
-    (root_dir / 'pymaid/__init__.py').read_text(encoding='utf-8'),
+    "__version__ = \"(.*)\"",
+    (root_dir / "pymaid/__init__.py").read_text(encoding="utf-8"),
     re.M
 ).group(1)
 assert __version__
 
 # Get the long description from the README file
-long_description = (root_dir / 'README.rst').read_text(encoding='utf-8')
+long_description = (root_dir / "README.rst").read_text(encoding="utf-8")
 
-requirements = (root_dir / 'requirements.txt').read_text(encoding='utf-8')
-requirements = [line.strip() for line in requirements.split('\n')]
+requirements = (root_dir / "requirements.txt").read_text(encoding="utf-8")
+requirements = [line.strip() for line in requirements.split("\n")]
 
-dev_requirements = (root_dir / 'requirements-dev.txt')
+dev_requirements = (root_dir / "requirements-dev.txt")
 dev_requirements = [
     line.strip()
-    for line in dev_requirements.read_text(encoding='utf-8').split('\n')
+    for line in dev_requirements.read_text(encoding="utf-8").split("\n")
 ]
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     setup(
-        name='pymaid',
-        description='A rpc framework based on gevent/protobuf',
+        name="pymaid",
+        description="A handy toolset for work/fun.",
         long_description=long_description,
-        author='Catstyle',
-        author_email='Catstyle.Lee@gmail.com',
-        url='https://github.com/catstyle/pymaid',
+        author="Catstyle",
+        author_email="Catstyle.Lee@gmail.com",
+        url="https://github.com/catstyle/pymaid",
         project_urls={
-            'Source': 'https://github.com/catstyle/pymaid/',
-            'Tracker': 'https://github.com/catstyle/pymaid/issues',
+            "Source": "https://github.com/catstyle/pymaid/",
+            "Tracker": "https://github.com/catstyle/pymaid/issues",
         },
         version=__version__,
-        license='GPLv3',
+        license="GPLv3",
 
-        keywords='asyncio network rpc framework',
+        keywords="asyncio network rpc framework",
         classifiers=[
             # How mature is this project? Common values are
             #   3 - Alpha
             #   4 - Beta
             #   5 - Production/Stable
-            'Development Status :: 3 - Alpha',
+            "Development Status :: 3 - Alpha",
 
             # Indicate who your project is intended for
-            'Intended Audience :: Developers',
-            'Topic :: Software Development :: Build Tools',
+            "Intended Audience :: Developers",
+            "Topic :: Software Development :: Build Tools",
 
-            # Pick your license as you wish (should match 'license' above)
-            'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+            # Pick your license as you wish (should match "license" above)
+            "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 
             # Specify the Python versions you support here.
             # In particular, ensure that you indicate whether you support
             # Python 2, Python 3 or both.
-            'Programming Language :: Python :: 3.7',
-            'Programming Language :: Python :: 3.8',
-            'Programming Language :: Python :: 3.9',
+            "Programming Language :: Python :: 3.7",
+            "Programming Language :: Python :: 3.8",
+            "Programming Language :: Python :: 3.9",
+            "Programming Language :: Python :: 3.10",
+            "Programming Language :: Python :: 3.11",
 
-            'Operating System :: OS Independent',
+            "Operating System :: OS Independent",
         ],
-        python_requires='>=3.7',
+        python_requires=">=3.7,<=3.11",
 
-        packages=find_packages(include=['pymaid', 'pymaid.*']),
+        packages=find_packages(include=["pymaid", "pymaid.*"]),
         package_data={
-            '': ['*.proto'],
+            "": ["*.proto"],
         },
-        data_files=[('', ['requirements.txt', 'requirements-dev.txt'])],
+        data_files=[("", ["requirements.txt", "requirements-dev.txt"])],
         install_requires=requirements,
         tests_require=dev_requirements,
         extras_require={
-            'backend': [
-                'httpx==0.23.0', 'PyYAML==6.0.0', 'xmltodict==0.13.0'
+            "backend": [
+                "httpx==0.23.1", "PyYAML==6.0.0", "xmltodict==0.13.0"
             ],
         },
         ext_modules=[
             Extension(
-                'pymaid.net.ws.speedups',
-                sources=['pymaid/net/ws/speedups.c'],
-                optional=not (root_dir / '.cibuildwheel').exists(),
+                "pymaid.net.ws.speedups",
+                sources=["pymaid/net/ws/speedups.c"],
+                optional=not (root_dir / ".cibuildwheel").exists(),
             )
         ],
         entry_points={
-            'console_scripts': 'pymaid=pymaid.cli:main'
+            "console_scripts": "pymaid=pymaid.cli:main"
         }
     )

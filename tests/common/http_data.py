@@ -4,28 +4,29 @@ Origin: http://example.com
 
 '''.replace(b'\n', b'\r\n')
 
-CHUNKED_REQUEST1_1 = b'''POST /test.php?a=b+c HTTP/1.2
+CHUNKED_REQUEST1_1 = b'''POST /test.php?a=b+c HTTP/1.1
 User-Agent: Fooo
 Host: bar
 Transfer-Encoding: chunked
 
-5\r\nhello\r\n6\r\n world\r\n'''
+'''.replace(b"\n", b"\r\n") + b'''5\r\nhello\r\n6\r\n world\r\n'''
 
 CHUNKED_REQUEST1_2 = b'''0\r\nVary: *\r\nUser-Agent: spam\r\n\r\n'''
 
-CHUNKED_REQUEST1_3 = b'''POST /test.php?a=b+c HTTP/1.2
+CHUNKED_REQUEST1_3 = b'''POST /test.php?a=b+c HTTP/1.1
 User-Agent: Fooo
 Host: bar
 Transfer-Encoding: chunked
 
-b\r\n+\xce\xcfM\xb5MI,I\x04\x00\r\n0\r\n\r\n'''
+'''.replace(b"\n", b"\r\n")
+CHUNKED_REQUEST1_3 += b'''b\r\n+\xce\xcfM\xb5MI,I\x04\x00\r\n0\r\n\r\n'''
 
-CHUNKED_REQUEST1_4 = b'''POST /test.php?a=b+c HTTP/1.2
+CHUNKED_REQUEST1_4 = b'''POST /test.php?a=b+c HTTP/1.1
 User-Agent: Fooo
 Host: bar
 Transfer-Encoding: gzip, chunked
 
-5\r\nhello\r\n6\r\n world\r\n'''
+'''.replace(b"\n", b"\r\n") + b'''5\r\nhello\r\n6\r\n world\r\n'''
 
 
 RESPONSE1_HEAD = b'''HTTP/1.1 200 OK
@@ -40,7 +41,7 @@ Content-Length: 130
 Accept-Ranges: bytes
 Connection: close
 
-'''
+'''.replace(b"\n", b"\r\n")
 
 
 RESPONSE1_BODY = b'''

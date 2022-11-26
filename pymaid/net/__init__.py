@@ -68,7 +68,7 @@ async def dial_stream(
         uri=uri,
         **kwargs,
     )
-    await stream.wait_ready()
+    await stream.wait_for_ready()
     return stream
 
 

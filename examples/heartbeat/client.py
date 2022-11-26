@@ -6,7 +6,7 @@ from examples.template import get_client_parser, parse_args
 async def wrapper(address):
     conn = await pymaid.rpc.pb.dial_stream(address)
     # will be closed by server due to heartbeat timeout
-    await conn.wait_closed()
+    await conn.wait_for_closed()
 
 
 async def main():

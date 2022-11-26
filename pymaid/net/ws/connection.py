@@ -86,8 +86,8 @@ class WebSocket(Stream):
     def mark_ready(self):
         # we are finished upgrade handshake
         self.state = self.STATE.CONNECTED
-        self.conn_made_event.set()
         self._data_received = self._parse_frames
+        super().mark_ready()
 
     def handle_close(self, frame: Frame):
         '''Called when a close frame has been decoded from the stream.
