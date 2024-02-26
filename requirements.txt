@@ -1,5 +1,5 @@
 protobuf==3.19.5
-orjson==3.8.2
+orjson==3.9.15
 wsaccel==0.6.4
 uvloop==0.17.0
 
